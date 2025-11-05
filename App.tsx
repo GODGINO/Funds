@@ -3,6 +3,7 @@ import { Fund } from './types';
 import { fetchFundData, fetchFundDetails } from './services/fundService';
 import FundInputForm from './components/FundInputForm';
 import FundRow from './components/FundRow';
+import FundDetailModal from './components/FundDetailModal';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042'];
 
@@ -13,6 +14,7 @@ const App: React.FC = () => {
   const [isAppLoading, setIsAppLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [recordCount, setRecordCount] = useState<number>(100);
+  const [selectedFundForModal, setSelectedFundForModal] = useState<Fund | null>(null);
 
   useEffect(() => {
     const loadSavedFunds = async () => {
@@ -167,6 +169,19 @@ const App: React.FC = () => {
     }
   }, [funds]);
   
+  const handleDeleteFund = useCallback((codeToDelete: string) => {
+    setFunds(prevFunds => prevFunds.filter(fund => fund.code !== codeToDelete));
+    setSelectedFundForModal(null);
+  }, []);
+
+  const handleShowFundDetails = useCallback((fund: Fund) => {
+    setSelectedFundForModal(fund);
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    setSelectedFundForModal(null);
+  }, []);
+
   const dateHeaders = useMemo(() => {
     if (funds.length === 0) return [];
     
@@ -188,18 +203,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-800 dark:bg-gray-950 dark:text-gray-200 font-sans p-4">
-      <div className="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-md mb-6">
-        <FundInputForm 
-          onAddFund={handleAddFund} 
-          isLoading={isLoading}
-          recordCount={recordCount}
-          onRecordCountChange={handleRecordCountChange}
-          onRefresh={handleRefresh}
-          isRefreshing={isRefreshing}
-        />
-        {error && <p className="mt-3 text-red-500 text-sm">{error}</p>}
-      </div>
-
       {isAppLoading ? (
          <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg shadow-md">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">Loading Your Funds...</h3>
@@ -212,11 +215,11 @@ const App: React.FC = () => {
           <table className="w-full text-sm text-center border-collapse">
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr>
-                <th className="p-2 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[200px] min-w-[200px] text-left sticky top-0 left-0 bg-gray-50 dark:bg-gray-800 z-20">基金名称</th>
-                <th className="p-2 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[300px] min-w-[300px] sticky top-0 left-[200px] bg-gray-50 dark:bg-gray-800 z-20">净值走势</th>
-                <th className="p-2 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[100px] min-w-[100px] sticky top-0 left-[500px] bg-gray-50 dark:bg-gray-800 z-20">实时估值</th>
+                <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[200px] min-w-[200px] text-left sticky top-0 left-0 bg-gray-50 dark:bg-gray-800 z-20">基金名称</th>
+                <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[300px] min-w-[300px] sticky top-0 left-[200px] bg-gray-50 dark:bg-gray-800 z-20">净值走势</th>
+                <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] sticky top-0 left-[500px] bg-gray-50 dark:bg-gray-800 z-20">实时估值</th>
                 {dateHeaders.map(date => (
-                  <th key={date} className="p-2 border-r dark:border-gray-700 font-normal text-gray-500 dark:text-gray-400 min-w-[80px] sticky top-0 bg-gray-50 dark:bg-gray-800">
+                  <th key={date} className="p-0 border-r dark:border-gray-700 font-normal text-gray-500 dark:text-gray-400 min-w-[60px] sticky top-0 bg-gray-50 dark:bg-gray-800">
                     {date.substring(5)}{getWeekday(date)}
                   </th>
                 ))}
@@ -224,7 +227,12 @@ const App: React.FC = () => {
             </thead>
             <tbody className="relative z-0">
               {funds.map(fund => (
-                <FundRow key={fund.code} fund={fund} dateHeaders={dateHeaders} />
+                <FundRow 
+                  key={fund.code} 
+                  fund={fund} 
+                  dateHeaders={dateHeaders} 
+                  onShowDetails={handleShowFundDetails}
+                />
               ))}
             </tbody>
           </table>
@@ -236,6 +244,26 @@ const App: React.FC = () => {
             输入基金代码，开始跟踪对比。
           </p>
         </div>
+      )}
+
+      <div className="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-md mt-6">
+        <FundInputForm 
+          onAddFund={handleAddFund} 
+          isLoading={isLoading || isAppLoading}
+          recordCount={recordCount}
+          onRecordCountChange={handleRecordCountChange}
+          onRefresh={handleRefresh}
+          isRefreshing={isRefreshing}
+        />
+        {error && <p className="mt-3 text-red-500 text-sm">{error}</p>}
+      </div>
+      
+      {selectedFundForModal && (
+        <FundDetailModal 
+          fund={selectedFundForModal}
+          onClose={handleCloseModal}
+          onDelete={handleDeleteFund}
+        />
       )}
     </div>
   );

@@ -21,6 +21,8 @@ const FundInputForm: React.FC<FundInputFormProps> = ({ onAddFund, isLoading, rec
     onAddFund(paddedCode);
   };
 
+  const isDisabled = isLoading || isRefreshing;
+
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
       <div className="md:col-span-1">
@@ -31,7 +33,8 @@ const FundInputForm: React.FC<FundInputFormProps> = ({ onAddFund, isLoading, rec
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="e.g., 8888"
-          className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+          disabled={isDisabled}
+          className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
         />
       </div>
       <div>
@@ -40,7 +43,8 @@ const FundInputForm: React.FC<FundInputFormProps> = ({ onAddFund, isLoading, rec
           id="record-count"
           value={recordCount}
           onChange={(e) => onRecordCountChange(Number(e.target.value))}
-          className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+          disabled={isDisabled}
+          className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
         >
           {recordCountOptions.map(option => (
             <option key={option} value={option}>{`Last ${option} records`}</option>
@@ -50,7 +54,7 @@ const FundInputForm: React.FC<FundInputFormProps> = ({ onAddFund, isLoading, rec
       <div className="flex items-center space-x-2">
         <button
           type="submit"
-          disabled={isLoading || isRefreshing}
+          disabled={isDisabled}
           className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:bg-primary-300 disabled:cursor-not-allowed dark:disabled:bg-primary-800"
         >
           {isLoading ? (
@@ -66,7 +70,7 @@ const FundInputForm: React.FC<FundInputFormProps> = ({ onAddFund, isLoading, rec
         <button
           type="button"
           onClick={onRefresh}
-          disabled={isLoading || isRefreshing}
+          disabled={isDisabled}
           className="w-full inline-flex justify-center items-center px-4 py-2 border border-primary-600 text-sm font-medium rounded-md shadow-sm text-primary-600 bg-white dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-300 disabled:cursor-not-allowed dark:disabled:bg-gray-800 dark:disabled:text-gray-500 dark:disabled:border-gray-700"
         >
           {isRefreshing ? (

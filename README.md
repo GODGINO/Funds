@@ -1,20 +1,59 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 基金趋势可视化工具
 
-# Run and deploy your AI Studio app
+一个交互式的Web应用程序，旨在帮助用户跟踪、可视化和比较多个投资基金的历史表现。
 
-This contains everything you need to run your app locally.
+## 主要功能
 
-View your app in AI Studio: https://ai.studio/apps/drive/1rT8btfeI1RGTEPGbULCCjZO4OM3AL_FK
+- **多基金跟踪**: 通过基金的6位代码，同时添加和监控多只基金。
+- **历史数据可视化**: 每只基金的历史单位净值（NAV）都以直观的折线图形式直接显示在主表格中。
+- **实时估值**: 查看每只基金的最新实时估值和每日百分比变化。
+- **详细数据表格**: 并排比较所有已跟踪基金的每日净值和增长率。表格还会计算从任一历史节点到最新净值的百分比变化。
+- **可调节时间范围**: 轻松更改要显示的近期历史记录数量（从10条到300条）。
+- **详细弹窗视图**: 双击任何基金，即可打开一个详细的弹窗窗口，其中包含一个更大、更清晰的业绩走势图。
+- **基金管理**: 在基金详情弹窗中，可以轻松移除您不再希望跟踪的基金，并有二次确认步骤以防止误删。
+- **数据持久化**: 您订阅的基金列表会自动保存在浏览器的本地存储中，因此您下次访问时会记住您的选择。
+- **响应式设计**: 界面针对桌面和移动设备浏览进行了优化。
 
-## Run Locally
+## 如何使用
 
-**Prerequisites:**  Node.js
+1.  **添加基金**: 在“基金代码”输入框中输入一个有效的6位基金代码。
+2.  **选择记录数**: 从“近期记录”下拉菜单中选择您想查看的历史记录数量。
+3.  **开始跟踪**: 点击“添加基金”按钮。应用程序将获取该基金的数据并将其显示在表格中。
+4.  **分析数据**: 使用图表和数据列来比较不同基金的表现。
+5.  **查看详情/删除**: 在第一列双击基金名称以打开详细视图。在这里，您也可以从订阅列表中删除该基金。
+6.  **刷新数据**: 点击“刷新”按钮，无需重新加载整个页面即可获取所有已跟踪基金的最新实时估值。
 
+## 技术栈
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- **前端框架**: React
+- **开发语言**: TypeScript
+- **样式方案**: Tailwind CSS
+- **图表库**: Recharts
+- **数据获取**: 直接通过 JSONP 请求公开的基金数据API。
+
+## 技术架构与实现细节
+
+本应用采用现代前端技术栈，以组件化和模块化的方式构建。
+
+-   **核心组件 (`App.tsx`)**:
+    -   作为应用的根组件，负责管理所有核心状态，包括基金列表、加载状态、错误信息以及弹窗的可见性。
+    -   使用 React Hooks (`useState`, `useEffect`, `useCallback`) 进行状态管理和生命周期控制。
+    -   协调所有的数据获取和更新操作，并将状态和操作函数通过 props 传递给子组件。
+
+-   **数据服务 (`services/fundService.ts`)**:
+    -   **`fetchFundDetails`**: 通过 JSONP 方式请求天天基金网的实时估值接口 (`fundgz.1234567.com.cn`)，获取基金名称和实时净值估算数据。
+    -   **`fetchFundData`**: 同样通过 JSONP 方式，分页请求东方财富网的历史净值接口 (`fund.eastmoney.com`)，获取基金的历史NAV数据。
+    -   **请求序列化**: 由于上述API并非标准的JSONP格式（它们会污染全局作用域，如定义 `window.jsonpgz` 或 `window.apidata`），服务内部实现了一个基于 Promise 的请求队列。这确保了对同一API的多次请求会按顺序执行，避免了因并发请求导致的全局变量冲突和数据错乱问题。
+
+-   **UI 组件 (`components/`)**:
+    -   **`FundInputForm.tsx`**: 负责处理用户输入，包括添加新基金、选择历史记录数量和刷新实时数据。
+    -   **`FundRow.tsx`**: 展示表格中的单行数据，包含基金名称、内联的净值走势图以及各日期的详细净值。
+    -   **`FundChart.tsx`**: 一个基于 `Recharts` 库的可复用图表组件，用于在表格行和详情弹窗中渲染折线图。
+    -   **`FundDetailModal.tsx`**: 基金详情弹窗，提供一个更大的图表视图，并集成了删除基金的功能。
+    -   **`ConfirmationModal.tsx`**: 自定义的二次确认弹窗组件，用于删除操作，以提供比浏览器原生 `confirm` 对话框更好的用户体验。
+
+-   **数据持久化**:
+    -   用户订阅的基金代码列表通过浏览器的 `localStorage` API 进行持久化存储。应用在启动时会读取此列表，自动加载用户上次跟踪的基金。
+
+---
+*此 README 文件将随着新功能的添加而更新。*
