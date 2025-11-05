@@ -1,0 +1,5 @@
+{
+  "name": "Fund Trend Visualizer",
+  "description": "An application to visualize and compare the historical performance of multiple investment funds using line charts and data tables.",
+  "requestFramePermissions": []
+}
