@@ -4,6 +4,7 @@ import { fetchFundData, fetchFundDetails } from './services/fundService';
 import FundInputForm from './components/FundInputForm';
 import FundRow from './components/FundRow';
 import FundDetailModal from './components/FundDetailModal';
+import { calculateZigzag } from './services/chartUtils';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042'];
 
@@ -186,6 +187,69 @@ const App: React.FC = () => {
   const handleZigzagThresholdChange = useCallback((threshold: number) => {
     setZigzagThreshold(threshold);
   }, []);
+  
+  const processedAndSortedFunds = useMemo(() => {
+    const processed = funds.map(fund => {
+        const baseChartData = [...fund.data];
+        if (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) {
+            baseChartData.push({
+                date: fund.realTimeData.estimationTime,
+                unitNAV: fund.realTimeData.estimatedNAV,
+                cumulativeNAV: fund.realTimeData.estimatedNAV,
+                dailyGrowthRate: fund.realTimeData.estimatedChange,
+                subscriptionStatus: 'N/A',
+                redemptionStatus: 'N/A',
+                dividendDistribution: 'N/A',
+            });
+        }
+
+        const zigzagPoints = calculateZigzag(baseChartData, zigzagThreshold);
+
+        let trendInfo = null;
+        if (zigzagPoints.length >= 2 && baseChartData.length > 0) {
+            const lastPivot = zigzagPoints[zigzagPoints.length - 2];
+            const latestPoint = baseChartData[baseChartData.length - 1];
+
+            if (lastPivot?.date && latestPoint?.date && typeof lastPivot.unitNAV === 'number' && typeof latestPoint.unitNAV === 'number') {
+                const pivotDate = new Date(lastPivot.date.split(' ')[0]);
+                const latestDate = new Date(latestPoint.date.split(' ')[0]);
+                
+                if (!isNaN(pivotDate.getTime()) && !isNaN(latestDate.getTime())) {
+                    const diffTime = latestDate.getTime() - pivotDate.getTime();
+                    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    const pivotNAV = lastPivot.unitNAV;
+                    const latestNAV = latestPoint.unitNAV;
+
+                    if (pivotNAV !== 0) {
+                        const change = ((latestNAV - pivotNAV) / pivotNAV) * 100;
+                        const isPositive = change >= 0;
+                        const direction = isPositive ? '上涨' : '下跌';
+                        const formattedChange = Math.abs(change).toFixed(2);
+                        
+                        trendInfo = {
+                            text: `近${diffDays === 0 ? 1 : diffDays}天, ${direction}${formattedChange}%`,
+                            isPositive: isPositive,
+                            change: change
+                        };
+                    }
+                }
+            }
+        }
+        
+        return {
+            ...fund,
+            trendInfo,
+            baseChartData,
+            zigzagPoints
+        };
+    });
+    
+    processed.sort((a, b) => (b.trendInfo?.change ?? -Infinity) - (a.trendInfo?.change ?? -Infinity));
+
+    return processed;
+  }, [funds, zigzagThreshold]);
+
 
   const dateHeaders = useMemo(() => {
     if (funds.length === 0) return [];
@@ -231,13 +295,12 @@ const App: React.FC = () => {
               </tr>
             </thead>
             <tbody className="relative z-0">
-              {funds.map(fund => (
+              {processedAndSortedFunds.map(fund => (
                 <FundRow 
                   key={fund.code} 
                   fund={fund} 
                   dateHeaders={dateHeaders} 
                   onShowDetails={handleShowFundDetails}
-                  zigzagThreshold={zigzagThreshold}
                 />
               ))}
             </tbody>
