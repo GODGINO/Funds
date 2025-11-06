@@ -1,9 +1,8 @@
 import React, { useMemo } from 'react';
-import { Fund, FundDataPoint } from '../types';
+import { Fund, FundDataPoint, UserPosition } from '../types';
 import FundChart from './FundChart';
 
-interface FundRowProps {
-  fund: Fund & {
+interface ProcessedFund extends Fund {
     trendInfo: {
         text: string;
         isPositive: boolean;
@@ -13,12 +12,45 @@ interface FundRowProps {
     zigzagPoints: Partial<FundDataPoint>[];
     lastPivotDate: string | null;
     navPercentile: number | null;
-  };
-  dateHeaders: string[];
-  onShowDetails: (fund: Fund) => void;
+    marketValue?: number;
+    costBasis?: number;
+    holdingProfit?: number;
+    totalProfit?: number;
+    actualCost?: number;
 }
 
-const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails }) => {
+
+interface FundRowProps {
+  fund: ProcessedFund;
+  dateHeaders: string[];
+  onShowDetails: (fund: Fund) => void;
+  onTagDoubleClick: (tag: string) => void;
+}
+
+const COLORS = [
+  { bg: 'bg-blue-100 dark:bg-blue-900/50', text: 'text-blue-800 dark:text-blue-300' },
+  { bg: 'bg-green-100 dark:bg-green-900/50', text: 'text-green-800 dark:text-green-300' },
+  { bg: 'bg-red-100 dark:bg-red-900/50', text: 'text-red-800 dark:text-red-300' },
+  { bg: 'bg-yellow-100 dark:bg-yellow-900/50', text: 'text-yellow-800 dark:text-yellow-300' },
+  { bg: 'bg-purple-100 dark:bg-purple-900/50', text: 'text-purple-800 dark:text-purple-300' },
+  { bg: 'bg-pink-100 dark:bg-pink-900/50', text: 'text-pink-800 dark:text-pink-300' },
+  { bg: 'bg-gray-200 dark:bg-gray-700/50', text: 'text-gray-800 dark:text-gray-300' },
+];
+
+const getTagColor = (tag: string) => {
+  // A simple hashing function to get a deterministic color for each tag
+  let hash = 0;
+  if (tag.length === 0) return COLORS[6];
+  for (let i = 0; i < tag.length; i++) {
+    hash = tag.charCodeAt(i) + ((hash << 5) - hash);
+    hash = hash & hash; 
+  }
+  const index = Math.abs(hash % COLORS.length);
+  return COLORS[index];
+};
+
+
+const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onTagDoubleClick }) => {
   const { trendInfo, baseChartData, zigzagPoints, lastPivotDate, navPercentile } = fund;
 
   const dataMap = useMemo(() => {
@@ -55,38 +87,83 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails }) =
   }, [navPercentile]);
 
 
+  const ProfitDisplay: React.FC<{ value: number; label: string }> = ({ value, label }) => {
+    const isPositive = value >= 0;
+    const colorClass = isPositive ? 'text-red-500' : 'text-green-600';
+    return (
+      <div className="flex justify-between items-baseline">
+        <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
+        <span className={`text-xs font-mono font-semibold ${colorClass}`}>
+          {isPositive ? '+' : ''}{value.toFixed(2)}
+        </span>
+      </div>
+    );
+  };
+
   return (
     <tr className="border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
       <td 
-        className="p-0 border-r dark:border-gray-700 text-left sticky left-0 bg-white dark:bg-gray-900 z-[5] w-[200px] min-w-[200px] cursor-pointer"
+        className="p-0 border-r dark:border-gray-700 text-left sticky left-0 bg-white dark:bg-gray-900 z-[5] w-[250px] min-w-[250px] cursor-pointer"
         onDoubleClick={() => onShowDetails(fund)}
       >
-        <div className="flex flex-col h-full justify-center p-2">
-          <span className="font-bold text-gray-800 dark:text-gray-100">{fund.name}</span>
-          <div className="flex items-center text-xs">
-            <span className="text-gray-500 dark:text-gray-400">{fund.code}</span>
+        <div className="flex flex-col h-full justify-between p-2">
+          <div>
+            <div className="truncate">
+              <span className="font-medium text-gray-800 dark:text-gray-100">{fund.name}</span>
+              <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{fund.code}</span>
+            </div>
+            {trendInfo && (
+              <div className={`text-xs mt-1 font-semibold ${trendInfo.isPositive ? 'text-red-500' : 'text-green-600'}`}>
+                {trendInfo.text}
+              </div>
+            )}
+            {navPercentile !== null && (
+              <div className={`text-xs mt-1 font-semibold ${percentileColor}`}>
+                  分位点: {navPercentile.toFixed(2)}%
+              </div>
+            )}
           </div>
-          {trendInfo && (
-            <div className={`text-xs mt-1 font-semibold ${trendInfo.isPositive ? 'text-red-500' : 'text-green-600'}`}>
-              {trendInfo.text}
-            </div>
-          )}
-          {navPercentile !== null && (
-            <div className={`text-xs mt-1 font-semibold ${percentileColor}`}>
-                分位点: {navPercentile.toFixed(2)}%
-            </div>
-          )}
+          <div>
+            {fund.userPosition && fund.userPosition.shares > 0 && typeof fund.holdingProfit === 'number' && typeof fund.totalProfit === 'number' && (
+              <div className="mt-2 space-y-0.5">
+                <ProfitDisplay value={fund.holdingProfit} label="持有" />
+                <ProfitDisplay value={fund.totalProfit} label="累计" />
+              </div>
+            )}
+            {fund.userPosition?.tag && (
+              <div className="mt-1 flex flex-wrap gap-1 items-center">
+                {fund.userPosition.tag.split(',').map(t => t.trim()).filter(Boolean).map(tag => {
+                  const { bg, text } = getTagColor(tag);
+                  return (
+                    <span 
+                      key={tag} 
+                      className={`inline-block px-1.5 py-0.5 text-[10px] leading-none font-medium rounded ${bg} ${text} cursor-pointer`}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation(); // Prevent triggering the row's onDoubleClick
+                        onTagDoubleClick(tag);
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </td>
-      <td className="p-0 border-r dark:border-gray-700 w-[300px] min-w-[300px] sticky left-[200px] bg-white dark:bg-gray-900 z-[5] relative">
+      <td className="p-0 border-r dark:border-gray-700 w-[300px] min-w-[300px] sticky left-[250px] bg-white dark:bg-gray-900 z-[5] relative">
         <div className="absolute inset-0">
           <FundChart 
             chartData={chartData}
             lastPivotDate={lastPivotDate} 
+            costPrice={fund.userPosition?.cost && fund.userPosition.cost > 0 ? fund.userPosition.cost : null}
+            actualCostPrice={fund.actualCost && fund.actualCost > 0 ? fund.actualCost : null}
+            showLabels={false}
           />
         </div>
       </td>
-      <td className="p-0 border-r dark:border-gray-700 w-[60px] min-w-[60px] sticky left-[500px] bg-white dark:bg-gray-900 z-[5]">
+      <td className="p-0 border-r dark:border-gray-700 w-[60px] min-w-[60px] sticky left-[550px] bg-white dark:bg-gray-900 z-[5]">
         {fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) ? (
             <div className="p-2">
               <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">

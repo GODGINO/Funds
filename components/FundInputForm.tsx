@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 interface FundInputFormProps {
-  onAddFund: (code: string) => void;
+  onAddFund: (details: { code: string; shares: number; cost: number; tag: string }) => void;
   isLoading: boolean;
 }
 
@@ -10,30 +10,83 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
   isLoading, 
 }) => {
   const [code, setCode] = useState<string>('007345');
+  const [shares, setShares] = useState<string>('');
+  const [cost, setCost] = useState<string>('');
+  const [tag, setTag] = useState<string>('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Trim and pad the code with leading zeros to make it 6 digits long.
     const paddedCode = code.trim().padStart(6, '0');
-    onAddFund(paddedCode);
+    onAddFund({
+      code: paddedCode,
+      shares: parseFloat(shares) || 0,
+      cost: parseFloat(cost) || 0,
+      tag: tag.trim(),
+    });
   };
 
   const isDisabled = isLoading;
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-      <div className="md:col-span-3">
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+      {/* Fund Code */}
+      <div className="md:col-span-1">
         <label htmlFor="fund-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Fund Code</label>
         <input
           type="text"
           id="fund-code"
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          placeholder="e.g., 8888"
+          placeholder="e.g., 007345"
           disabled={isDisabled}
           className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
         />
       </div>
+
+      {/* Shares */}
+      <div className="md:col-span-1">
+        <label htmlFor="fund-shares" className="block text-sm font-medium text-gray-700 dark:text-gray-300">份额</label>
+        <input
+          type="number"
+          id="fund-shares"
+          value={shares}
+          onChange={(e) => setShares(e.target.value)}
+          placeholder="e.g., 1000"
+          disabled={isDisabled}
+          className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
+        />
+      </div>
+      
+      {/* Cost */}
+      <div className="md:col-span-1">
+        <label htmlFor="fund-cost" className="block text-sm font-medium text-gray-700 dark:text-gray-300">成本</label>
+        <input
+          type="number"
+          id="fund-cost"
+          value={cost}
+          onChange={(e) => setCost(e.target.value)}
+          placeholder="e.g., 1.25"
+          step="0.0001"
+          disabled={isDisabled}
+          className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
+        />
+      </div>
+
+      {/* Tag */}
+      <div className="md:col-span-2">
+        <label htmlFor="fund-tag" className="block text-sm font-medium text-gray-700 dark:text-gray-300">标签</label>
+        <input
+          type="text"
+          id="fund-tag"
+          value={tag}
+          onChange={(e) => setTag(e.target.value)}
+          placeholder="e.g., 科技, 长线"
+          disabled={isDisabled}
+          className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
+        />
+      </div>
+      
+      {/* Button */}
       <div className="md:col-span-1">
         <button
           type="submit"

@@ -14,12 +14,21 @@ export interface RealTimeData {
   estimationTime: string;
 }
 
-export interface Fund {
+export interface UserPosition {
   code: string;
+  shares: number;
+  cost: number;
+  tag?: string;
+  realizedProfit: number;
+}
+
+export interface Fund {
+  code:string;
   name: string;
   data: FundDataPoint[];
   realTimeData?: RealTimeData;
   latestNAV?: number;
   latestChange?: string;
   color?: string;
+  userPosition?: UserPosition;
 }

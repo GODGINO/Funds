@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { Fund } from './types';
+import { Fund, UserPosition } from './types';
 import { fetchFundData, fetchFundDetails } from './services/fundService';
 import FundInputForm from './components/FundInputForm';
 import FundRow from './components/FundRow';
@@ -22,33 +22,35 @@ const App: React.FC = () => {
   const [selectedFundForModal, setSelectedFundForModal] = useState<Fund | null>(null);
   const [sortBy, setSortBy] = useState<SortByType>('trend');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [activeTag, setActiveTag] = useState<string | null>(null);
 
   useEffect(() => {
     const loadSavedFunds = async () => {
       setIsAppLoading(true);
       setError(null);
       try {
-        const savedCodesJSON = localStorage.getItem('subscribedFundCodes');
-        if (savedCodesJSON) {
-          const savedCodes: string[] = JSON.parse(savedCodesJSON);
-          if (Array.isArray(savedCodes) && savedCodes.length > 0) {
+        const savedPositionsJSON = localStorage.getItem('userFundPortfolio');
+        if (savedPositionsJSON) {
+          const savedPositions: UserPosition[] = JSON.parse(savedPositionsJSON);
+          if (Array.isArray(savedPositions) && savedPositions.length > 0) {
             
-            const fundsPromises = savedCodes.map(async (code) => {
+            const fundsPromises = savedPositions.map(async (position) => {
               const [data, details] = await Promise.all([
-                fetchFundData(code, recordCount),
-                fetchFundDetails(code)
+                fetchFundData(position.code, recordCount),
+                fetchFundDetails(position.code)
               ]);
 
               if (data.length > 0) {
                 const latestData = data[data.length - 1];
                 return {
-                  code,
+                  code: position.code,
                   name: details.name,
                   realTimeData: details.realTimeData,
                   data,
                   latestNAV: latestData?.unitNAV,
                   latestChange: latestData?.dailyGrowthRate,
                   color: '',
+                  userPosition: position,
                 };
               }
               return null;
@@ -65,7 +67,7 @@ const App: React.FC = () => {
         }
       } catch (err) {
         setError("Failed to load saved funds. They may be out of date or the API is unavailable.");
-        localStorage.removeItem('subscribedFundCodes');
+        localStorage.removeItem('userFundPortfolio');
       } finally {
         setIsAppLoading(false);
       }
@@ -77,13 +79,17 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isAppLoading) {
-      const fundCodes = funds.map(f => f.code);
-      localStorage.setItem('subscribedFundCodes', JSON.stringify(fundCodes));
+      const positionsToSave = funds
+        .map(f => f.userPosition)
+        .filter((p): p is UserPosition => !!p);
+      localStorage.setItem('userFundPortfolio', JSON.stringify(positionsToSave));
     }
   }, [funds, isAppLoading]);
 
 
-  const handleAddFund = useCallback(async (code: string) => {
+  const handleAddFund = useCallback(async (details: { code: string; shares: number; cost: number; tag: string }) => {
+    const { code, shares, cost, tag } = details;
+    
     if (!code.trim()) {
       setError('Please provide a fund code.');
       return;
@@ -96,7 +102,7 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [data, details] = await Promise.all([
+      const [data, fundDetails] = await Promise.all([
         fetchFundData(code, recordCount),
         fetchFundDetails(code)
       ]);
@@ -107,12 +113,19 @@ const App: React.FC = () => {
         const latestData = data[data.length - 1];
         const newFund: Fund = {
           code,
-          name: details.name,
-          realTimeData: details.realTimeData,
+          name: fundDetails.name,
+          realTimeData: fundDetails.realTimeData,
           data,
           latestNAV: latestData?.unitNAV,
           latestChange: latestData?.dailyGrowthRate,
           color: COLORS[funds.length % COLORS.length],
+          userPosition: {
+            code,
+            shares,
+            cost,
+            realizedProfit: 0,
+            tag,
+          }
         };
         setFunds(prevFunds => [...prevFunds, newFund]);
       }
@@ -175,34 +188,30 @@ const App: React.FC = () => {
       setIsLoading(false);
     }
   }, [funds]);
-  
-  const handleDeleteFund = useCallback((codeToDelete: string) => {
-    setFunds(prevFunds => prevFunds.filter(fund => fund.code !== codeToDelete));
-    setSelectedFundForModal(null);
-  }, []);
 
-  const handleShowFundDetails = useCallback((fund: Fund) => {
-    setSelectedFundForModal(fund);
-  }, []);
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    funds.forEach(fund => {
+        if (fund.userPosition?.tag) {
+            fund.userPosition.tag
+                .split(',')
+                .map(t => t.trim())
+                .filter(t => t)
+                .forEach(t => tagSet.add(t));
+        }
+    });
+    return Array.from(tagSet).sort();
+  }, [funds]);
 
-  const handleCloseModal = useCallback(() => {
-    setSelectedFundForModal(null);
-  }, []);
-
-  const handleZigzagThresholdChange = useCallback((threshold: number) => {
-    setZigzagThreshold(threshold);
-  }, []);
-
-  const handleSortByChange = useCallback((newSortBy: SortByType) => {
-    setSortBy(newSortBy);
-  }, []);
-
-  const handleSortOrderChange = useCallback((newSortOrder: 'asc' | 'desc') => {
-    setSortOrder(newSortOrder);
-  }, []);
-  
   const processedAndSortedFunds = useMemo(() => {
-    const processed = funds.map(fund => {
+    const filteredFunds = funds.filter(fund => {
+        if (!activeTag) return true;
+        if (!fund.userPosition?.tag) return false;
+        const fundTags = fund.userPosition.tag.split(',').map(t => t.trim());
+        return fundTags.includes(activeTag);
+    });
+    
+    const processed = filteredFunds.map(fund => {
         const baseChartData = [...fund.data];
         if (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) {
             baseChartData.push({
@@ -266,6 +275,26 @@ const App: React.FC = () => {
                 }
             }
         }
+
+        let portfolioMetrics = {};
+        const position = fund.userPosition;
+        if (position && position.shares > 0) {
+            const latestNAV = (fund.realTimeData?.estimatedNAV > 0 ? fund.realTimeData?.estimatedNAV : fund.latestNAV) ?? 0;
+            const marketValue = position.shares * latestNAV;
+            const costBasis = position.shares * position.cost;
+            const holdingProfit = marketValue - costBasis;
+            const totalProfit = holdingProfit + position.realizedProfit;
+            const cumulativeCost = costBasis - position.realizedProfit;
+            const actualCost = position.shares > 0 ? cumulativeCost / position.shares : 0;
+
+            portfolioMetrics = {
+                marketValue,
+                costBasis,
+                holdingProfit,
+                totalProfit,
+                actualCost,
+            };
+        }
         
         return {
             ...fund,
@@ -273,7 +302,8 @@ const App: React.FC = () => {
             baseChartData,
             zigzagPoints,
             lastPivotDate,
-            navPercentile
+            navPercentile,
+            ...portfolioMetrics,
         };
     });
     
@@ -302,8 +332,48 @@ const App: React.FC = () => {
     });
 
     return processed;
-  }, [funds, zigzagThreshold, sortBy, sortOrder]);
+  }, [funds, zigzagThreshold, sortBy, sortOrder, activeTag]);
+  
+  const handleDeleteFund = useCallback((codeToDelete: string) => {
+    setFunds(prevFunds => prevFunds.filter(fund => fund.code !== codeToDelete));
+    setSelectedFundForModal(null);
+  }, []);
 
+  const handleShowFundDetails = useCallback((fund: Fund) => {
+    const fullFundData = processedAndSortedFunds.find(f => f.code === fund.code);
+    setSelectedFundForModal(fullFundData || fund);
+  }, [processedAndSortedFunds]);
+  
+
+  const handleCloseModal = useCallback(() => {
+    setSelectedFundForModal(null);
+  }, []);
+
+  const handleZigzagThresholdChange = useCallback((threshold: number) => {
+    setZigzagThreshold(threshold);
+  }, []);
+
+  const handleSortByChange = useCallback((newSortBy: SortByType) => {
+    setSortBy(newSortBy);
+  }, []);
+
+  const handleSortOrderChange = useCallback((newSortOrder: 'asc' | 'desc') => {
+    setSortOrder(newSortOrder);
+  }, []);
+  
+  const handleUpdateFundPosition = useCallback((updatedPosition: UserPosition) => {
+    setFunds(prevFunds =>
+      prevFunds.map(fund =>
+        fund.code === updatedPosition.code
+          ? { ...fund, userPosition: updatedPosition }
+          : fund
+      )
+    );
+  }, []);
+
+  const handleTagDoubleClick = useCallback((tag: string) => {
+    setActiveTag(prevActiveTag => (prevActiveTag === tag ? null : tag));
+  }, []);
 
   const dateHeaders = useMemo(() => {
     if (funds.length === 0) return [];
@@ -336,6 +406,9 @@ const App: React.FC = () => {
       ) : funds.length > 0 ? (
         <>
           <ControlsCard
+            tags={allTags}
+            activeTag={activeTag}
+            onTagSelect={setActiveTag}
             sortBy={sortBy}
             sortOrder={sortOrder}
             onSortByChange={handleSortByChange}
@@ -352,9 +425,9 @@ const App: React.FC = () => {
             <table className="w-full text-sm text-center border-collapse">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
-                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[200px] min-w-[200px] text-left sticky top-0 left-0 bg-gray-50 dark:bg-gray-800 z-20">基金名称</th>
-                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[300px] min-w-[300px] sticky top-0 left-[200px] bg-gray-50 dark:bg-gray-800 z-20">净值走势</th>
-                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] sticky top-0 left-[500px] bg-gray-50 dark:bg-gray-800 z-20">实时估值</th>
+                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[250px] min-w-[250px] text-left sticky top-0 left-0 bg-gray-50 dark:bg-gray-800 z-20">基金名称</th>
+                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[300px] min-w-[300px] sticky top-0 left-[250px] bg-gray-50 dark:bg-gray-800 z-20">净值走势</th>
+                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] sticky top-0 left-[550px] bg-gray-50 dark:bg-gray-800 z-20">实时估值</th>
                   {dateHeaders.map(date => (
                     <th key={date} className="p-0 border-r dark:border-gray-700 font-normal text-gray-500 dark:text-gray-400 min-w-[60px] sticky top-0 bg-gray-50 dark:bg-gray-800">
                       {date.substring(5)}{getWeekday(date)}
@@ -369,6 +442,7 @@ const App: React.FC = () => {
                     fund={fund} 
                     dateHeaders={dateHeaders} 
                     onShowDetails={handleShowFundDetails}
+                    onTagDoubleClick={handleTagDoubleClick}
                   />
                 ))}
               </tbody>
@@ -394,9 +468,10 @@ const App: React.FC = () => {
       
       {selectedFundForModal && (
         <FundDetailModal 
-          fund={selectedFundForModal}
+          fund={selectedFundForModal as Fund} // Casting because processed funds have more properties
           onClose={handleCloseModal}
           onDelete={handleDeleteFund}
+          onSave={handleUpdateFundPosition}
           zigzagThreshold={zigzagThreshold}
         />
       )}

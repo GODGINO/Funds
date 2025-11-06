@@ -5,6 +5,9 @@ type SortByType = 'trend' | 'dailyChange' | 'navPercentile';
 const recordCountOptions = [10, 50, 100, 150, 200, 300];
 
 interface ControlsCardProps {
+  tags: string[];
+  activeTag: string | null;
+  onTagSelect: (tag: string | null) => void;
   sortBy: SortByType;
   sortOrder: 'asc' | 'desc';
   onSortByChange: (newSortBy: SortByType) => void;
@@ -19,6 +22,9 @@ interface ControlsCardProps {
 }
 
 const ControlsCard: React.FC<ControlsCardProps> = ({ 
+  tags,
+  activeTag,
+  onTagSelect,
   sortBy, 
   sortOrder, 
   onSortByChange, 
@@ -36,6 +42,22 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
   return (
     <div className="mb-4 bg-white dark:bg-gray-900 rounded-lg shadow-md p-3 flex items-end justify-between flex-wrap gap-4">
       <div className="flex items-end flex-wrap gap-4">
+        {/* Tag Filter Dropdown */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">筛选</label>
+          <select
+            value={activeTag || ''}
+            onChange={(e) => onTagSelect(e.target.value || null)}
+            disabled={isDisabled || tags.length === 0}
+            className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-1.5 px-2 text-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
+          >
+            <option value="">All</option>
+            {tags.map(tag => (
+              <option key={tag} value={tag}>{tag}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Sorting Controls */}
         <div className="flex items-end gap-2">
            <div>
