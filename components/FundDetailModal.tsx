@@ -14,7 +14,7 @@ interface FundDetailModalProps {
 const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDelete, zigzagThreshold }) => {
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
-    const chartData = useMemo(() => {
+    const { chartData, lastPivotDate } = useMemo(() => {
         const baseChartData = [...fund.data];
         if (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV)) {
             baseChartData.push({
@@ -31,10 +31,14 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
         const zigzagPoints = calculateZigzag(baseChartData, zigzagThreshold);
         const zigzagMap = new Map(zigzagPoints.map(p => [p.date, p.unitNAV]));
 
-        return baseChartData.map(p => ({
+        const finalChartData = baseChartData.map(p => ({
             ...p,
             zigzagNAV: zigzagMap.get(p.date)
         }));
+
+        const pivotDate = zigzagPoints.length >= 2 ? zigzagPoints[zigzagPoints.length - 2]?.date : null;
+
+        return { chartData: finalChartData, lastPivotDate: pivotDate };
     }, [fund.data, fund.realTimeData, zigzagThreshold]);
     
     // Effect to handle Escape key press for the main modal
@@ -111,6 +115,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                         <div className="h-[400px]">
                             <FundChart 
                               chartData={chartData} 
+                              lastPivotDate={lastPivotDate}
                             />
                         </div>
                     </div>

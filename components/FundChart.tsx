@@ -1,12 +1,13 @@
 import React, { useMemo } from 'react';
-import { LineChart, Line, ResponsiveContainer, YAxis } from 'recharts';
+import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, XAxis } from 'recharts';
 import { FundDataPoint } from '../types';
 
 interface FundChartProps {
   chartData: (Partial<FundDataPoint> & { zigzagNAV?: number })[];
+  lastPivotDate?: string | null;
 }
 
-const FundChart: React.FC<FundChartProps> = ({ chartData }) => {
+const FundChart: React.FC<FundChartProps> = ({ chartData, lastPivotDate }) => {
   const yAxisDomain = useMemo(() => {
     if (!chartData || chartData.length < 2) {
       return ['dataMin', 'dataMax'];
@@ -31,7 +32,16 @@ const FundChart: React.FC<FundChartProps> = ({ chartData }) => {
   return (
     <ResponsiveContainer>
       <LineChart data={chartData} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+        <XAxis dataKey="date" type="category" hide />
         <YAxis hide domain={yAxisDomain} />
+        {lastPivotDate && (
+            <ReferenceLine 
+                x={lastPivotDate} 
+                stroke="#a0a0a0" 
+                strokeDasharray="3 3" 
+                strokeWidth={1} 
+            />
+        )}
         <Line
           type="linear"
           dataKey="unitNAV"

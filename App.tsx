@@ -5,8 +5,11 @@ import FundInputForm from './components/FundInputForm';
 import FundRow from './components/FundRow';
 import FundDetailModal from './components/FundDetailModal';
 import { calculateZigzag } from './services/chartUtils';
+import ControlsCard from './components/ControlsCard';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042'];
+
+type SortByType = 'trend' | 'dailyChange';
 
 const App: React.FC = () => {
   const [funds, setFunds] = useState<Fund[]>([]);
@@ -17,6 +20,8 @@ const App: React.FC = () => {
   const [recordCount, setRecordCount] = useState<number>(100);
   const [zigzagThreshold, setZigzagThreshold] = useState<number>(0.5);
   const [selectedFundForModal, setSelectedFundForModal] = useState<Fund | null>(null);
+  const [sortBy, setSortBy] = useState<SortByType>('trend');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     const loadSavedFunds = async () => {
@@ -187,6 +192,14 @@ const App: React.FC = () => {
   const handleZigzagThresholdChange = useCallback((threshold: number) => {
     setZigzagThreshold(threshold);
   }, []);
+
+  const handleSortByChange = useCallback((newSortBy: SortByType) => {
+    setSortBy(newSortBy);
+  }, []);
+
+  const handleSortOrderChange = useCallback((newSortOrder: 'asc' | 'desc') => {
+    setSortOrder(newSortOrder);
+  }, []);
   
   const processedAndSortedFunds = useMemo(() => {
     const processed = funds.map(fund => {
@@ -204,6 +217,7 @@ const App: React.FC = () => {
         }
 
         const zigzagPoints = calculateZigzag(baseChartData, zigzagThreshold);
+        const lastPivotDate = zigzagPoints.length >= 2 ? zigzagPoints[zigzagPoints.length - 2]?.date : null;
 
         let trendInfo = null;
         if (zigzagPoints.length >= 2 && baseChartData.length > 0) {
@@ -241,14 +255,32 @@ const App: React.FC = () => {
             ...fund,
             trendInfo,
             baseChartData,
-            zigzagPoints
+            zigzagPoints,
+            lastPivotDate
         };
     });
     
-    processed.sort((a, b) => (b.trendInfo?.change ?? -Infinity) - (a.trendInfo?.change ?? -Infinity));
+    processed.sort((a, b) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case 'trend':
+          const changeA = a.trendInfo?.change ?? -Infinity;
+          const changeB = b.trendInfo?.change ?? -Infinity;
+          comparison = changeA - changeB;
+          break;
+        case 'dailyChange':
+          const dailyChangeA = a.realTimeData ? parseFloat(a.realTimeData.estimatedChange) : -Infinity;
+          const dailyChangeB = b.realTimeData ? parseFloat(b.realTimeData.estimatedChange) : -Infinity;
+          comparison = dailyChangeA - dailyChangeB;
+          break;
+        default:
+          comparison = 0;
+      }
+      return sortOrder === 'desc' ? -comparison : comparison;
+    });
 
     return processed;
-  }, [funds, zigzagThreshold]);
+  }, [funds, zigzagThreshold, sortBy, sortOrder]);
 
 
   const dateHeaders = useMemo(() => {
@@ -280,32 +312,47 @@ const App: React.FC = () => {
           </p>
         </div>
       ) : funds.length > 0 ? (
-        <div className="w-full overflow-x-auto bg-white dark:bg-gray-900 rounded-lg shadow-md">
-          <table className="w-full text-sm text-center border-collapse">
-            <thead className="bg-gray-50 dark:bg-gray-800">
-              <tr>
-                <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[200px] min-w-[200px] text-left sticky top-0 left-0 bg-gray-50 dark:bg-gray-800 z-20">基金名称</th>
-                <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[300px] min-w-[300px] sticky top-0 left-[200px] bg-gray-50 dark:bg-gray-800 z-20">净值走势</th>
-                <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] sticky top-0 left-[500px] bg-gray-50 dark:bg-gray-800 z-20">实时估值</th>
-                {dateHeaders.map(date => (
-                  <th key={date} className="p-0 border-r dark:border-gray-700 font-normal text-gray-500 dark:text-gray-400 min-w-[60px] sticky top-0 bg-gray-50 dark:bg-gray-800">
-                    {date.substring(5)}{getWeekday(date)}
-                  </th>
+        <>
+          <ControlsCard
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            onSortByChange={handleSortByChange}
+            onSortOrderChange={handleSortOrderChange}
+            recordCount={recordCount}
+            onRecordCountChange={handleRecordCountChange}
+            zigzagThreshold={zigzagThreshold}
+            onZigzagThresholdChange={handleZigzagThresholdChange}
+            onRefresh={handleRefresh}
+            isRefreshing={isRefreshing}
+            isLoading={isLoading || isAppLoading}
+          />
+          <div className="w-full overflow-x-auto bg-white dark:bg-gray-900 rounded-lg shadow-md">
+            <table className="w-full text-sm text-center border-collapse">
+              <thead className="bg-gray-50 dark:bg-gray-800">
+                <tr>
+                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[200px] min-w-[200px] text-left sticky top-0 left-0 bg-gray-50 dark:bg-gray-800 z-20">基金名称</th>
+                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[300px] min-w-[300px] sticky top-0 left-[200px] bg-gray-50 dark:bg-gray-800 z-20">净值走势</th>
+                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] sticky top-0 left-[500px] bg-gray-50 dark:bg-gray-800 z-20">实时估值</th>
+                  {dateHeaders.map(date => (
+                    <th key={date} className="p-0 border-r dark:border-gray-700 font-normal text-gray-500 dark:text-gray-400 min-w-[60px] sticky top-0 bg-gray-50 dark:bg-gray-800">
+                      {date.substring(5)}{getWeekday(date)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="relative z-0">
+                {processedAndSortedFunds.map(fund => (
+                  <FundRow 
+                    key={fund.code} 
+                    fund={fund} 
+                    dateHeaders={dateHeaders} 
+                    onShowDetails={handleShowFundDetails}
+                  />
                 ))}
-              </tr>
-            </thead>
-            <tbody className="relative z-0">
-              {processedAndSortedFunds.map(fund => (
-                <FundRow 
-                  key={fund.code} 
-                  fund={fund} 
-                  dateHeaders={dateHeaders} 
-                  onShowDetails={handleShowFundDetails}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </tbody>
+            </table>
+          </div>
+        </>
       ) : (
         <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg shadow-md">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">暂无基金数据</h3>
@@ -318,13 +365,7 @@ const App: React.FC = () => {
       <div className="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-md mt-6">
         <FundInputForm 
           onAddFund={handleAddFund} 
-          isLoading={isLoading || isAppLoading}
-          recordCount={recordCount}
-          onRecordCountChange={handleRecordCountChange}
-          zigzagThreshold={zigzagThreshold}
-          onZigzagThresholdChange={handleZigzagThresholdChange}
-          onRefresh={handleRefresh}
-          isRefreshing={isRefreshing}
+          isLoading={isLoading || isAppLoading || isRefreshing}
         />
         {error && <p className="mt-3 text-red-500 text-sm">{error}</p>}
       </div>

@@ -11,17 +11,22 @@ interface FundRowProps {
     } | null;
     baseChartData: Partial<FundDataPoint>[];
     zigzagPoints: Partial<FundDataPoint>[];
+    lastPivotDate: string | null;
   };
   dateHeaders: string[];
   onShowDetails: (fund: Fund) => void;
 }
 
 const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails }) => {
-  const { trendInfo, baseChartData, zigzagPoints } = fund;
+  const { trendInfo, baseChartData, zigzagPoints, lastPivotDate } = fund;
 
   const dataMap = useMemo(() => {
     return new Map<string, FundDataPoint>(fund.data.map(p => [p.date, p]));
   }, [fund.data]);
+
+  const pivotDateSet = useMemo(() => {
+    return new Set(zigzagPoints.map(p => p.date));
+  }, [zigzagPoints]);
 
   const chartData = useMemo(() => {
     if (zigzagPoints.length === 0) {
@@ -62,7 +67,8 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails }) =
       <td className="p-0 border-r dark:border-gray-700 w-[300px] min-w-[300px] sticky left-[200px] bg-white dark:bg-gray-900 z-[5] relative">
         <div className="absolute inset-0">
           <FundChart 
-            chartData={chartData} 
+            chartData={chartData}
+            lastPivotDate={lastPivotDate} 
           />
         </div>
       </td>
@@ -99,9 +105,11 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails }) =
               changeFromLatest = `${diff > 0 ? '+' : ''}${diff.toFixed(2)}%`;
           }
         }
+        
+        const isPivotDate = pivotDateSet.has(date);
 
         return (
-          <td key={date} className="p-0 border-r dark:border-gray-700">
+          <td key={date} className={`p-0 border-r dark:border-gray-700 ${isPivotDate ? 'bg-gray-200 dark:bg-gray-700' : ''}`}>
             {point ? (
               <div className="p-2">
                 <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">{point.unitNAV.toFixed(4)}</div>
