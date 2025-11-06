@@ -1,6 +1,6 @@
 import React from 'react';
 
-type SortByType = 'trend' | 'dailyChange';
+type SortByType = 'trend' | 'dailyChange' | 'navPercentile';
 
 const recordCountOptions = [10, 50, 100, 150, 200, 300];
 
@@ -48,6 +48,7 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
               >
                 <option value="trend">近期趋势</option>
                 <option value="dailyChange">今日涨幅</option>
+                <option value="navPercentile">分位点</option>
               </select>
            </div>
           <div>

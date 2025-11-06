@@ -12,13 +12,14 @@ interface FundRowProps {
     baseChartData: Partial<FundDataPoint>[];
     zigzagPoints: Partial<FundDataPoint>[];
     lastPivotDate: string | null;
+    navPercentile: number | null;
   };
   dateHeaders: string[];
   onShowDetails: (fund: Fund) => void;
 }
 
 const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails }) => {
-  const { trendInfo, baseChartData, zigzagPoints, lastPivotDate } = fund;
+  const { trendInfo, baseChartData, zigzagPoints, lastPivotDate, navPercentile } = fund;
 
   const dataMap = useMemo(() => {
     return new Map<string, FundDataPoint>(fund.data.map(p => [p.date, p]));
@@ -46,6 +47,14 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails }) =
     return fund.latestNAV;
   }, [fund.realTimeData, fund.latestNAV]);
 
+  const percentileColor = useMemo(() => {
+    if (navPercentile === null) return 'text-gray-500 dark:text-gray-400';
+    if (navPercentile <= 20) return 'text-green-600 dark:text-green-500';
+    if (navPercentile >= 80) return 'text-red-500 dark:text-red-500';
+    return 'text-yellow-600 dark:text-yellow-400';
+  }, [navPercentile]);
+
+
   return (
     <tr className="border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
       <td 
@@ -60,6 +69,11 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails }) =
           {trendInfo && (
             <div className={`text-xs mt-1 font-semibold ${trendInfo.isPositive ? 'text-red-500' : 'text-green-600'}`}>
               {trendInfo.text}
+            </div>
+          )}
+          {navPercentile !== null && (
+            <div className={`text-xs mt-1 font-semibold ${percentileColor}`}>
+                分位点: {navPercentile.toFixed(2)}%
             </div>
           )}
         </div>

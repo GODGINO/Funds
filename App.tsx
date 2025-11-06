@@ -9,7 +9,7 @@ import ControlsCard from './components/ControlsCard';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042'];
 
-type SortByType = 'trend' | 'dailyChange';
+type SortByType = 'trend' | 'dailyChange' | 'navPercentile';
 
 const App: React.FC = () => {
   const [funds, setFunds] = useState<Fund[]>([]);
@@ -250,13 +250,30 @@ const App: React.FC = () => {
                 }
             }
         }
+
+        let navPercentile: number | null = null;
+        if (baseChartData.length > 1) {
+            const navValues = baseChartData.map(p => p.unitNAV).filter((v): v is number => typeof v === 'number' && !isNaN(v));
+            if (navValues.length > 1) {
+                const minNav = Math.min(...navValues);
+                const maxNav = Math.max(...navValues);
+                const latestNav = navValues[navValues.length - 1];
+                
+                if (maxNav > minNav) {
+                    navPercentile = ((latestNav - minNav) / (maxNav - minNav)) * 100;
+                } else {
+                    navPercentile = 50; // All values are the same
+                }
+            }
+        }
         
         return {
             ...fund,
             trendInfo,
             baseChartData,
             zigzagPoints,
-            lastPivotDate
+            lastPivotDate,
+            navPercentile
         };
     });
     
@@ -272,6 +289,11 @@ const App: React.FC = () => {
           const dailyChangeA = a.realTimeData ? parseFloat(a.realTimeData.estimatedChange) : -Infinity;
           const dailyChangeB = b.realTimeData ? parseFloat(b.realTimeData.estimatedChange) : -Infinity;
           comparison = dailyChangeA - dailyChangeB;
+          break;
+        case 'navPercentile':
+          const percentileA = a.navPercentile ?? -1;
+          const percentileB = b.navPercentile ?? -1;
+          comparison = percentileA - percentileB;
           break;
         default:
           comparison = 0;
