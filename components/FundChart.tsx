@@ -131,7 +131,7 @@ const FundChart: React.FC<FundChartProps> = ({ chartData, lastPivotDate, costPri
           />
         )}
         
-        {actualCostPrice && actualCostPrice > 0 && (
+        {actualCostPrice && actualCostPrice > 0 && actualCostPrice.toFixed(4) !== costPrice?.toFixed(4) && (
           <ReferenceLine 
             y={actualCostPrice} 
             stroke="#6b7280" // gray-500

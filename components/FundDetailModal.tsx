@@ -141,6 +141,8 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
 
     const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-green-600';
 
+    const showActualCost = metrics.actualCost && metrics.actualCost > 0 && metrics.actualCost.toFixed(4) !== numericCost.toFixed(4);
+
     return (
         <>
             <div 
@@ -209,9 +211,11 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                 <input type="text" readOnly value={latestNAV.toFixed(4)} className="mt-1 w-full p-2 bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded text-center"/>
                             </div>
                              <div>
-                                <label className="block text-xs text-gray-500">成本 / 实际成本</label>
+                                <label className="block text-xs text-gray-500">{showActualCost ? '成本 / 实际成本' : '成本'}</label>
                                 <input type="number" value={cost} onChange={e => setCost(e.target.value)} className="mt-1 w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-center focus:ring-primary-500 focus:border-primary-500"/>
-                                <div className="text-xs text-blue-500 text-center mt-1">{metrics.actualCost.toFixed(4)}</div>
+                                {showActualCost && (
+                                    <div className="text-xs text-blue-500 text-center mt-1">{metrics.actualCost.toFixed(4)}</div>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-xs text-gray-500">份额</label>
