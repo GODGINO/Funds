@@ -6,10 +6,30 @@ import FundRow from './components/FundRow';
 import FundDetailModal from './components/FundDetailModal';
 import { calculateZigzag } from './services/chartUtils';
 import ControlsCard from './components/ControlsCard';
+import ImportModal from './components/ImportModal';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042'];
 
 type SortByType = 'trend' | 'dailyChange' | 'navPercentile';
+
+const validatePositions = (data: any): data is UserPosition[] => {
+    if (!Array.isArray(data)) return false;
+    for (const item of data) {
+        if (
+            typeof item !== 'object' ||
+            item === null ||
+            typeof item.code !== 'string' ||
+            typeof item.shares !== 'number' ||
+            typeof item.cost !== 'number' ||
+            typeof item.realizedProfit !== 'number' ||
+            (item.tag !== undefined && typeof item.tag !== 'string')
+        ) {
+            return false;
+        }
+    }
+    return true;
+};
+
 
 const App: React.FC = () => {
   const [funds, setFunds] = useState<Fund[]>([]);
@@ -20,62 +40,74 @@ const App: React.FC = () => {
   const [recordCount, setRecordCount] = useState<number>(100);
   const [zigzagThreshold, setZigzagThreshold] = useState<number>(0.5);
   const [selectedFundForModal, setSelectedFundForModal] = useState<Fund | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortByType>('trend');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [activeTag, setActiveTag] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadSavedFunds = async () => {
+  const loadFundsFromPositions = useCallback(async (positions: UserPosition[]) => {
       setIsAppLoading(true);
       setError(null);
+      try {
+        if (Array.isArray(positions) && positions.length > 0) {
+          const fundsPromises = positions.map(async (position) => {
+            const [data, details] = await Promise.all([
+              fetchFundData(position.code, recordCount),
+              fetchFundDetails(position.code)
+            ]);
+
+            if (data.length > 0) {
+              const latestData = data[data.length - 1];
+              return {
+                code: position.code,
+                name: details.name,
+                realTimeData: details.realTimeData,
+                data,
+                latestNAV: latestData?.unitNAV,
+                latestChange: latestData?.dailyGrowthRate,
+                color: '',
+                userPosition: position,
+              };
+            }
+            return null;
+          });
+
+          const loadedFundsData = (await Promise.all(fundsPromises)).filter(Boolean) as Omit<Fund, 'color'>[];
+          const loadedFundsWithColor = loadedFundsData.map((fund, index) => ({
+            ...fund,
+            color: COLORS[index % COLORS.length]
+          }));
+          setFunds(loadedFundsWithColor);
+        } else {
+            setFunds([]);
+        }
+      } catch (err) {
+        setError("Failed to load funds from provided positions. The data may be invalid or the API is unavailable.");
+        setFunds([]);
+      } finally {
+        setIsAppLoading(false);
+      }
+  }, [recordCount]);
+
+  useEffect(() => {
+    const loadSavedFunds = async () => {
       try {
         const savedPositionsJSON = localStorage.getItem('userFundPortfolio');
         if (savedPositionsJSON) {
           const savedPositions: UserPosition[] = JSON.parse(savedPositionsJSON);
-          if (Array.isArray(savedPositions) && savedPositions.length > 0) {
-            
-            const fundsPromises = savedPositions.map(async (position) => {
-              const [data, details] = await Promise.all([
-                fetchFundData(position.code, recordCount),
-                fetchFundDetails(position.code)
-              ]);
-
-              if (data.length > 0) {
-                const latestData = data[data.length - 1];
-                return {
-                  code: position.code,
-                  name: details.name,
-                  realTimeData: details.realTimeData,
-                  data,
-                  latestNAV: latestData?.unitNAV,
-                  latestChange: latestData?.dailyGrowthRate,
-                  color: '',
-                  userPosition: position,
-                };
-              }
-              return null;
-            });
-            
-            const loadedFundsData = (await Promise.all(fundsPromises)).filter(Boolean) as Omit<Fund, 'color'>[];
-            const loadedFundsWithColor = loadedFundsData.map((fund, index) => ({
-              ...fund,
-              color: COLORS[index % COLORS.length]
-            }));
-            
-            setFunds(loadedFundsWithColor);
-          }
+          await loadFundsFromPositions(savedPositions);
+        } else {
+          setIsAppLoading(false);
         }
       } catch (err) {
-        setError("Failed to load saved funds. They may be out of date or the API is unavailable.");
+        setError("Failed to load saved funds. They may be out of date.");
         localStorage.removeItem('userFundPortfolio');
-      } finally {
         setIsAppLoading(false);
       }
     };
 
     loadSavedFunds();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadFundsFromPositions]);
 
   useEffect(() => {
     if (!isAppLoading) {
@@ -188,6 +220,30 @@ const App: React.FC = () => {
       setIsLoading(false);
     }
   }, [funds]);
+
+  const handleImportData = useCallback(async (jsonString: string) => {
+    try {
+        if (!jsonString.trim()) {
+            throw new Error("Input is empty. Please paste your JSON data.");
+        }
+        const data = JSON.parse(jsonString);
+
+        if (!validatePositions(data)) {
+            throw new Error("Invalid JSON format. Please ensure it's an array of fund positions with correct keys (code, shares, cost, realizedProfit).");
+        }
+        
+        await loadFundsFromPositions(data);
+    } catch (error) {
+        console.error("Import failed:", error);
+        if (error instanceof SyntaxError) {
+            throw new Error("Invalid JSON. Please check for syntax errors like missing commas or quotes.");
+        }
+        if (error instanceof Error) {
+            throw error;
+        }
+        throw new Error("Failed to parse or validate JSON data.");
+    }
+  }, [loadFundsFromPositions]);
 
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
@@ -459,6 +515,7 @@ const App: React.FC = () => {
         <FundInputForm 
           onAddFund={handleAddFund} 
           isLoading={isLoading || isAppLoading || isRefreshing}
+          onOpenImportModal={() => setIsImportModalOpen(true)}
         />
         {error && <p className="mt-3 text-red-500 text-sm">{error}</p>}
       </div>
@@ -472,6 +529,12 @@ const App: React.FC = () => {
           zigzagThreshold={zigzagThreshold}
         />
       )}
+
+      <ImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImport={handleImportData}
+      />
     </div>
   );
 };
