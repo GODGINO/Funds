@@ -1,22 +1,24 @@
 import React, { useMemo } from 'react';
 import { Fund, FundDataPoint } from '../types';
 import FundChart from './FundChart';
+import { calculateZigzag } from '../services/chartUtils';
 
 interface FundRowProps {
   fund: Fund;
   dateHeaders: string[];
   onShowDetails: (fund: Fund) => void;
+  zigzagThreshold: number;
 }
 
-const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails }) => {
+const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, zigzagThreshold }) => {
   const dataMap = useMemo(() => {
     return new Map<string, FundDataPoint>(fund.data.map(p => [p.date, p]));
   }, [fund.data]);
 
   const chartData = useMemo(() => {
-    const combinedData = [...fund.data];
+    const baseChartData = [...fund.data];
     if (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV)) {
-      combinedData.push({
+      baseChartData.push({
         date: fund.realTimeData.estimationTime,
         unitNAV: fund.realTimeData.estimatedNAV,
         cumulativeNAV: fund.realTimeData.estimatedNAV,
@@ -26,18 +28,15 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails }) =
         dividendDistribution: 'N/A',
       });
     }
-    return combinedData;
-  }, [fund.data, fund.realTimeData]);
-  
-  const isPositive = useMemo(() => {
-    if (fund.realTimeData?.estimatedChange) {
-      return !fund.realTimeData.estimatedChange.startsWith('-');
-    }
-    if (fund.latestChange) {
-      return !fund.latestChange.startsWith('-');
-    }
-    return true;
-  }, [fund.realTimeData, fund.latestChange]);
+
+    const zigzagPoints = calculateZigzag(baseChartData, zigzagThreshold);
+    const zigzagMap = new Map(zigzagPoints.map(p => [p.date, p.unitNAV]));
+
+    return baseChartData.map(p => ({
+      ...p,
+      zigzagNAV: zigzagMap.get(p.date)
+    }));
+  }, [fund.data, fund.realTimeData, zigzagThreshold]);
   
   const latestNAVForComparison = useMemo(() => {
     if (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) {
@@ -61,7 +60,9 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails }) =
       </td>
       <td className="p-0 border-r dark:border-gray-700 w-[300px] min-w-[300px] sticky left-[200px] bg-white dark:bg-gray-900 z-[5] relative">
         <div className="absolute inset-0">
-          <FundChart chartData={chartData} isPositive={isPositive} />
+          <FundChart 
+            chartData={chartData} 
+          />
         </div>
       </td>
       <td className="p-0 border-r dark:border-gray-700 w-[60px] min-w-[60px] sticky left-[500px] bg-white dark:bg-gray-900 z-[5]">

@@ -14,6 +14,7 @@ const App: React.FC = () => {
   const [isAppLoading, setIsAppLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [recordCount, setRecordCount] = useState<number>(100);
+  const [zigzagThreshold, setZigzagThreshold] = useState<number>(0.5);
   const [selectedFundForModal, setSelectedFundForModal] = useState<Fund | null>(null);
 
   useEffect(() => {
@@ -182,6 +183,10 @@ const App: React.FC = () => {
     setSelectedFundForModal(null);
   }, []);
 
+  const handleZigzagThresholdChange = useCallback((threshold: number) => {
+    setZigzagThreshold(threshold);
+  }, []);
+
   const dateHeaders = useMemo(() => {
     if (funds.length === 0) return [];
     
@@ -232,6 +237,7 @@ const App: React.FC = () => {
                   fund={fund} 
                   dateHeaders={dateHeaders} 
                   onShowDetails={handleShowFundDetails}
+                  zigzagThreshold={zigzagThreshold}
                 />
               ))}
             </tbody>
@@ -252,6 +258,8 @@ const App: React.FC = () => {
           isLoading={isLoading || isAppLoading}
           recordCount={recordCount}
           onRecordCountChange={handleRecordCountChange}
+          zigzagThreshold={zigzagThreshold}
+          onZigzagThresholdChange={handleZigzagThresholdChange}
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
         />
@@ -263,6 +271,7 @@ const App: React.FC = () => {
           fund={selectedFundForModal}
           onClose={handleCloseModal}
           onDelete={handleDeleteFund}
+          zigzagThreshold={zigzagThreshold}
         />
       )}
     </div>

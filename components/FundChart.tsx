@@ -3,11 +3,10 @@ import { LineChart, Line, ResponsiveContainer, YAxis } from 'recharts';
 import { FundDataPoint } from '../types';
 
 interface FundChartProps {
-  chartData: Partial<FundDataPoint>[];
-  isPositive: boolean;
+  chartData: (Partial<FundDataPoint> & { zigzagNAV?: number })[];
 }
 
-const FundChart: React.FC<FundChartProps> = ({ chartData, isPositive }) => {
+const FundChart: React.FC<FundChartProps> = ({ chartData }) => {
   const yAxisDomain = useMemo(() => {
     if (!chartData || chartData.length < 2) {
       return ['dataMin', 'dataMax'];
@@ -36,8 +35,17 @@ const FundChart: React.FC<FundChartProps> = ({ chartData, isPositive }) => {
         <Line
           type="linear"
           dataKey="unitNAV"
-          stroke={isPositive ? '#ef4444' : '#16a34a'}
-          strokeWidth={2}
+          stroke="#3b82f6"
+          strokeWidth={1}
+          dot={false}
+          isAnimationActive={false}
+        />
+        <Line
+          type="linear"
+          dataKey="zigzagNAV"
+          connectNulls
+          stroke="#a0a0a0"
+          strokeWidth={1}
           dot={false}
           isAnimationActive={false}
         />

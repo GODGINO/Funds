@@ -2,21 +2,22 @@ import React, { useMemo, useEffect, useState } from 'react';
 import { Fund } from '../types';
 import FundChart from './FundChart';
 import ConfirmationModal from './ConfirmationModal';
+import { calculateZigzag } from '../services/chartUtils';
 
 interface FundDetailModalProps {
   fund: Fund;
   onClose: () => void;
   onDelete: (code: string) => void;
+  zigzagThreshold: number;
 }
 
-const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDelete }) => {
+const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDelete, zigzagThreshold }) => {
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
-    // Replicate logic from FundRow to prepare data for the chart
     const chartData = useMemo(() => {
-        const combinedData = [...fund.data];
+        const baseChartData = [...fund.data];
         if (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV)) {
-            combinedData.push({
+            baseChartData.push({
                 date: fund.realTimeData.estimationTime,
                 unitNAV: fund.realTimeData.estimatedNAV,
                 cumulativeNAV: fund.realTimeData.estimatedNAV,
@@ -26,18 +27,15 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                 dividendDistribution: 'N/A',
             });
         }
-        return combinedData;
-    }, [fund.data, fund.realTimeData]);
+        
+        const zigzagPoints = calculateZigzag(baseChartData, zigzagThreshold);
+        const zigzagMap = new Map(zigzagPoints.map(p => [p.date, p.unitNAV]));
 
-    const isPositive = useMemo(() => {
-        if (fund.realTimeData?.estimatedChange) {
-            return !fund.realTimeData.estimatedChange.startsWith('-');
-        }
-        if (fund.latestChange) {
-            return !fund.latestChange.startsWith('-');
-        }
-        return true;
-    }, [fund.realTimeData, fund.latestChange]);
+        return baseChartData.map(p => ({
+            ...p,
+            zigzagNAV: zigzagMap.get(p.date)
+        }));
+    }, [fund.data, fund.realTimeData, zigzagThreshold]);
     
     // Effect to handle Escape key press for the main modal
     useEffect(() => {
@@ -111,7 +109,9 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                     {/* Modal Body */}
                     <div className="p-6">
                         <div className="h-[400px]">
-                            <FundChart chartData={chartData} isPositive={isPositive} />
+                            <FundChart 
+                              chartData={chartData} 
+                            />
                         </div>
                     </div>
                 </div>

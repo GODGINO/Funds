@@ -5,13 +5,24 @@ interface FundInputFormProps {
   isLoading: boolean;
   recordCount: number;
   onRecordCountChange: (count: number) => void;
+  zigzagThreshold: number;
+  onZigzagThresholdChange: (threshold: number) => void;
   onRefresh: () => void;
   isRefreshing: boolean;
 }
 
 const recordCountOptions = [10, 50, 100, 150, 200, 300];
 
-const FundInputForm: React.FC<FundInputFormProps> = ({ onAddFund, isLoading, recordCount, onRecordCountChange, onRefresh, isRefreshing }) => {
+const FundInputForm: React.FC<FundInputFormProps> = ({ 
+  onAddFund, 
+  isLoading, 
+  recordCount, 
+  onRecordCountChange, 
+  zigzagThreshold,
+  onZigzagThresholdChange,
+  onRefresh, 
+  isRefreshing 
+}) => {
   const [code, setCode] = useState<string>('007345');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -24,7 +35,7 @@ const FundInputForm: React.FC<FundInputFormProps> = ({ onAddFund, isLoading, rec
   const isDisabled = isLoading || isRefreshing;
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
       <div className="md:col-span-1">
         <label htmlFor="fund-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Fund Code</label>
         <input
@@ -50,6 +61,19 @@ const FundInputForm: React.FC<FundInputFormProps> = ({ onAddFund, isLoading, rec
             <option key={option} value={option}>{`Last ${option} records`}</option>
           ))}
         </select>
+      </div>
+      <div>
+        <label htmlFor="zigzag-threshold" className="block text-sm font-medium text-gray-700 dark:text-gray-300">趋势阈值 (%)</label>
+        <input
+          type="number"
+          id="zigzag-threshold"
+          value={zigzagThreshold}
+          onChange={(e) => onZigzagThresholdChange(Math.max(0, Number(e.target.value)))}
+          min="0"
+          step="0.5"
+          disabled={isDisabled}
+          className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
+        />
       </div>
       <div className="flex items-center space-x-2">
         <button
