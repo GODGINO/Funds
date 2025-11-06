@@ -62,15 +62,25 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
   }, [zigzagPoints]);
 
   const chartData = useMemo(() => {
-    if (zigzagPoints.length === 0) {
-      return baseChartData.map(p => ({ ...p, zigzagNAV: undefined }));
-    }
+    const shares = fund.userPosition?.shares ?? 0;
     const zigzagMap = new Map(zigzagPoints.map(p => [p.date, p.unitNAV]));
-    return baseChartData.map(p => ({
-      ...p,
-      zigzagNAV: zigzagMap.get(p.date)
-    }));
-  }, [baseChartData, zigzagPoints]);
+
+    return baseChartData.map((p, index, arr) => {
+        const zigzagNAV = zigzagMap.get(p.date);
+        let dailyProfit = 0;
+
+        if (index > 0 && shares > 0) {
+            const prevPoint = arr[index - 1];
+            const currentNav = p.unitNAV ?? 0;
+            const prevNav = prevPoint.unitNAV ?? 0;
+            if (currentNav > 0 && prevNav > 0) {
+                 dailyProfit = (currentNav - prevNav) * shares;
+            }
+        }
+        
+        return { ...p, zigzagNAV, dailyProfit };
+    });
+  }, [baseChartData, zigzagPoints, fund.userPosition?.shares]);
 
   const latestNAVForComparison = useMemo(() => {
     if (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) {
@@ -85,20 +95,6 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
     if (navPercentile >= 80) return 'text-red-500 dark:text-red-500';
     return 'text-yellow-600 dark:text-yellow-400';
   }, [navPercentile]);
-
-
-  const ProfitDisplay: React.FC<{ value: number; label: string }> = ({ value, label }) => {
-    const isPositive = value >= 0;
-    const colorClass = isPositive ? 'text-red-500' : 'text-green-600';
-    return (
-      <div className="flex justify-between items-baseline">
-        <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
-        <span className={`text-xs font-mono font-semibold ${colorClass}`}>
-          {isPositive ? '+' : ''}{value.toFixed(2)}
-        </span>
-      </div>
-    );
-  };
 
   return (
     <tr className="border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
@@ -124,12 +120,6 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
             )}
           </div>
           <div>
-            {fund.userPosition && fund.userPosition.shares > 0 && typeof fund.holdingProfit === 'number' && typeof fund.totalProfit === 'number' && (
-              <div className="mt-2 space-y-0.5">
-                <ProfitDisplay value={fund.holdingProfit} label="持有" />
-                <ProfitDisplay value={fund.totalProfit} label="累计" />
-              </div>
-            )}
             {fund.userPosition?.tag && (
               <div className="mt-1 flex flex-wrap gap-1 items-center">
                 {fund.userPosition.tag.split(',').map(t => t.trim()).filter(Boolean).map(tag => {

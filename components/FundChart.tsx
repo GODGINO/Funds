@@ -1,14 +1,67 @@
 import React, { useMemo } from 'react';
-import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, XAxis, ReferenceArea } from 'recharts';
+import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, XAxis, ReferenceArea, Tooltip } from 'recharts';
 import { FundDataPoint } from '../types';
 
+interface ChartDataPoint extends Partial<FundDataPoint> {
+  zigzagNAV?: number;
+  dailyProfit?: number;
+}
+
 interface FundChartProps {
-  chartData: (Partial<FundDataPoint> & { zigzagNAV?: number })[];
+  chartData: ChartDataPoint[];
   lastPivotDate?: string | null;
   costPrice?: number | null;
   actualCostPrice?: number | null;
   showLabels?: boolean;
 }
+
+const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-green-600';
+
+const CustomTooltip: React.FC<any> = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+        const data = payload[0].payload as ChartDataPoint;
+        const { date, dailyGrowthRate, dailyProfit } = data;
+
+        if (!date) return null;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dataDate = new Date(date.split(' ')[0]);
+        dataDate.setHours(0, 0, 0, 0);
+        const diffTime = today.getTime() - dataDate.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        const daysAgoText = diffDays === 0 ? '今天' : `${diffDays}天前`;
+
+        const isPositive = dailyGrowthRate ? !dailyGrowthRate.startsWith('-') : true;
+
+        return (
+            <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-1 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 text-xs">
+                <div className="flex flex-col space-y-1">
+                    <div className="flex justify-between items-baseline gap-2">
+                        <span className="font-semibold text-gray-800 dark:text-gray-100 whitespace-nowrap">{date}</span>
+                        <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap">{daysAgoText}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline gap-4">
+                        <span className="font-medium text-gray-700 dark:text-gray-300">涨幅:</span>
+                        <span className={`font-bold ${isPositive ? 'text-red-500' : 'text-green-600'}`}>
+                            {dailyGrowthRate}
+                        </span>
+                    </div>
+                    {dailyProfit !== undefined && dailyProfit !== 0 && (
+                         <div className="flex justify-between items-baseline gap-4">
+                            <span className="font-medium text-gray-700 dark:text-gray-300">收益:</span>
+                            <span className={`font-bold ${getProfitColor(dailyProfit)}`}>
+                                {dailyProfit.toFixed(2)}
+                            </span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+    return null;
+};
+
 
 const FundChart: React.FC<FundChartProps> = ({ chartData, lastPivotDate, costPrice, actualCostPrice, showLabels = true }) => {
   const yAxisDomain = useMemo(() => {
@@ -47,6 +100,8 @@ const FundChart: React.FC<FundChartProps> = ({ chartData, lastPivotDate, costPri
         </defs>
         <XAxis dataKey="date" type="category" hide />
         <YAxis hide domain={yAxisDomain} />
+
+        <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#a0a0a0', strokeWidth: 1, strokeDasharray: '3 3' }} />
         
         {costPrice && costPrice > 0 && (
           <ReferenceArea 

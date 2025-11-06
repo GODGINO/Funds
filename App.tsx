@@ -451,10 +451,7 @@ const App: React.FC = () => {
         </>
       ) : (
         <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg shadow-md">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">暂无基金数据</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            输入基金代码，开始跟踪对比。
-          </p>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">暂无数据</h3>
         </div>
       )}
 

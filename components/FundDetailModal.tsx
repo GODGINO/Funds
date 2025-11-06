@@ -59,10 +59,19 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
         const zigzagPoints = calculateZigzag(baseChartData, zigzagThreshold);
         const zigzagMap = new Map(zigzagPoints.map(p => [p.date, p.unitNAV]));
 
-        const finalChartData = baseChartData.map(p => ({
-            ...p,
-            zigzagNAV: zigzagMap.get(p.date)
-        }));
+        const finalChartData = baseChartData.map((p, index, arr) => {
+            const zigzagNAV = zigzagMap.get(p.date);
+            let dailyProfit = 0;
+            if (index > 0 && numericShares > 0) {
+                const prevPoint = arr[index - 1];
+                const currentNav = p.unitNAV ?? 0;
+                const prevNav = prevPoint.unitNAV ?? 0;
+                if (currentNav > 0 && prevNav > 0) {
+                     dailyProfit = (currentNav - prevNav) * numericShares;
+                }
+            }
+            return { ...p, zigzagNAV, dailyProfit };
+        });
 
         const pivotDate = zigzagPoints.length >= 2 ? zigzagPoints[zigzagPoints.length - 2]?.date : null;
         
@@ -70,7 +79,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
         const yNav = fund.data.length > 1 ? fund.data[fund.data.length - 1].unitNAV : fund.latestNAV ?? 0;
 
         return { chartData: finalChartData, lastPivotDate: pivotDate, latestNAV: nav, yesterdayNAV: yNav };
-    }, [fund.data, fund.realTimeData, fund.latestNAV, zigzagThreshold]);
+    }, [fund.data, fund.realTimeData, fund.latestNAV, zigzagThreshold, numericShares]);
 
     const metrics = useMemo(() => {
         const marketValue = numericShares * latestNAV;
