@@ -12,6 +12,15 @@ const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f'
 
 type SortByType = 'trend' | 'dailyChange' | 'navPercentile';
 
+const SYSTEM_TAGS = {
+  HOLDING: '持有',
+  WATCHING: '自选',
+  PROFIT: '盈利',
+  LOSS: '亏损',
+};
+const ORDERED_SYSTEM_TAGS = [SYSTEM_TAGS.HOLDING, SYSTEM_TAGS.WATCHING, SYSTEM_TAGS.PROFIT, SYSTEM_TAGS.LOSS];
+
+
 const validatePositions = (data: any): data is UserPosition[] => {
     if (!Array.isArray(data)) return false;
     for (const item of data) {
@@ -43,46 +52,68 @@ const App: React.FC = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortByType>('trend');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [activeTag, setActiveTag] = useState<string | null>(SYSTEM_TAGS.HOLDING);
 
   const loadFundsFromPositions = useCallback(async (positions: UserPosition[]) => {
       setIsAppLoading(true);
       setError(null);
+      
       try {
-        if (Array.isArray(positions) && positions.length > 0) {
-          const fundsPromises = positions.map(async (position) => {
+        if (!Array.isArray(positions) || positions.length === 0) {
+          setFunds([]);
+          setIsAppLoading(false);
+          return;
+        }
+
+        const fundLoadingPromises = positions.map(async (position) => {
             const [data, details] = await Promise.all([
               fetchFundData(position.code, recordCount),
               fetchFundDetails(position.code)
             ]);
 
-            if (data.length > 0) {
-              const latestData = data[data.length - 1];
-              return {
-                code: position.code,
-                name: details.name,
-                realTimeData: details.realTimeData,
-                data,
-                latestNAV: latestData?.unitNAV,
-                latestChange: latestData?.dailyGrowthRate,
-                color: '',
-                userPosition: position,
-              };
-            }
-            return null;
-          });
+            const latestData = data[data.length - 1];
+            return {
+              code: position.code,
+              name: details.name,
+              realTimeData: details.realTimeData,
+              data,
+              latestNAV: latestData?.unitNAV,
+              latestChange: latestData?.dailyGrowthRate,
+              userPosition: position,
+            };
+        });
 
-          const loadedFundsData = (await Promise.all(fundsPromises)).filter(Boolean) as Omit<Fund, 'color'>[];
-          const loadedFundsWithColor = loadedFundsData.map((fund, index) => ({
+        const results = await Promise.allSettled(fundLoadingPromises);
+      
+        const loadedFunds: Omit<Fund, 'color'>[] = [];
+        const failedCodes: string[] = [];
+
+        results.forEach((result, index) => {
+            if (result.status === 'fulfilled') {
+                loadedFunds.push(result.value);
+            } else {
+                const code = positions[index].code;
+                console.error(`Failed to load data for fund ${code}`, result.reason);
+                failedCodes.push(code);
+            }
+        });
+
+        if (loadedFunds.length > 0) {
+          const loadedFundsWithColor = loadedFunds.map((fund, index) => ({
             ...fund,
             color: COLORS[index % COLORS.length]
           }));
           setFunds(loadedFundsWithColor);
         } else {
-            setFunds([]);
+          setFunds([]);
         }
+
+        if (failedCodes.length > 0) {
+            setError(`部分基金加载失败: ${failedCodes.join(', ')}. 请检查基金代码是否正确或稍后再试。`);
+        }
+
       } catch (err) {
-        setError("Failed to load funds from provided positions. The data may be invalid or the API is unavailable.");
+        setError("加载基金时发生未知错误。");
         setFunds([]);
       } finally {
         setIsAppLoading(false);
@@ -139,30 +170,29 @@ const App: React.FC = () => {
         fetchFundDetails(code)
       ]);
 
-      if (data.length === 0) {
-        setError(`No data found for fund ${code}.`);
-        return false;
-      } else {
-        const latestData = data[data.length - 1];
-        const newFund: Fund = {
-          code,
-          name: fundDetails.name,
-          realTimeData: fundDetails.realTimeData,
-          data,
-          latestNAV: latestData?.unitNAV,
-          latestChange: latestData?.dailyGrowthRate,
-          color: COLORS[funds.length % COLORS.length],
-          userPosition: {
-            code,
-            shares,
-            cost,
-            realizedProfit: 0,
-            tag,
-          }
-        };
-        setFunds(prevFunds => [...prevFunds, newFund]);
-        return true;
+      if (!fundDetails.name) {
+          throw new Error(`无法找到基金 ${code} 的信息。`);
       }
+      
+      const latestData = data[data.length - 1];
+      const newFund: Fund = {
+        code,
+        name: fundDetails.name,
+        realTimeData: fundDetails.realTimeData,
+        data,
+        latestNAV: latestData?.unitNAV,
+        latestChange: latestData?.dailyGrowthRate,
+        color: COLORS[funds.length % COLORS.length],
+        userPosition: {
+          code,
+          shares,
+          cost,
+          realizedProfit: 0,
+          tag,
+        }
+      };
+      setFunds(prevFunds => [...prevFunds, newFund]);
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred.');
       return false;
@@ -193,6 +223,35 @@ const App: React.FC = () => {
       setIsRefreshing(false);
     }
   }, [funds]);
+
+  // Auto-refresh data every 3 minutes
+  useEffect(() => {
+    // Do not set up the interval if a refresh is already in progress or if there are no funds to refresh.
+    if (isRefreshing || funds.length === 0) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      handleRefresh();
+    }, 3 * 60 * 1000); // 3 minutes
+
+    // The cleanup function will run when dependencies change, clearing the old interval.
+    return () => clearInterval(intervalId);
+  }, [handleRefresh, isRefreshing, funds.length]);
+
+  // Global cursor loading state
+  useEffect(() => {
+    const isCurrentlyLoading = isLoading || isRefreshing || isAppLoading;
+    if (isCurrentlyLoading) {
+      document.body.style.cursor = 'wait';
+    } else {
+      document.body.style.cursor = 'default';
+    }
+    // Cleanup function to reset cursor if component unmounts while loading
+    return () => {
+      document.body.style.cursor = 'default';
+    };
+  }, [isLoading, isRefreshing, isAppLoading]);
 
 
   const handleRecordCountChange = useCallback(async (newRecordCount: number) => {
@@ -249,28 +308,41 @@ const App: React.FC = () => {
   }, [loadFundsFromPositions]);
 
   const allTags = useMemo(() => {
-    const tagSet = new Set<string>();
+    const customTagSet = new Set<string>();
+    const systemTagSet = new Set<string>();
+
     funds.forEach(fund => {
+        const position = fund.userPosition;
+        if (position && position.shares > 0) {
+            systemTagSet.add(SYSTEM_TAGS.HOLDING);
+            const latestNAV = (fund.realTimeData?.estimatedNAV > 0 ? fund.realTimeData.estimatedNAV : fund.latestNAV) ?? 0;
+            const holdingProfit = (latestNAV - position.cost) * position.shares;
+            if (holdingProfit > 0) {
+                systemTagSet.add(SYSTEM_TAGS.PROFIT);
+            } else if (holdingProfit < 0) {
+                systemTagSet.add(SYSTEM_TAGS.LOSS);
+            }
+        } else {
+            systemTagSet.add(SYSTEM_TAGS.WATCHING);
+        }
+        
         if (fund.userPosition?.tag) {
             fund.userPosition.tag
                 .split(',')
                 .map(t => t.trim())
                 .filter(t => t)
-                .forEach(t => tagSet.add(t));
+                .forEach(t => customTagSet.add(t));
         }
     });
-    return Array.from(tagSet).sort();
-  }, [funds]);
+    
+    const sortedSystemTags = ORDERED_SYSTEM_TAGS.filter(tag => systemTagSet.has(tag));
+    const customTags = Array.from(customTagSet).sort();
+
+    return [...sortedSystemTags, ...customTags];
+}, [funds]);
 
   const processedAndSortedFunds = useMemo(() => {
-    const filteredFunds = funds.filter(fund => {
-        if (!activeTag) return true;
-        if (!fund.userPosition?.tag) return false;
-        const fundTags = fund.userPosition.tag.split(',').map(t => t.trim());
-        return fundTags.includes(activeTag);
-    });
-    
-    const processed = filteredFunds.map(fund => {
+    const fundsWithMetrics = funds.map(fund => {
         const baseChartData = [...fund.data];
         if (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) {
             baseChartData.push({
@@ -330,14 +402,14 @@ const App: React.FC = () => {
                 if (maxNav > minNav) {
                     navPercentile = ((latestNav - minNav) / (maxNav - minNav)) * 100;
                 } else {
-                    navPercentile = 50; // All values are the same
+                    navPercentile = 50;
                 }
             }
         }
 
         let portfolioMetrics = {};
         const position = fund.userPosition;
-        if (position && position.shares > 0) {
+        if (position) {
             const latestNAV = (fund.realTimeData?.estimatedNAV > 0 ? fund.realTimeData?.estimatedNAV : fund.latestNAV) ?? 0;
             const marketValue = position.shares * latestNAV;
             const costBasis = position.shares * position.cost;
@@ -366,7 +438,27 @@ const App: React.FC = () => {
         };
     });
     
-    processed.sort((a, b) => {
+    const filteredFunds = fundsWithMetrics.filter(fund => {
+        if (!activeTag) return true;
+        
+        const position = fund.userPosition;
+        switch (activeTag) {
+            case SYSTEM_TAGS.HOLDING:
+                return position && position.shares > 0;
+            case SYSTEM_TAGS.WATCHING:
+                return !position || position.shares === 0;
+            case SYSTEM_TAGS.PROFIT:
+                return (fund as any).holdingProfit > 0;
+            case SYSTEM_TAGS.LOSS:
+                return (fund as any).holdingProfit < 0;
+        }
+
+        if (!position?.tag) return false;
+        const fundTags = position.tag.split(',').map(t => t.trim());
+        return fundTags.includes(activeTag);
+    });
+    
+    filteredFunds.sort((a, b) => {
       let comparison = 0;
       switch (sortBy) {
         case 'trend':
@@ -390,9 +482,38 @@ const App: React.FC = () => {
       return sortOrder === 'desc' ? -comparison : comparison;
     });
 
-    return processed;
+    return filteredFunds;
   }, [funds, zigzagThreshold, sortBy, sortOrder, activeTag]);
   
+  const dailyPortfolioMetrics = useMemo(() => {
+    let totalDailyProfit = 0;
+    let totalYesterdayMarketValue = 0;
+
+    funds.forEach(fund => {
+        const shares = fund.userPosition?.shares;
+        if (!shares || shares <= 0) {
+            return; // Skip funds not held
+        }
+
+        // yesterdayNAV is the last point in the historical data array
+        const yesterdayDataPoint = fund.data[fund.data.length - 1];
+        const yesterdayNAV = yesterdayDataPoint?.unitNAV;
+
+        const todayNAV = fund.realTimeData?.estimatedNAV;
+
+        if (yesterdayNAV && todayNAV && todayNAV > 0) {
+            totalDailyProfit += (todayNAV - yesterdayNAV) * shares;
+            totalYesterdayMarketValue += yesterdayNAV * shares;
+        }
+    });
+
+    const totalDailyProfitRate = totalYesterdayMarketValue > 0
+        ? (totalDailyProfit / totalYesterdayMarketValue) * 100
+        : 0;
+
+    return { totalDailyProfit, totalDailyProfitRate };
+  }, [funds]);
+
   const handleDeleteFund = useCallback((codeToDelete: string) => {
     setFunds(prevFunds => prevFunds.filter(fund => fund.code !== codeToDelete));
     setSelectedFundForModal(null);
@@ -431,7 +552,16 @@ const App: React.FC = () => {
   }, []);
 
   const handleTagDoubleClick = useCallback((tag: string) => {
-    setActiveTag(prevActiveTag => (prevActiveTag === tag ? null : tag));
+    setActiveTag(prevActiveTag => {
+      if (prevActiveTag === tag) {
+        // When toggling off the active tag:
+        // If it's the '持有' tag, revert to 'All' (null).
+        // For any other tag, revert to the new default '持有'.
+        return tag === SYSTEM_TAGS.HOLDING ? null : SYSTEM_TAGS.HOLDING;
+      }
+      // When selecting a new tag, just activate it.
+      return tag;
+    });
   }, []);
 
   const dateHeaders = useMemo(() => {
@@ -479,6 +609,8 @@ const App: React.FC = () => {
             onRefresh={handleRefresh}
             isRefreshing={isRefreshing}
             isLoading={isLoading || isAppLoading}
+            totalDailyProfit={dailyPortfolioMetrics.totalDailyProfit}
+            totalDailyProfitRate={dailyPortfolioMetrics.totalDailyProfitRate}
           />
           <div className="w-full overflow-x-auto bg-white dark:bg-gray-900 rounded-lg shadow-md">
             <table className="w-full text-sm text-center border-collapse">

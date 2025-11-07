@@ -39,6 +39,50 @@ function parseHtmlTable(htmlContent: string): FundDataPoint[] {
     return data;
 }
 
+// Fallback function for fund details
+let fundDetailsFallbackPromise: Promise<void> = Promise.resolve();
+function fetchFundDetailsFallback(code: string): Promise<{ name: string; realTimeData?: undefined }> {
+    const fetchPromise = () => new Promise<{ name: string; realTimeData?: undefined }>((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = `https://fund.eastmoney.com/pingzhongdata/${code}.js?v=${new Date().getTime()}`;
+        script.charset = 'gbk';
+
+        script.onload = () => {
+            document.head.removeChild(script);
+            const fundName = (window as any).fS_name;
+            
+            // Cleanup global variables to avoid pollution.
+            const varsToClean = ['ishb', 'fS_name', 'fS_code', 'fund_sourceRate', 'fund_Rate', 'fund_minsg', 'stockCodes', 'zqCodes', 'stockCodesNew', 'zqCodesNew', 'syl_1n', 'syl_6y', 'syl_3y', 'syl_1y', 'Data_fundSharesPositions', 'Data_netWorthTrend'];
+            varsToClean.forEach(v => {
+                try {
+                    if ((window as any)[v] !== undefined) delete (window as any)[v];
+                } catch (e) {
+                    (window as any)[v] = undefined;
+                }
+            });
+
+            if (fundName) {
+                resolve({ name: fundName, realTimeData: undefined });
+            } else {
+                reject(new Error(`Could not parse fallback fund details for ${code}.`));
+            }
+        };
+
+        script.onerror = () => {
+            if (script.parentNode) {
+                script.parentNode.removeChild(script);
+            }
+            reject(new Error(`Failed to fetch fallback fund details for ${code}.`));
+        };
+
+        document.head.appendChild(script);
+    });
+
+    const result = fundDetailsFallbackPromise.then(() => fetchPromise());
+    fundDetailsFallbackPromise = result.then(() => {}, () => {}); 
+    return result;
+}
+
 // --- JSONP implementation for fundgz.1234567.com.cn ---
 
 // Global promise to serialize requests to fund details API (fundgz) to avoid race conditions
@@ -46,7 +90,7 @@ function parseHtmlTable(htmlContent: string): FundDataPoint[] {
 let fundDetailsPromise: Promise<void> = Promise.resolve();
 
 export function fetchFundDetails(code: string): Promise<{ name: string; realTimeData?: RealTimeData }> {
-    const fetchPromise = () => new Promise<{ name: string; realTimeData?: RealTimeData }>((resolve, reject) => {
+    const fetchPrimary = () => new Promise<{ name: string; realTimeData?: RealTimeData }>((resolve, reject) => {
         const script = document.createElement('script');
         // Add a timestamp to prevent browser caching
         script.src = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${new Date().getTime()}`;
@@ -57,17 +101,27 @@ export function fetchFundDetails(code: string): Promise<{ name: string; realTime
             (window as any).jsonpgz = undefined;
 
             if (data && data.name) {
-                const realTimeData: RealTimeData = {
-                    estimatedNAV: parseFloat(data.gsz),
-                    estimatedChange: data.gszzl,
-                    estimationTime: data.gztime,
-                };
-                resolve({ 
-                    name: data.name,
-                    realTimeData: realTimeData
-                });
+                const estimatedNAV = parseFloat(data.gsz);
+                if (!isNaN(estimatedNAV)) {
+                    const realTimeData: RealTimeData = {
+                        estimatedNAV: estimatedNAV,
+                        estimatedChange: data.gszzl,
+                        estimationTime: data.gztime,
+                    };
+                    resolve({ 
+                        name: data.name,
+                        realTimeData: realTimeData
+                    });
+                } else {
+                    // Fund exists, but no valid real-time data (e.g., gsz is '--')
+                    resolve({
+                        name: data.name,
+                        realTimeData: undefined
+                    });
+                }
             } else {
-                reject(new Error(`Could not parse fund details for ${code}. The fund might not exist.`));
+                 // No data or no name in response (e.g., empty jsonpgz() call)
+                reject(new Error('no_fund_details'));
             }
         };
 
@@ -78,17 +132,22 @@ export function fetchFundDetails(code: string): Promise<{ name: string; realTime
             if ((window as any).jsonpgz) {
                 (window as any).jsonpgz = undefined;
             }
-            reject(new Error(`Failed to fetch fund details for ${code}. Check the fund code and your network connection.`));
+            reject(new Error('network_error'));
         };
 
         document.head.appendChild(script);
     });
 
-    const result = fundDetailsPromise.then(() => fetchPromise());
+    const serializedFetch = fundDetailsPromise.then(() => fetchPrimary());
     // FIX: Ensure the promise assigned back to fundDetailsPromise resolves to void to match its inferred type.
-    fundDetailsPromise = result.then(() => {}, () => {}); // Chain and prevent unhandled rejections from breaking the chain
+    fundDetailsPromise = serializedFetch.then(() => {}, () => {}); // Chain and prevent unhandled rejections from breaking the chain
     
-    return result;
+    return serializedFetch.catch(error => {
+        return fetchFundDetailsFallback(code).catch(fallbackError => {
+            // If fallback also fails, throw a more specific error.
+            throw new Error(`Failed to fetch fund details for ${code} from both primary and fallback sources. The fund might not exist or the code is incorrect.`);
+        });
+    });
 }
 
 // --- JSONP-style implementation for fund.eastmoney.com ---
@@ -157,11 +216,6 @@ export async function fetchFundData(
         // This makes it more resilient to single page failures.
         break; 
     }
-  }
-
-  // If after all attempts we have no data, throw an error. This is important for the initial add.
-  if (allData.length === 0) {
-      throw new Error(`Could not fetch any historical data for fund ${code}.`);
   }
 
   return allData.slice(0, recordCount).reverse();

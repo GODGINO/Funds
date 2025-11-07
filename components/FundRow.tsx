@@ -27,6 +27,13 @@ interface FundRowProps {
   onTagDoubleClick: (tag: string) => void;
 }
 
+const SYSTEM_TAG_COLORS: { [key: string]: { bg: string; text: string; } } = {
+  '持有': { bg: 'bg-blue-100 dark:bg-blue-900/50', text: 'text-blue-800 dark:text-blue-300' },
+  '自选': { bg: 'bg-gray-200 dark:bg-gray-700/50', text: 'text-gray-800 dark:text-gray-300' },
+  '盈利': { bg: 'bg-red-100 dark:bg-red-900/50', text: 'text-red-800 dark:text-red-300' },
+  '亏损': { bg: 'bg-green-100 dark:bg-green-900/50', text: 'text-green-800 dark:text-green-300' },
+};
+
 const COLORS = [
   { bg: 'bg-blue-100 dark:bg-blue-900/50', text: 'text-blue-800 dark:text-blue-300' },
   { bg: 'bg-green-100 dark:bg-green-900/50', text: 'text-green-800 dark:text-green-300' },
@@ -96,6 +103,24 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
     if (navPercentile >= 80) return 'text-red-500 dark:text-red-500';
     return 'text-yellow-600 dark:text-yellow-400';
   }, [navPercentile]);
+  
+  const systemTags = useMemo(() => {
+      const tags: string[] = [];
+      const position = fund.userPosition;
+      const holdingProfit = fund.holdingProfit ?? 0;
+
+      if (position && position.shares > 0) {
+          tags.push('持有');
+          if (holdingProfit > 0) {
+              tags.push('盈利');
+          } else if (holdingProfit < 0) {
+              tags.push('亏损');
+          }
+      } else {
+          tags.push('自选');
+      }
+      return tags;
+  }, [fund.userPosition, fund.holdingProfit]);
 
   const handleCopyCode = useCallback((e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering the row's onDoubleClick
@@ -137,16 +162,31 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
             )}
           </div>
           <div>
-            {fund.userPosition?.tag && (
+            {(systemTags.length > 0 || fund.userPosition?.tag) && (
               <div className="mt-1 flex flex-wrap gap-1 items-center">
-                {fund.userPosition.tag.split(',').map(t => t.trim()).filter(Boolean).map(tag => {
+                {systemTags.map(tag => {
+                  const { bg, text } = SYSTEM_TAG_COLORS[tag];
+                  return (
+                    <span 
+                      key={tag} 
+                      className={`inline-block px-1.5 py-0.5 text-[10px] leading-none font-medium rounded ${bg} ${text} cursor-pointer`}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        onTagDoubleClick(tag);
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  );
+                })}
+                {fund.userPosition?.tag?.split(',').map(t => t.trim()).filter(Boolean).map(tag => {
                   const { bg, text } = getTagColor(tag);
                   return (
                     <span 
                       key={tag} 
                       className={`inline-block px-1.5 py-0.5 text-[10px] leading-none font-medium rounded ${bg} ${text} cursor-pointer`}
                       onDoubleClick={(e) => {
-                        e.stopPropagation(); // Prevent triggering the row's onDoubleClick
+                        e.stopPropagation();
                         onTagDoubleClick(tag);
                       }}
                     >

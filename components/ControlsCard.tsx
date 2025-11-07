@@ -19,6 +19,8 @@ interface ControlsCardProps {
   onRefresh: () => void;
   isRefreshing: boolean;
   isLoading: boolean;
+  totalDailyProfit: number;
+  totalDailyProfitRate: number;
 }
 
 const ControlsCard: React.FC<ControlsCardProps> = ({ 
@@ -35,9 +37,12 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
   onZigzagThresholdChange,
   onRefresh,
   isRefreshing,
-  isLoading
+  isLoading,
+  totalDailyProfit,
+  totalDailyProfitRate,
 }) => {
   const isDisabled = isLoading || isRefreshing;
+  const profitColor = totalDailyProfit >= 0 ? 'text-red-500' : 'text-green-600';
   
   return (
     <div className="mb-4 bg-white dark:bg-gray-900 rounded-lg shadow-md p-3 flex items-end justify-between flex-wrap gap-4">
@@ -111,31 +116,47 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
             min="0"
             step="0.5"
             disabled={isDisabled}
-            className="w-full md:w-20 block px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
+            className="w-20 block px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
           />
+        </div>
+        {/* Daily Stats */}
+        <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">今日盈亏</label>
+            <div className={`py-1.5 text-sm font-semibold ${profitColor}`}>
+                {totalDailyProfit > 0 ? '+' : ''}{totalDailyProfit.toFixed(2)}
+            </div>
+        </div>
+        <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">日收益率</label>
+            <div className={`py-1.5 text-sm font-semibold ${profitColor}`}>
+                {totalDailyProfitRate > 0 ? '+' : ''}{totalDailyProfitRate.toFixed(2)}%
+            </div>
         </div>
       </div>
       
-      {/* Refresh Button */}
-      <div>
-         <button
-          type="button"
-          onClick={onRefresh}
-          disabled={isDisabled}
-          className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label="Refresh real-time data"
-        >
-          {isRefreshing ? (
-            <svg className="animate-spin h-5 w-5 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0011.664 0M2.985 19.644A8.25 8.25 0 0116.023 9.348m0 0v-4.992m0 0H9.348m6.675 0l-3.181 3.183" />
-            </svg>
-          )}
-        </button>
+      {/* Right-side group for refresh */}
+      <div className="flex items-end">
+        {/* Refresh Button */}
+        <div>
+           <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isDisabled}
+            className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Refresh real-time data"
+          >
+            {isRefreshing ? (
+              <svg className="animate-spin h-5 w-5 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0011.664 0M2.985 19.644A8.25 8.25 0 0116.023 9.348m0 0v-4.992m0 0H9.348m6.675 0l-3.181 3.183" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface ImportModalProps {
   isOpen: boolean;
@@ -10,6 +10,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
   const [jsonInput, setJsonInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -47,6 +48,38 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
     };
   }, [isOpen, onClose]);
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+          const text = e.target?.result as string;
+          const data = JSON.parse(text);
+          
+          const positions = data.subscriptions.map((sub: any) => ({
+              code: String(sub.code),
+              shares: Number(sub.shares),
+              cost: Number(sub.cost),
+              tag: sub.tag || '',
+              realizedProfit: Number(sub.realizedProfit),
+          }));
+
+          setJsonInput(JSON.stringify(positions, null, 2));
+          setError(null);
+      };
+      reader.readAsText(file);
+
+      // Reset file input to allow re-uploading the same file
+      if (event.target) {
+          event.target.value = '';
+      }
+  };
+
+  const triggerFileSelect = () => {
+      fileInputRef.current?.click();
+  };
+
 
   if (!isOpen) {
     return null;
@@ -77,8 +110,15 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
         {/* Modal Body */}
         <div className="p-6">
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            粘贴您的基金持仓数据 JSON 字符串。这将替换所有现有的本地数据。
+            粘贴您的基金持仓数据 JSON 字符串，或上传一个包含 'subscriptions' 数组的 JSON 文件。这将替换所有现有的本地数据。
           </p>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".json"
+            className="hidden"
+          />
           <textarea
             value={jsonInput}
             onChange={(e) => setJsonInput(e.target.value)}
@@ -90,31 +130,41 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
         </div>
 
         {/* Modal Footer */}
-        <div className="flex justify-end items-center px-6 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-b-lg space-x-2">
-          <button
-            onClick={onClose}
+        <div className="flex justify-between items-center px-6 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-b-lg">
+           <button
+            onClick={triggerFileSelect}
             type="button"
             className="px-4 py-2 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
             disabled={isImporting}
           >
-            取消
+            上传文件
           </button>
-          <button
-            onClick={handleSave}
-            type="button"
-            disabled={isImporting}
-            className="px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:bg-primary-300 dark:disabled:bg-primary-800 disabled:cursor-not-allowed"
-          >
-            {isImporting ? (
-                 <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  正在导入...
-                </>
-            ) : "保存并替换"}
-          </button>
+          <div className="space-x-2">
+            <button
+                onClick={onClose}
+                type="button"
+                className="px-4 py-2 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                disabled={isImporting}
+            >
+                取消
+            </button>
+            <button
+                onClick={handleSave}
+                type="button"
+                disabled={isImporting || !jsonInput}
+                className="px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:bg-primary-300 dark:disabled:bg-primary-800 disabled:cursor-not-allowed"
+            >
+                {isImporting ? (
+                    <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    正在导入...
+                    </>
+                ) : "保存并替换"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
