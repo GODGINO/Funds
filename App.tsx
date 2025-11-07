@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Fund, UserPosition } from './types';
 import { fetchFundData, fetchFundDetails } from './services/fundService';
 import FundInputForm from './components/FundInputForm';
@@ -7,6 +7,7 @@ import FundDetailModal from './components/FundDetailModal';
 import { calculateZigzag } from './services/chartUtils';
 import ControlsCard from './components/ControlsCard';
 import ImportModal from './components/ImportModal';
+import PrivacyVeil from './components/PrivacyVeil';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042'];
 
@@ -53,6 +54,61 @@ const App: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortByType>('trend');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [activeTag, setActiveTag] = useState<string | null>(SYSTEM_TAGS.HOLDING);
+  const [isPrivacyModeEnabled, setIsPrivacyModeEnabled] = useState(true);
+  const [isVeiled, setIsVeiled] = useState(false);
+  const inactivityTimer = useRef<number | null>(null);
+
+  // Effect for Privacy Mode
+  useEffect(() => {
+    if (!isPrivacyModeEnabled) {
+      if (isVeiled) setIsVeiled(false); // Unveil if mode is disabled
+      return;
+    }
+
+    const resetTimer = () => {
+      if (inactivityTimer.current) {
+        clearTimeout(inactivityTimer.current);
+      }
+      inactivityTimer.current = window.setTimeout(() => {
+        setIsVeiled(true);
+      }, 8000); // 8 seconds
+    };
+
+    const handleMouseLeave = () => {
+      setIsVeiled(true);
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      setIsVeiled(prev => {
+        const isNowVeiled = !prev;
+        if (!isNowVeiled) { // Just unveiled
+            resetTimer();
+        }
+        return isNowVeiled;
+      });
+    };
+    
+    const handleMouseMove = () => {
+        if (isVeiled) return; // don't reset timer if veiled
+        resetTimer();
+    };
+
+    document.body.addEventListener('mouseleave', handleMouseLeave);
+    window.addEventListener('contextmenu', handleContextMenu);
+    window.addEventListener('mousemove', handleMouseMove);
+    
+    resetTimer(); // Initial timer setup
+
+    return () => {
+      document.body.removeEventListener('mouseleave', handleMouseLeave);
+      window.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('mousemove', handleMouseMove);
+      if (inactivityTimer.current) {
+        clearTimeout(inactivityTimer.current);
+      }
+    };
+  }, [isPrivacyModeEnabled, isVeiled]);
 
   const loadFundsFromPositions = useCallback(async (positions: UserPosition[]) => {
       setIsAppLoading(true);
@@ -585,6 +641,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-800 dark:bg-gray-950 dark:text-gray-200 font-sans p-4">
+      {isVeiled && <PrivacyVeil />}
       {isAppLoading ? (
          <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg shadow-md">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">Loading Your Funds...</h3>
@@ -651,6 +708,8 @@ const App: React.FC = () => {
           onAddFund={handleAddFund} 
           isLoading={isLoading || isAppLoading || isRefreshing}
           onOpenImportModal={() => setIsImportModalOpen(true)}
+          isPrivacyModeEnabled={isPrivacyModeEnabled}
+          onPrivacyModeChange={setIsPrivacyModeEnabled}
         />
         {error && <p className="mt-3 text-red-500 text-sm">{error}</p>}
       </div>

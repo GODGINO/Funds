@@ -4,12 +4,16 @@ interface FundInputFormProps {
   onAddFund: (details: { code: string; shares: number; cost: number; tag: string }) => Promise<boolean>;
   isLoading: boolean;
   onOpenImportModal: () => void;
+  isPrivacyModeEnabled: boolean;
+  onPrivacyModeChange: (enabled: boolean) => void;
 }
 
 const FundInputForm: React.FC<FundInputFormProps> = ({ 
   onAddFund, 
   isLoading, 
   onOpenImportModal,
+  isPrivacyModeEnabled,
+  onPrivacyModeChange,
 }) => {
   const [code, setCode] = useState<string>('007345');
   const [shares, setShares] = useState<string>('');
@@ -37,7 +41,7 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
   const isDisabled = isLoading;
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-7 gap-4 items-end">
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-8 gap-4 items-end">
       {/* Fund Code */}
       <div className="md:col-span-1">
         <label htmlFor="fund-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Fund Code</label>
@@ -124,6 +128,25 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
         >
           Import
         </button>
+      </div>
+
+       {/* Privacy Toggle */}
+      <div className="md:col-span-1 flex justify-center pb-1">
+        <label htmlFor="privacy-toggle" className="flex flex-col items-center cursor-pointer" title="隐私模式 (移出窗口, 右键或8秒无操作时触发)">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">隐私模式</span>
+          <div className="relative">
+            <input
+              id="privacy-toggle"
+              type="checkbox"
+              className="sr-only"
+              checked={isPrivacyModeEnabled}
+              onChange={e => onPrivacyModeChange(e.target.checked)}
+              disabled={isDisabled}
+            />
+            <div className={`block w-10 h-6 rounded-full transition-colors ${isPrivacyModeEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
+            <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${isPrivacyModeEnabled ? 'translate-x-4' : ''}`}></div>
+          </div>
+        </label>
       </div>
     </form>
   );
