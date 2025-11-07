@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 interface FundInputFormProps {
-  onAddFund: (details: { code: string; shares: number; cost: number; tag: string }) => void;
+  onAddFund: (details: { code: string; shares: number; cost: number; tag: string }) => Promise<boolean>;
   isLoading: boolean;
   onOpenImportModal: () => void;
 }
@@ -16,15 +16,22 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
   const [cost, setCost] = useState<string>('');
   const [tag, setTag] = useState<string>('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const paddedCode = code.trim().padStart(6, '0');
-    onAddFund({
+    const success = await onAddFund({
       code: paddedCode,
       shares: parseFloat(shares) || 0,
       cost: parseFloat(cost) || 0,
       tag: tag.trim(),
     });
+
+    if (success) {
+      setCode('');
+      setShares('');
+      setCost('');
+      setTag('');
+    }
   };
 
   const isDisabled = isLoading;

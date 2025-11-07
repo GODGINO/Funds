@@ -119,16 +119,16 @@ const App: React.FC = () => {
   }, [funds, isAppLoading]);
 
 
-  const handleAddFund = useCallback(async (details: { code: string; shares: number; cost: number; tag: string }) => {
+  const handleAddFund = useCallback(async (details: { code: string; shares: number; cost: number; tag: string }): Promise<boolean> => {
     const { code, shares, cost, tag } = details;
     
     if (!code.trim()) {
       setError('Please provide a fund code.');
-      return;
+      return false;
     }
     if (funds.some(f => f.code === code)) {
       setError(`Fund ${code} is already being tracked.`);
-      return;
+      return false;
     }
 
     setIsLoading(true);
@@ -141,6 +141,7 @@ const App: React.FC = () => {
 
       if (data.length === 0) {
         setError(`No data found for fund ${code}.`);
+        return false;
       } else {
         const latestData = data[data.length - 1];
         const newFund: Fund = {
@@ -160,9 +161,11 @@ const App: React.FC = () => {
           }
         };
         setFunds(prevFunds => [...prevFunds, newFund]);
+        return true;
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -481,11 +484,11 @@ const App: React.FC = () => {
             <table className="w-full text-sm text-center border-collapse">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
-                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[250px] min-w-[250px] text-left sticky top-0 left-0 bg-gray-50 dark:bg-gray-800 z-20">基金名称</th>
-                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[300px] min-w-[300px] sticky top-0 left-[250px] bg-gray-50 dark:bg-gray-800 z-20">净值走势</th>
-                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] sticky top-0 left-[550px] bg-gray-50 dark:bg-gray-800 z-20">实时估值</th>
+                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[250px] min-w-[250px] text-left md:sticky top-0 md:left-0 bg-gray-50 dark:bg-gray-800 md:z-20">基金名称</th>
+                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[300px] min-w-[300px] md:sticky top-0 md:left-[250px] bg-gray-50 dark:bg-gray-800 md:z-20">净值走势</th>
+                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] md:sticky top-0 md:left-[550px] bg-gray-50 dark:bg-gray-800 md:z-20">实时估值</th>
                   {dateHeaders.map(date => (
-                    <th key={date} className="p-0 border-r dark:border-gray-700 font-normal text-gray-500 dark:text-gray-400 min-w-[60px] sticky top-0 bg-gray-50 dark:bg-gray-800">
+                    <th key={date} className="p-0 border-r dark:border-gray-700 font-normal text-gray-500 dark:text-gray-400 min-w-[60px] md:sticky top-0 bg-gray-50 dark:bg-gray-800">
                       {date.substring(5)}{getWeekday(date)}
                     </th>
                   ))}
