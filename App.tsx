@@ -50,7 +50,7 @@ const App: React.FC = () => {
   const [isAppLoading, setIsAppLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [recordCount, setRecordCount] = useState<number>(100);
-  const [zigzagThreshold, setZigzagThreshold] = useState<number>(0.5);
+  const [zigzagThreshold, setZigzagThreshold] = useState<number>(2);
   const [selectedFundForModal, setSelectedFundForModal] = useState<Fund | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortByType>('trend');
@@ -59,6 +59,7 @@ const App: React.FC = () => {
   const [isPrivacyModeEnabled, setIsPrivacyModeEnabled] = useState(window.innerWidth >= 768);
   const [isVeiled, setIsVeiled] = useState(false);
   const inactivityTimer = useRef<number | null>(null);
+  const longPressTimer = useRef<number | null>(null);
 
   // Effect for Privacy Mode
   useEffect(() => {
@@ -96,10 +97,31 @@ const App: React.FC = () => {
         resetTimer();
     };
 
+    const handleTouchStart = () => {
+      if (!isVeiled) return; // Only act when veiled
+      
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+      }
+      
+      longPressTimer.current = window.setTimeout(() => {
+        setIsVeiled(false);
+      }, 500); // 500ms for long press
+    };
+
+    const handleTouchEndOrCancel = () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+      }
+    };
+
     document.body.addEventListener('mouseleave', handleMouseLeave);
     window.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('mousemove', handleActivity);
     window.addEventListener('wheel', handleActivity);
+    window.addEventListener('touchstart', handleTouchStart);
+    window.addEventListener('touchend', handleTouchEndOrCancel);
+    window.addEventListener('touchcancel', handleTouchEndOrCancel);
     
     resetTimer(); // Initial timer setup
 
@@ -108,8 +130,14 @@ const App: React.FC = () => {
       window.removeEventListener('contextmenu', handleContextMenu);
       window.removeEventListener('mousemove', handleActivity);
       window.removeEventListener('wheel', handleActivity);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchend', handleTouchEndOrCancel);
+      window.removeEventListener('touchcancel', handleTouchEndOrCancel);
       if (inactivityTimer.current) {
         clearTimeout(inactivityTimer.current);
+      }
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
       }
     };
   }, [isPrivacyModeEnabled, isVeiled]);

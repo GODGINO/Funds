@@ -102,13 +102,6 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
     return fund.baseChartData.length > 0 ? fund.baseChartData[fund.baseChartData.length - 1].unitNAV ?? 0 : 0;
   }, [fund.baseChartData]);
 
-  const percentileColor = useMemo(() => {
-    if (navPercentile === null) return 'text-gray-500 dark:text-gray-400';
-    if (navPercentile <= 20) return 'text-green-600 dark:text-green-500';
-    if (navPercentile >= 80) return 'text-red-500 dark:text-red-500';
-    return 'text-yellow-600 dark:text-yellow-400';
-  }, [navPercentile]);
-  
   const systemTags = useMemo(() => {
       const tags: string[] = [];
       const position = fund.userPosition;
@@ -161,11 +154,6 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
                 {trendInfo.text}
               </div>
             )}
-            {navPercentile !== null && (
-              <div className={`text-xs mt-1 font-semibold ${percentileColor}`}>
-                  分位点: {navPercentile.toFixed(2)}%
-              </div>
-            )}
           </div>
           <div>
             {(systemTags.length > 0 || fund.userPosition?.tag) && (
@@ -213,6 +201,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
             costPrice={fund.userPosition?.cost && fund.userPosition.cost > 0 ? fund.userPosition.cost : null}
             actualCostPrice={fund.actualCost && fund.actualCost > 0 ? fund.actualCost : null}
             showLabels={false}
+            navPercentile={navPercentile}
           />
         </div>
       </td>

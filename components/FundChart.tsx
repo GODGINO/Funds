@@ -13,6 +13,7 @@ interface FundChartProps {
   costPrice?: number | null;
   actualCostPrice?: number | null;
   showLabels?: boolean;
+  navPercentile?: number | null;
 }
 
 const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-green-600';
@@ -63,7 +64,7 @@ const CustomTooltip: React.FC<any> = ({ active, payload }) => {
 };
 
 
-const FundChart: React.FC<FundChartProps> = ({ chartData, lastPivotDate, costPrice, actualCostPrice, showLabels = true }) => {
+const FundChart: React.FC<FundChartProps> = ({ chartData, lastPivotDate, costPrice, actualCostPrice, showLabels = true, navPercentile }) => {
   const yAxisDomain = useMemo(() => {
     const navValues = chartData.map(p => p.unitNAV).filter((v): v is number => typeof v === 'number' && !isNaN(v));
     const allValues = [...navValues];
@@ -89,77 +90,94 @@ const FundChart: React.FC<FundChartProps> = ({ chartData, lastPivotDate, costPri
 
   const gradientId = "costAreaGradient";
 
+  const percentileColor = useMemo(() => {
+    if (navPercentile === null || navPercentile === undefined) return 'text-gray-500 dark:text-gray-400';
+    if (navPercentile <= 20) return 'text-green-600 dark:text-green-500';
+    if (navPercentile >= 80) return 'text-red-500 dark:text-red-500';
+    return 'text-yellow-600 dark:text-yellow-400';
+  }, [navPercentile]);
+
+
   return (
-    <ResponsiveContainer>
-      <LineChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#ef4444" stopOpacity={0.2}/>
-            <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05}/>
-          </linearGradient>
-        </defs>
-        <XAxis dataKey="date" type="category" hide />
-        <YAxis hide domain={yAxisDomain} />
+    <div className="relative w-full h-full">
+      <ResponsiveContainer>
+        <LineChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#ef4444" stopOpacity={0.2}/>
+              <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05}/>
+            </linearGradient>
+          </defs>
+          <XAxis dataKey="date" type="category" hide />
+          <YAxis hide domain={yAxisDomain} />
 
-        <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#a0a0a0', strokeWidth: 1, strokeDasharray: '3 3' }} />
-        
-        {costPrice && costPrice > 0 && (
-          <ReferenceArea 
-            y1={0} // Assume NAV is always positive
-            y2={costPrice} 
-            fill={`url(#${gradientId})`} 
-            strokeOpacity={0} 
-            ifOverflow="hidden" 
-          />
-        )}
-        
-        {lastPivotDate && (
-            <ReferenceLine 
-                x={lastPivotDate} 
-                stroke="#a0a0a0" 
-                strokeDasharray="3 3" 
-                strokeWidth={1} 
+          <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#a0a0a0', strokeWidth: 1, strokeDasharray: '3 3' }} />
+          
+          {costPrice && costPrice > 0 && (
+            <ReferenceArea 
+              y1={0} // Assume NAV is always positive
+              y2={costPrice} 
+              fill={`url(#${gradientId})`} 
+              strokeOpacity={0} 
+              ifOverflow="hidden" 
             />
-        )}
+          )}
+          
+          {lastPivotDate && (
+              <ReferenceLine 
+                  x={lastPivotDate} 
+                  stroke="#a0a0a0" 
+                  strokeDasharray="3 3" 
+                  strokeWidth={1} 
+              />
+          )}
 
-        {costPrice && costPrice > 0 && (
-          <ReferenceLine 
-            y={costPrice} 
-            stroke="#ef4444" // red-500
-            strokeWidth={1} 
-            label={showLabels ? { value: `成本: ${costPrice.toFixed(4)}`, position: 'insideTopLeft', fill: '#ef4444', fontSize: 10, dy: -2 } : undefined}
-          />
-        )}
-        
-        {actualCostPrice && actualCostPrice > 0 && actualCostPrice.toFixed(4) !== costPrice?.toFixed(4) && (
-          <ReferenceLine 
-            y={actualCostPrice} 
-            stroke="#6b7280" // gray-500
-            strokeDasharray="3 3" 
+          {costPrice && costPrice > 0 && (
+            <ReferenceLine 
+              y={costPrice} 
+              stroke="#ef4444" // red-500
+              strokeWidth={1} 
+              label={showLabels ? { value: `成本: ${costPrice.toFixed(4)}`, position: 'insideTopLeft', fill: '#ef4444', fontSize: 10, dy: -2 } : undefined}
+            />
+          )}
+          
+          {actualCostPrice && actualCostPrice > 0 && actualCostPrice.toFixed(4) !== costPrice?.toFixed(4) && (
+            <ReferenceLine 
+              y={actualCostPrice} 
+              stroke="#6b7280" // gray-500
+              strokeDasharray="3 3" 
+              strokeWidth={1}
+              label={showLabels ? { value: `实际: ${actualCostPrice.toFixed(4)}`, position: 'insideTopLeft', fill: '#374151', fontSize: 10, dy: -2 } : undefined}
+            />
+          )}
+          
+          <Line
+            type="linear"
+            dataKey="unitNAV"
+            stroke="#3b82f6"
             strokeWidth={1}
-            label={showLabels ? { value: `实际: ${actualCostPrice.toFixed(4)}`, position: 'insideTopLeft', fill: '#374151', fontSize: 10, dy: -2 } : undefined}
+            dot={false}
+            isAnimationActive={false}
           />
-        )}
-        
-        <Line
-          type="linear"
-          dataKey="unitNAV"
-          stroke="#3b82f6"
-          strokeWidth={1}
-          dot={false}
-          isAnimationActive={false}
-        />
-        <Line
-          type="linear"
-          dataKey="zigzagNAV"
-          connectNulls
-          stroke="#a0a0a0"
-          strokeWidth={1}
-          dot={false}
-          isAnimationActive={false}
-        />
-      </LineChart>
-    </ResponsiveContainer>
+          <Line
+            type="linear"
+            dataKey="zigzagNAV"
+            connectNulls
+            stroke="#a0a0a0"
+            strokeWidth={1}
+            dot={false}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+      {navPercentile !== null && navPercentile !== undefined && (
+        <div 
+          className={`absolute right-2 text-xs font-bold ${percentileColor} ${navPercentile > 50 ? 'bottom-2' : 'top-2'}`}
+        >
+          {`${navPercentile.toFixed(0)}%`}
+        </div>
+      )}
+    </div>
   );
 };
 
