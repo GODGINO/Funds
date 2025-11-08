@@ -1,3 +1,5 @@
+
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Fund, UserPosition } from './types';
 import { fetchFundData, fetchFundDetails } from './services/fundService';
@@ -54,7 +56,7 @@ const App: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortByType>('trend');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [activeTag, setActiveTag] = useState<string | null>(SYSTEM_TAGS.HOLDING);
-  const [isPrivacyModeEnabled, setIsPrivacyModeEnabled] = useState(true);
+  const [isPrivacyModeEnabled, setIsPrivacyModeEnabled] = useState(window.innerWidth >= 768);
   const [isVeiled, setIsVeiled] = useState(false);
   const inactivityTimer = useRef<number | null>(null);
 
@@ -89,21 +91,23 @@ const App: React.FC = () => {
       });
     };
     
-    const handleMouseMove = () => {
+    const handleActivity = () => {
         if (isVeiled) return; // don't reset timer if veiled
         resetTimer();
     };
 
     document.body.addEventListener('mouseleave', handleMouseLeave);
     window.addEventListener('contextmenu', handleContextMenu);
-    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('wheel', handleActivity);
     
     resetTimer(); // Initial timer setup
 
     return () => {
       document.body.removeEventListener('mouseleave', handleMouseLeave);
       window.removeEventListener('contextmenu', handleContextMenu);
-      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('wheel', handleActivity);
       if (inactivityTimer.current) {
         clearTimeout(inactivityTimer.current);
       }
@@ -330,6 +334,7 @@ const App: React.FC = () => {
         };
       });
 
+      // FIX: A block-scoped variable was used before its declaration.
       const updatedFunds = await Promise.all(updatedFundsPromises);
       setFunds(updatedFunds);
     } catch (err) {
@@ -400,16 +405,24 @@ const App: React.FC = () => {
   const processedAndSortedFunds = useMemo(() => {
     const fundsWithMetrics = funds.map(fund => {
         const baseChartData = [...fund.data];
+        
         if (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) {
-            baseChartData.push({
-                date: fund.realTimeData.estimationTime,
-                unitNAV: fund.realTimeData.estimatedNAV,
-                cumulativeNAV: fund.realTimeData.estimatedNAV,
-                dailyGrowthRate: fund.realTimeData.estimatedChange,
-                subscriptionStatus: 'N/A',
-                redemptionStatus: 'N/A',
-                dividendDistribution: 'N/A',
-            });
+            const realTimeDate = fund.realTimeData.estimationTime.split(' ')[0];
+            const hasHistoricalDataForToday = fund.data.some(
+                dataPoint => dataPoint.date === realTimeDate
+            );
+
+            if (!hasHistoricalDataForToday) {
+                baseChartData.push({
+                    date: fund.realTimeData.estimationTime,
+                    unitNAV: fund.realTimeData.estimatedNAV,
+                    cumulativeNAV: fund.realTimeData.estimatedNAV,
+                    dailyGrowthRate: fund.realTimeData.estimatedChange,
+                    subscriptionStatus: 'N/A',
+                    redemptionStatus: 'N/A',
+                    dividendDistribution: 'N/A',
+                });
+            }
         }
 
         const zigzagPoints = calculateZigzag(baseChartData, zigzagThreshold);
@@ -466,7 +479,7 @@ const App: React.FC = () => {
         let portfolioMetrics = {};
         const position = fund.userPosition;
         if (position) {
-            const latestNAV = (fund.realTimeData?.estimatedNAV > 0 ? fund.realTimeData?.estimatedNAV : fund.latestNAV) ?? 0;
+            const latestNAV = baseChartData.length > 0 ? (baseChartData[baseChartData.length - 1].unitNAV ?? 0) : 0;
             const marketValue = position.shares * latestNAV;
             const costBasis = position.shares * position.cost;
             const holdingProfit = marketValue - costBasis;
@@ -545,17 +558,19 @@ const App: React.FC = () => {
     let totalDailyProfit = 0;
     let totalYesterdayMarketValue = 0;
 
-    funds.forEach(fund => {
+    processedAndSortedFunds.forEach(fund => {
         const shares = fund.userPosition?.shares;
         if (!shares || shares <= 0) {
             return; // Skip funds not held
         }
 
-        // yesterdayNAV is the last point in the historical data array
-        const yesterdayDataPoint = fund.data[fund.data.length - 1];
-        const yesterdayNAV = yesterdayDataPoint?.unitNAV;
+        const chartPoints = fund.baseChartData;
+        if (chartPoints.length < 2) {
+            return; // Not enough data
+        }
 
-        const todayNAV = fund.realTimeData?.estimatedNAV;
+        const todayNAV = chartPoints[chartPoints.length - 1]?.unitNAV;
+        const yesterdayNAV = chartPoints[chartPoints.length - 2]?.unitNAV;
 
         if (yesterdayNAV && todayNAV && todayNAV > 0) {
             totalDailyProfit += (todayNAV - yesterdayNAV) * shares;
@@ -568,7 +583,7 @@ const App: React.FC = () => {
         : 0;
 
     return { totalDailyProfit, totalDailyProfitRate };
-  }, [funds]);
+  }, [processedAndSortedFunds]);
 
   const handleDeleteFund = useCallback((codeToDelete: string) => {
     setFunds(prevFunds => prevFunds.filter(fund => fund.code !== codeToDelete));
@@ -630,7 +645,25 @@ const App: React.FC = () => {
       });
     });
 
-    return Array.from(allDates).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    const sortedDates = Array.from(allDates).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    
+    if (sortedDates.length === 0) {
+        return [];
+    }
+    
+    // The third column is dedicated to "today's" data (real-time or confirmed).
+    // Therefore, the historical columns should never show today's date to avoid redundancy.
+    // We determine "today" based on the date from the real-time data, which is the most reliable source for the current trading day's date.
+    const todayDateStr = funds.find(f => f.realTimeData)?.realTimeData?.estimationTime.split(' ')[0];
+
+    // If the most recent date from historical data matches "today", it means the NAV for today has been confirmed
+    // and is included in the historical data (`fund.data`). We must remove it from the `dateHeaders`
+    // to avoid duplication with the third column.
+    if (todayDateStr && sortedDates[0] === todayDateStr) {
+        return sortedDates.slice(1);
+    }
+    
+    return sortedDates;
   }, [funds]);
 
   const getWeekday = (dateString: string) => {
@@ -675,7 +708,7 @@ const App: React.FC = () => {
                 <tr>
                   <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[250px] min-w-[250px] text-left md:sticky top-0 md:left-0 bg-gray-50 dark:bg-gray-800 md:z-20">基金名称</th>
                   <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[300px] min-w-[300px] md:sticky top-0 md:left-[250px] bg-gray-50 dark:bg-gray-800 md:z-20">净值走势</th>
-                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] md:sticky top-0 md:left-[550px] bg-gray-50 dark:bg-gray-800 md:z-20">实时估值</th>
+                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] md:sticky top-0 md:left-[550px] bg-gray-50 dark:bg-gray-800 md:z-20">当日净值</th>
                   {dateHeaders.map(date => (
                     <th key={date} className="p-0 border-r dark:border-gray-700 font-normal text-gray-500 dark:text-gray-400 min-w-[60px] md:sticky top-0 bg-gray-50 dark:bg-gray-800">
                       {date.substring(5)}{getWeekday(date)}

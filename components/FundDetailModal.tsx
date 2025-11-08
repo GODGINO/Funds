@@ -1,3 +1,4 @@
+
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { Fund, UserPosition } from '../types';
 import FundChart from './FundChart';
@@ -45,15 +46,22 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
     const { chartData, lastPivotDate, latestNAV, yesterdayNAV } = useMemo(() => {
         const baseChartData = [...fund.data];
         if (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) {
-            baseChartData.push({
-                date: fund.realTimeData.estimationTime,
-                unitNAV: fund.realTimeData.estimatedNAV,
-                cumulativeNAV: fund.realTimeData.estimatedNAV,
-                dailyGrowthRate: fund.realTimeData.estimatedChange,
-                subscriptionStatus: 'N/A',
-                redemptionStatus: 'N/A',
-                dividendDistribution: 'N/A',
-            });
+            const realTimeDate = fund.realTimeData.estimationTime.split(' ')[0];
+            const hasHistoricalDataForToday = fund.data.some(
+                dataPoint => dataPoint.date === realTimeDate
+            );
+
+            if (!hasHistoricalDataForToday) {
+                baseChartData.push({
+                    date: fund.realTimeData.estimationTime,
+                    unitNAV: fund.realTimeData.estimatedNAV,
+                    cumulativeNAV: fund.realTimeData.estimatedNAV,
+                    dailyGrowthRate: fund.realTimeData.estimatedChange,
+                    subscriptionStatus: 'N/A',
+                    redemptionStatus: 'N/A',
+                    dividendDistribution: 'N/A',
+                });
+            }
         }
         
         const zigzagPoints = calculateZigzag(baseChartData, zigzagThreshold);
@@ -75,11 +83,11 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
 
         const pivotDate = zigzagPoints.length >= 2 ? zigzagPoints[zigzagPoints.length - 2]?.date : null;
         
-        const nav = (fund.realTimeData?.estimatedNAV > 0 ? fund.realTimeData.estimatedNAV : fund.latestNAV) ?? 0;
-        const yNav = fund.data.length > 1 ? fund.data[fund.data.length - 1].unitNAV : fund.latestNAV ?? 0;
+        const nav = baseChartData.length > 0 ? (baseChartData[baseChartData.length - 1].unitNAV ?? 0) : 0;
+        const yNav = baseChartData.length > 1 ? (baseChartData[baseChartData.length - 2].unitNAV ?? 0) : 0;
 
         return { chartData: finalChartData, lastPivotDate: pivotDate, latestNAV: nav, yesterdayNAV: yNav };
-    }, [fund.data, fund.realTimeData, fund.latestNAV, zigzagThreshold, numericShares]);
+    }, [fund.data, fund.realTimeData, zigzagThreshold, numericShares]);
 
     const metrics = useMemo(() => {
         const marketValue = numericShares * latestNAV;
@@ -93,18 +101,18 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
         const cumulativeCost = costBasis - realizedProfit;
         const actualCost = numericShares > 0 ? cumulativeCost / numericShares : 0;
         
-        const dailyProfit = fund.realTimeData?.estimatedNAV > 0 && yesterdayNAV > 0
-            ? (fund.realTimeData.estimatedNAV - yesterdayNAV) * numericShares
+        const dailyProfit = (latestNAV > 0 && yesterdayNAV > 0)
+            ? (latestNAV - yesterdayNAV) * numericShares
             : 0;
 
-        const dailyProfitRate = marketValue > 0 && dailyProfit !== 0 ? (dailyProfit / (marketValue - dailyProfit)) * 100 : 0;
+        const dailyProfitRate = (marketValue - dailyProfit) > 0 ? (dailyProfit / (marketValue - dailyProfit)) * 100 : 0;
         
         const holdingProfitRate = costBasis > 0 ? (holdingProfit / costBasis) * 100 : 0;
         // Use the editable value for real-time calculation
         const totalProfitRate = costBasis > 0 ? (currentTotalProfit / costBasis) * 100 : 0;
         
         return { marketValue, costBasis, holdingProfit, realizedProfit, cumulativeCost, actualCost, totalProfit: currentTotalProfit, dailyProfit, dailyProfitRate, holdingProfitRate, totalProfitRate };
-    }, [numericShares, numericCost, latestNAV, yesterdayNAV, editableTotalProfit, fund.realTimeData]);
+    }, [numericShares, numericCost, latestNAV, yesterdayNAV, editableTotalProfit]);
 
     useEffect(() => {
       // Initialize editableTotalProfit from saved data when modal opens or fund changes

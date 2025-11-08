@@ -1,3 +1,5 @@
+
+
 import React, { useMemo, useState, useCallback } from 'react';
 import { Fund, FundDataPoint, UserPosition } from '../types';
 import FundChart from './FundChart';
@@ -65,6 +67,12 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
     return new Map<string, FundDataPoint>(fund.data.map(p => [p.date, p]));
   }, [fund.data]);
 
+  const historicalDataForToday = useMemo(() => {
+    if (!fund.realTimeData) return undefined;
+    const realTimeDate = fund.realTimeData.estimationTime.split(' ')[0];
+    return dataMap.get(realTimeDate);
+  }, [dataMap, fund.realTimeData]);
+
   const pivotDateSet = useMemo(() => {
     return new Set(zigzagPoints.map(p => p.date));
   }, [zigzagPoints]);
@@ -91,11 +99,8 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
   }, [baseChartData, zigzagPoints, fund.userPosition?.shares]);
 
   const latestNAVForComparison = useMemo(() => {
-    if (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) {
-      return fund.realTimeData.estimatedNAV;
-    }
-    return fund.latestNAV;
-  }, [fund.realTimeData, fund.latestNAV]);
+    return fund.baseChartData.length > 0 ? fund.baseChartData[fund.baseChartData.length - 1].unitNAV ?? 0 : 0;
+  }, [fund.baseChartData]);
 
   const percentileColor = useMemo(() => {
     if (navPercentile === null) return 'text-gray-500 dark:text-gray-400';
@@ -131,6 +136,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
         console.error('Failed to copy fund code: ', err);
     });
   }, [fund.code]);
+
 
   return (
     <tr className="border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
@@ -211,23 +217,37 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
         </div>
       </td>
       <td className="p-0 border-r dark:border-gray-700 w-[60px] min-w-[60px] md:sticky md:left-[550px] bg-white dark:bg-gray-900 md:z-[5]">
-        {fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) ? (
-            <div className="p-2">
-              <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">
-                {fund.realTimeData.estimatedNAV.toFixed(4)}
-              </div>
-              <div className={`text-xs font-semibold ${
-                fund.realTimeData.estimatedChange.startsWith('-') ? 'text-green-600' : 'text-red-500'
-              }`}>
-                {fund.realTimeData.estimatedChange}%
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {fund.realTimeData.estimationTime.split(' ')[1] || fund.realTimeData.estimationTime}
-              </div>
+        {historicalDataForToday ? (
+          <div className="p-2">
+            <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">
+              {historicalDataForToday.unitNAV.toFixed(4)}
             </div>
-          ) : (
-            <span className="text-gray-400">-</span>
-          )}
+            <div className={`text-xs font-semibold ${
+              historicalDataForToday.dailyGrowthRate.startsWith('-') ? 'text-green-600' : 'text-red-500'
+            }`}>
+              {historicalDataForToday.dailyGrowthRate}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              已确认
+            </div>
+          </div>
+        ) : (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) ? (
+          <div className="p-2">
+            <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">
+              {fund.realTimeData.estimatedNAV.toFixed(4)}
+            </div>
+            <div className={`text-xs font-semibold ${
+              fund.realTimeData.estimatedChange.startsWith('-') ? 'text-green-600' : 'text-red-500'
+            }`}>
+              {fund.realTimeData.estimatedChange}%
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {fund.realTimeData.estimationTime.split(' ')[1] || fund.realTimeData.estimationTime}
+            </div>
+          </div>
+        ) : (
+          <span className="text-gray-400">-</span>
+        )}
       </td>
       {dateHeaders.map(date => {
         const point = dataMap.get(date);
@@ -236,7 +256,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
         let changeFromLatest: string | null = null;
         let changeIsPositive = true;
 
-        if (point && latestNAVForComparison) {
+        if (point && latestNAVForComparison > 0) {
           const diff = ((latestNAVForComparison - point.unitNAV) / point.unitNAV) * 100;
           if (!isNaN(diff)) {
               changeIsPositive = diff >= 0;
