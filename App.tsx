@@ -730,32 +730,34 @@ const App: React.FC = () => {
             totalDailyProfit={dailyPortfolioMetrics.totalDailyProfit}
             totalDailyProfitRate={dailyPortfolioMetrics.totalDailyProfitRate}
           />
-          <div className="w-full overflow-x-auto bg-white dark:bg-gray-900 rounded-lg shadow-md">
-            <table className="w-full text-sm text-center border-collapse">
-              <thead className="bg-gray-50 dark:bg-gray-800">
-                <tr>
-                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[250px] min-w-[250px] text-left md:sticky top-0 md:left-0 bg-gray-50 dark:bg-gray-800 md:z-20">基金名称</th>
-                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[300px] min-w-[300px] md:sticky top-0 md:left-[250px] bg-gray-50 dark:bg-gray-800 md:z-20">净值走势</th>
-                  <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] md:sticky top-0 md:left-[550px] bg-gray-50 dark:bg-gray-800 md:z-20">当日净值</th>
-                  {dateHeaders.map(date => (
-                    <th key={date} className="p-0 border-r dark:border-gray-700 font-normal text-gray-500 dark:text-gray-400 min-w-[60px] md:sticky top-0 bg-gray-50 dark:bg-gray-800">
-                      {date.substring(5)}{getWeekday(date)}
-                    </th>
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-md p-4">
+            <div className="w-full overflow-x-auto">
+              <table className="w-full text-sm text-center border-collapse">
+                <thead className="bg-gray-50 dark:bg-gray-800">
+                  <tr>
+                    <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[250px] min-w-[250px] text-left md:sticky top-0 md:left-0 bg-gray-50 dark:bg-gray-800 md:z-20">基金名称</th>
+                    <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[300px] min-w-[300px] md:sticky top-0 md:left-[250px] bg-gray-50 dark:bg-gray-800 md:z-20">净值走势</th>
+                    <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] md:sticky top-0 md:left-[550px] bg-gray-50 dark:bg-gray-800 md:z-20">当日净值</th>
+                    {dateHeaders.map(date => (
+                      <th key={date} className="p-0 border-r dark:border-gray-700 font-normal text-gray-500 dark:text-gray-400 min-w-[60px] md:sticky top-0 bg-gray-50 dark:bg-gray-800">
+                        {date.substring(5)}{getWeekday(date)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="relative z-0">
+                  {processedAndSortedFunds.map(fund => (
+                    <FundRow 
+                      key={fund.code} 
+                      fund={fund} 
+                      dateHeaders={dateHeaders} 
+                      onShowDetails={handleShowFundDetails}
+                      onTagDoubleClick={handleTagDoubleClick}
+                    />
                   ))}
-                </tr>
-              </thead>
-              <tbody className="relative z-0">
-                {processedAndSortedFunds.map(fund => (
-                  <FundRow 
-                    key={fund.code} 
-                    fund={fund} 
-                    dateHeaders={dateHeaders} 
-                    onShowDetails={handleShowFundDetails}
-                    onTagDoubleClick={handleTagDoubleClick}
-                  />
-                ))}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       ) : (

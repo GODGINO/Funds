@@ -77,27 +77,6 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
     return new Set(zigzagPoints.map(p => p.date));
   }, [zigzagPoints]);
 
-  const chartData = useMemo(() => {
-    const shares = fund.userPosition?.shares ?? 0;
-    const zigzagMap = new Map(zigzagPoints.map(p => [p.date, p.unitNAV]));
-
-    return baseChartData.map((p, index, arr) => {
-        const zigzagNAV = zigzagMap.get(p.date);
-        let dailyProfit = 0;
-
-        if (index > 0 && shares > 0) {
-            const prevPoint = arr[index - 1];
-            const currentNav = p.unitNAV ?? 0;
-            const prevNav = prevPoint.unitNAV ?? 0;
-            if (currentNav > 0 && prevNav > 0) {
-                 dailyProfit = (currentNav - prevNav) * shares;
-            }
-        }
-        
-        return { ...p, zigzagNAV, dailyProfit };
-    });
-  }, [baseChartData, zigzagPoints, fund.userPosition?.shares]);
-
   const latestNAVForComparison = useMemo(() => {
     return fund.baseChartData.length > 0 ? fund.baseChartData[fund.baseChartData.length - 1].unitNAV ?? 0 : 0;
   }, [fund.baseChartData]);
@@ -196,7 +175,9 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
       <td className="p-0 border-r dark:border-gray-700 w-[300px] min-w-[300px] md:sticky md:left-[250px] bg-white dark:bg-gray-900 md:z-[5] relative">
         <div className="absolute inset-0">
           <FundChart 
-            chartData={chartData}
+            baseChartData={baseChartData}
+            zigzagPoints={zigzagPoints}
+            shares={fund.userPosition?.shares ?? 0}
             lastPivotDate={lastPivotDate} 
             costPrice={fund.userPosition?.cost && fund.userPosition.cost > 0 ? fund.userPosition.cost : null}
             actualCostPrice={fund.actualCost && fund.actualCost > 0 ? fund.actualCost : null}

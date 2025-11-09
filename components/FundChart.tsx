@@ -8,7 +8,9 @@ interface ChartDataPoint extends Partial<FundDataPoint> {
 }
 
 interface FundChartProps {
-  chartData: ChartDataPoint[];
+  baseChartData: Partial<FundDataPoint>[];
+  zigzagPoints: Partial<FundDataPoint>[];
+  shares: number;
   lastPivotDate?: string | null;
   costPrice?: number | null;
   actualCostPrice?: number | null;
@@ -64,9 +66,39 @@ const CustomTooltip: React.FC<any> = ({ active, payload }) => {
 };
 
 
-const FundChart: React.FC<FundChartProps> = ({ chartData, lastPivotDate, costPrice, actualCostPrice, showLabels = true, navPercentile }) => {
+const FundChart: React.FC<FundChartProps> = ({ 
+  baseChartData, 
+  zigzagPoints, 
+  shares, 
+  lastPivotDate, 
+  costPrice, 
+  actualCostPrice, 
+  showLabels = true, 
+  navPercentile 
+}) => {
+    
+  const chartDataForRender = useMemo(() => {
+    const zigzagMap = new Map(zigzagPoints.map(p => [p.date, p.unitNAV]));
+
+    return baseChartData.map((p, index, arr) => {
+        const zigzagNAV = zigzagMap.get(p.date);
+        let dailyProfit = 0;
+
+        if (index > 0 && shares > 0) {
+            const prevPoint = arr[index - 1];
+            const currentNav = p.unitNAV ?? 0;
+            const prevNav = prevPoint.unitNAV ?? 0;
+            if (currentNav > 0 && prevNav > 0) {
+                 dailyProfit = (currentNav - prevNav) * shares;
+            }
+        }
+        
+        return { ...p, zigzagNAV, dailyProfit };
+    });
+  }, [baseChartData, zigzagPoints, shares]);
+
   const yAxisDomain = useMemo(() => {
-    const navValues = chartData.map(p => p.unitNAV).filter((v): v is number => typeof v === 'number' && !isNaN(v));
+    const navValues = baseChartData.map(p => p.unitNAV).filter((v): v is number => typeof v === 'number' && !isNaN(v));
     const allValues = [...navValues];
     if (costPrice && costPrice > 0) allValues.push(costPrice);
     if (actualCostPrice && actualCostPrice > 0) allValues.push(actualCostPrice);
@@ -86,7 +118,7 @@ const FundChart: React.FC<FundChartProps> = ({ chartData, lastPivotDate, costPri
     const padding = range * 0.05;
     
     return [min - padding, max + padding];
-  }, [chartData, costPrice, actualCostPrice]);
+  }, [baseChartData, costPrice, actualCostPrice]);
 
   const gradientId = "costAreaGradient";
 
@@ -101,7 +133,7 @@ const FundChart: React.FC<FundChartProps> = ({ chartData, lastPivotDate, costPri
   return (
     <div className="relative w-full h-full">
       <ResponsiveContainer>
-        <LineChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+        <LineChart data={chartDataForRender} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#ef4444" stopOpacity={0.2}/>
