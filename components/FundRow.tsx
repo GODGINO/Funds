@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useMemo, useState, useCallback } from 'react';
 import { Fund, FundDataPoint, UserPosition } from '../types';
 import FundChart from './FundChart';
@@ -113,7 +115,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
   return (
     <tr className="border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
       <td 
-        className="p-0 border-r dark:border-gray-700 text-left md:sticky md:left-0 bg-white dark:bg-gray-900 md:z-[5] w-[250px] min-w-[250px] cursor-pointer"
+        className="p-0 border-r dark:border-gray-700 text-left md:sticky md:left-0 bg-white dark:bg-gray-900 md:z-[5] w-[250px] min-w-[250px]"
         onDoubleClick={() => onShowDetails(fund)}
       >
         <div className="flex flex-col h-full justify-between p-2">
@@ -129,7 +131,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
               </span>
             </div>
             {trendInfo && (
-              <div className={`text-xs mt-1 font-semibold ${trendInfo.isPositive ? 'text-red-500' : 'text-green-600'}`}>
+              <div className={`text-xs mt-0.5 font-semibold ${trendInfo.isPositive ? 'text-red-500' : 'text-green-600'}`}>
                 {trendInfo.text}
               </div>
             )}

@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Fund, UserPosition } from './types';
 import { fetchFundData, fetchFundDetails } from './services/fundService';
@@ -58,8 +57,25 @@ const App: React.FC = () => {
   const [activeTag, setActiveTag] = useState<string | null>(SYSTEM_TAGS.HOLDING);
   const [isPrivacyModeEnabled, setIsPrivacyModeEnabled] = useState(window.innerWidth >= 768);
   const [isVeiled, setIsVeiled] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<string | null>(null);
   const inactivityTimer = useRef<number | null>(null);
   const longPressTimer = useRef<number | null>(null);
+  const appLoaded = useRef<boolean>(false);
+
+  const getCurrentTimeString = useCallback(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+  }, []);
+
+  // Effect for initial timestamp
+  useEffect(() => {
+    // This effect runs whenever isAppLoading changes.
+    // We only want to set the timestamp ONCE after the initial load completes.
+    if (!isAppLoading && !appLoaded.current) {
+        setLastRefreshTime(getCurrentTimeString());
+        appLoaded.current = true; // Mark that the app has loaded
+    }
+  }, [isAppLoading, getCurrentTimeString]);
 
   // Effect for Privacy Mode
   useEffect(() => {
@@ -292,6 +308,8 @@ const App: React.FC = () => {
   const handleRefresh = useCallback(async () => {
     if (funds.length === 0) return;
 
+    setLastRefreshTime(getCurrentTimeString());
+
     setIsRefreshing(true);
     setError(null);
     try {
@@ -310,7 +328,7 @@ const App: React.FC = () => {
     } finally {
       setIsRefreshing(false);
     }
-  }, [funds]);
+  }, [funds, getCurrentTimeString]);
 
   // Auto-refresh data every 3 minutes
   useEffect(() => {
@@ -430,8 +448,8 @@ const App: React.FC = () => {
     return [...sortedSystemTags, ...customTags];
 }, [funds]);
 
-  const processedAndSortedFunds = useMemo(() => {
-    const fundsWithMetrics = funds.map(fund => {
+  const processedFunds = useMemo(() => {
+    return funds.map(fund => {
         const baseChartData = [...fund.data];
         
         if (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) {
@@ -478,8 +496,15 @@ const App: React.FC = () => {
                         const direction = isPositive ? '上涨' : '下跌';
                         const formattedChange = Math.abs(change).toFixed(2);
                         
+                        let trendText = `近${diffDays === 0 ? 1 : diffDays}天, ${direction}${formattedChange}%`;
+                        const shares = fund.userPosition?.shares;
+                        if (shares && shares > 0) {
+                            const profit = (latestNAV - pivotNAV) * shares;
+                            trendText += `, ${profit.toFixed(0)} 元`;
+                        }
+                        
                         trendInfo = {
-                            text: `近${diffDays === 0 ? 1 : diffDays}天, ${direction}${formattedChange}%`,
+                            text: trendText,
                             isPositive: isPositive,
                             change: change
                         };
@@ -534,8 +559,10 @@ const App: React.FC = () => {
             ...portfolioMetrics,
         };
     });
-    
-    const filteredFunds = fundsWithMetrics.filter(fund => {
+  }, [funds, zigzagThreshold]);
+
+  const processedAndSortedFunds = useMemo(() => {
+    const filteredFunds = processedFunds.filter(fund => {
         if (!activeTag) return true;
         
         const position = fund.userPosition;
@@ -580,13 +607,13 @@ const App: React.FC = () => {
     });
 
     return filteredFunds;
-  }, [funds, zigzagThreshold, sortBy, sortOrder, activeTag]);
+  }, [processedFunds, sortBy, sortOrder, activeTag]);
   
   const dailyPortfolioMetrics = useMemo(() => {
     let totalDailyProfit = 0;
     let totalYesterdayMarketValue = 0;
 
-    processedAndSortedFunds.forEach(fund => {
+    processedFunds.forEach(fund => {
         const shares = fund.userPosition?.shares;
         if (!shares || shares <= 0) {
             return; // Skip funds not held
@@ -611,7 +638,7 @@ const App: React.FC = () => {
         : 0;
 
     return { totalDailyProfit, totalDailyProfitRate };
-  }, [processedAndSortedFunds]);
+  }, [processedFunds]);
 
   const handleDeleteFund = useCallback((codeToDelete: string) => {
     setFunds(prevFunds => prevFunds.filter(fund => fund.code !== codeToDelete));
@@ -702,7 +729,14 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-800 dark:bg-gray-950 dark:text-gray-200 font-sans p-4">
-      {isVeiled && <PrivacyVeil />}
+      {isVeiled && (
+        <PrivacyVeil 
+          onRefresh={handleRefresh} 
+          lastRefreshTime={lastRefreshTime} 
+          totalDailyProfit={dailyPortfolioMetrics.totalDailyProfit}
+          totalDailyProfitRate={dailyPortfolioMetrics.totalDailyProfitRate}
+        />
+      )}
       {isAppLoading ? (
          <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg shadow-md">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">Loading Your Funds...</h3>

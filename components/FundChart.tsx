@@ -143,7 +143,7 @@ const FundChart: React.FC<FundChartProps> = ({
           <XAxis dataKey="date" type="category" hide />
           <YAxis hide domain={yAxisDomain} />
 
-          <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#a0a0a0', strokeWidth: 1, strokeDasharray: '3 3' }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#a0a0a0', strokeWidth: 1, strokeDasharray: '3 3' }} wrapperStyle={{ zIndex: 100 }} />
           
           {costPrice && costPrice > 0 && (
             <ReferenceArea 
