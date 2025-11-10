@@ -2,7 +2,16 @@ import React, { useMemo } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, XAxis, ReferenceArea, Tooltip } from 'recharts';
 import { FundDataPoint } from '../types';
 
-interface ChartDataPoint extends Partial<FundDataPoint> {
+// FIX: Redefined ChartDataPoint to explicitly list properties from FundDataPoint.
+// This resolves an issue where properties from the extended Partial<FundDataPoint> type were not being recognized.
+interface ChartDataPoint {
+  date?: string;
+  unitNAV?: number;
+  cumulativeNAV?: number;
+  dailyGrowthRate?: string;
+  subscriptionStatus?: string;
+  redemptionStatus?: string;
+  dividendDistribution?: string;
   zigzagNAV?: number;
   dailyProfit?: number;
 }

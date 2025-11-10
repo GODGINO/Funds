@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Fund, UserPosition } from './types';
+// FIX: Import ProcessedFund for better type safety
+import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder } from './types';
 import { fetchFundData, fetchFundDetails } from './services/fundService';
 import FundInputForm from './components/FundInputForm';
 import FundRow from './components/FundRow';
@@ -9,6 +10,7 @@ import { calculateZigzag } from './services/chartUtils';
 import ControlsCard from './components/ControlsCard';
 import ImportModal from './components/ImportModal';
 import PrivacyVeil from './components/PrivacyVeil';
+import TagAnalysisTable from './components/TagAnalysisTable';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042'];
 
@@ -41,7 +43,7 @@ const validatePositions = (data: any): data is UserPosition[] => {
     return true;
 };
 
-
+// FIX: Corrected component structure. A misplaced closing brace `}` was causing all subsequent hooks and the return statement to be outside the component scope, leading to multiple errors.
 const App: React.FC = () => {
   const [funds, setFunds] = useState<Fund[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -58,6 +60,8 @@ const App: React.FC = () => {
   const [isPrivacyModeEnabled, setIsPrivacyModeEnabled] = useState(window.innerWidth >= 768);
   const [isVeiled, setIsVeiled] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<string | null>(null);
+  const [tagSortKey, setTagSortKey] = useState<keyof TagAnalysisData>('totalDailyProfit');
+  const [tagSortOrder, setTagSortOrder] = useState<TagSortOrder>('desc');
   const inactivityTimer = useRef<number | null>(null);
   const longPressTimer = useRef<number | null>(null);
   const appLoaded = useRef<boolean>(false);
@@ -448,8 +452,9 @@ const App: React.FC = () => {
     return [...sortedSystemTags, ...customTags];
 }, [funds]);
 
-  const processedFunds = useMemo(() => {
-    return funds.map(fund => {
+  // FIX: Add explicit return type to useMemo for processedFunds to ensure properties are recognized downstream.
+  const processedFunds = useMemo((): ProcessedFund[] => {
+    return funds.map((fund): ProcessedFund => {
         const baseChartData = [...fund.data];
         
         if (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) {
@@ -475,6 +480,9 @@ const App: React.FC = () => {
         const lastPivotDate = zigzagPoints.length >= 2 ? zigzagPoints[zigzagPoints.length - 2]?.date : null;
 
         let trendInfo = null;
+        let recentProfit = 0;
+        let initialMarketValueForTrend = 0;
+
         if (zigzagPoints.length >= 2 && baseChartData.length > 0) {
             const lastPivot = zigzagPoints[zigzagPoints.length - 2];
             const latestPoint = baseChartData[baseChartData.length - 1];
@@ -501,6 +509,8 @@ const App: React.FC = () => {
                         if (shares && shares > 0) {
                             const profit = (latestNAV - pivotNAV) * shares;
                             trendText += `, ${profit.toFixed(0)} 元`;
+                            recentProfit = profit;
+                            initialMarketValueForTrend = pivotNAV * shares;
                         }
                         
                         trendInfo = {
@@ -556,10 +566,165 @@ const App: React.FC = () => {
             zigzagPoints,
             lastPivotDate,
             navPercentile,
+            recentProfit,
+            initialMarketValueForTrend,
             ...portfolioMetrics,
         };
     });
   }, [funds, zigzagThreshold]);
+
+  const analysisResults = useMemo(() => {
+    // First, calculate totals for the entire portfolio
+    let totalCostBasis = 0;
+    let totalMarketValue = 0;
+    let totalHoldingProfit = 0;
+    let grandTotalProfit = 0;
+    let totalDailyProfit = 0;
+    let totalYesterdayMarketValue = 0;
+    let totalRecentProfit = 0;
+    let totalInitialMarketValueForTrend = 0;
+
+    processedFunds.forEach(fund => {
+        const position = fund.userPosition;
+        if (!position || position.shares <= 0) return; 
+
+        totalCostBasis += fund.costBasis ?? 0;
+        totalMarketValue += fund.marketValue ?? 0;
+        totalHoldingProfit += fund.holdingProfit ?? 0;
+        grandTotalProfit += fund.totalProfit ?? 0;
+        totalRecentProfit += fund.recentProfit ?? 0;
+        totalInitialMarketValueForTrend += fund.initialMarketValueForTrend ?? 0;
+        
+        const chartPoints = fund.baseChartData;
+        if (chartPoints.length >= 2) {
+            const todayNAV = chartPoints[chartPoints.length - 1]?.unitNAV;
+            const yesterdayNAV = chartPoints[chartPoints.length - 2]?.unitNAV;
+            if (yesterdayNAV && todayNAV && todayNAV > 0) {
+                const dailyProfit = (todayNAV - yesterdayNAV) * position.shares;
+                totalDailyProfit += dailyProfit;
+                totalYesterdayMarketValue += yesterdayNAV * position.shares;
+            }
+        }
+    });
+
+    const totals = {
+        totalCostBasis,
+        totalMarketValue,
+        cumulativeMarketValue: totalCostBasis + grandTotalProfit,
+        grandTotalProfit,
+        totalHoldingProfit,
+        totalDailyProfit,
+        totalRecentProfit,
+        // FIX: Add missing properties to the totals object to match the component's expected type.
+        totalYesterdayMarketValue,
+        totalInitialMarketValueForTrend,
+        holdingProfitRate: totalCostBasis > 0 ? (totalHoldingProfit / totalCostBasis) * 100 : 0,
+        totalProfitRate: totalCostBasis > 0 ? (grandTotalProfit / totalCostBasis) * 100 : 0,
+        dailyProfitRate: totalYesterdayMarketValue > 0 ? (totalDailyProfit / totalYesterdayMarketValue) * 100 : 0,
+        recentProfitRate: totalInitialMarketValueForTrend > 0 ? (totalRecentProfit / totalInitialMarketValueForTrend) * 100 : 0,
+    };
+    
+    // Second, calculate metrics per tag
+    const metricsByTag: { [tag: string]: {
+        totalCostBasis: number;
+        totalMarketValue: number;
+        totalHoldingProfit: number;
+        grandTotalProfit: number;
+        totalDailyProfit: number;
+        totalYesterdayMarketValue: number;
+        totalRecentProfit: number;
+        totalInitialMarketValueForTrend: number;
+        fundCodes: Set<string>;
+    } } = {};
+
+    processedFunds.forEach(fund => {
+        const position = fund.userPosition;
+        if (!position || !position.tag || position.shares <= 0) return;
+
+        const chartPoints = fund.baseChartData;
+        let dailyProfit = 0;
+        let yesterdayMarketValue = 0;
+        if (chartPoints.length >= 2) {
+            const todayNAV = chartPoints[chartPoints.length - 1]?.unitNAV;
+            const yesterdayNAV = chartPoints[chartPoints.length - 2]?.unitNAV;
+            if (yesterdayNAV && todayNAV && todayNAV > 0) {
+                dailyProfit = (todayNAV - yesterdayNAV) * position.shares;
+                yesterdayMarketValue = yesterdayNAV * position.shares;
+            }
+        }
+
+        const customTags = position.tag.split(',').map(t => t.trim()).filter(Boolean);
+
+        customTags.forEach(tag => {
+            if (!metricsByTag[tag]) {
+                metricsByTag[tag] = {
+                    totalCostBasis: 0,
+                    totalMarketValue: 0,
+                    totalHoldingProfit: 0,
+                    grandTotalProfit: 0,
+                    totalDailyProfit: 0,
+                    totalYesterdayMarketValue: 0,
+                    totalRecentProfit: 0,
+                    totalInitialMarketValueForTrend: 0,
+                    fundCodes: new Set<string>(),
+                };
+            }
+            
+            metricsByTag[tag].totalCostBasis += fund.costBasis ?? 0;
+            metricsByTag[tag].totalMarketValue += fund.marketValue ?? 0;
+            metricsByTag[tag].totalHoldingProfit += fund.holdingProfit ?? 0;
+            metricsByTag[tag].grandTotalProfit += fund.totalProfit ?? 0;
+            metricsByTag[tag].totalDailyProfit += dailyProfit;
+            metricsByTag[tag].totalYesterdayMarketValue += yesterdayMarketValue;
+            metricsByTag[tag].totalRecentProfit += fund.recentProfit ?? 0;
+            metricsByTag[tag].totalInitialMarketValueForTrend += fund.initialMarketValueForTrend ?? 0;
+            metricsByTag[tag].fundCodes.add(fund.code);
+        });
+    });
+
+    // Finally, map tag metrics to final data structure, including efficiency ratios
+    const data = Object.entries(metricsByTag).map(([tag, metrics]) => {
+        const marketValueContribution = totals.totalMarketValue > 0 ? (metrics.totalMarketValue / totals.totalMarketValue) : 0;
+
+        const holdingProfitContribution = totals.totalHoldingProfit !== 0 ? (metrics.totalHoldingProfit / totals.totalHoldingProfit) : 0;
+        const holdingEfficiency = marketValueContribution > 0 ? (holdingProfitContribution / marketValueContribution) : 0;
+
+        const dailyProfitContribution = totals.totalDailyProfit !== 0 ? (metrics.totalDailyProfit / totals.totalDailyProfit) : 0;
+        const dailyEfficiency = marketValueContribution > 0 ? (dailyProfitContribution / marketValueContribution) : 0;
+        
+        const recentProfitContribution = totals.totalRecentProfit !== 0 ? (metrics.totalRecentProfit / totals.totalRecentProfit) : 0;
+        const recentEfficiency = marketValueContribution > 0 ? (recentProfitContribution / marketValueContribution) : 0;
+
+        return {
+            tag,
+            fundCount: metrics.fundCodes.size,
+            ...metrics,
+            cumulativeMarketValue: metrics.totalCostBasis + metrics.grandTotalProfit,
+            holdingProfitRate: metrics.totalCostBasis > 0 ? (metrics.totalHoldingProfit / metrics.totalCostBasis) * 100 : 0,
+            totalProfitRate: metrics.totalCostBasis > 0 ? (metrics.grandTotalProfit / metrics.totalCostBasis) * 100 : 0,
+            dailyProfitRate: metrics.totalYesterdayMarketValue > 0 ? (metrics.totalDailyProfit / metrics.totalYesterdayMarketValue) * 100 : 0,
+            recentProfitRate: metrics.totalInitialMarketValueForTrend > 0 ? (metrics.totalRecentProfit / metrics.totalInitialMarketValueForTrend) * 100 : 0,
+            holdingEfficiency,
+            dailyEfficiency,
+            recentEfficiency,
+        };
+    })
+    
+    data.sort((a, b) => {
+      const valA = a[tagSortKey] as number;
+      const valB = b[tagSortKey] as number;
+
+      if (tagSortOrder === 'asc') return valA - valB;
+      if (tagSortOrder === 'desc') return valB - valA;
+      if (tagSortOrder === 'abs_asc') return Math.abs(valA) - Math.abs(valB);
+      if (tagSortOrder === 'abs_desc') return Math.abs(valB) - Math.abs(valA);
+      return 0;
+    });
+
+    return { tagAnalysisData: data, portfolioTotals: totals };
+
+  }, [processedFunds, tagSortKey, tagSortOrder]);
+
 
   const processedAndSortedFunds = useMemo(() => {
     const filteredFunds = processedFunds.filter(fund => {
@@ -609,36 +774,6 @@ const App: React.FC = () => {
     return filteredFunds;
   }, [processedFunds, sortBy, sortOrder, activeTag]);
   
-  const dailyPortfolioMetrics = useMemo(() => {
-    let totalDailyProfit = 0;
-    let totalYesterdayMarketValue = 0;
-
-    processedFunds.forEach(fund => {
-        const shares = fund.userPosition?.shares;
-        if (!shares || shares <= 0) {
-            return; // Skip funds not held
-        }
-
-        const chartPoints = fund.baseChartData;
-        if (chartPoints.length < 2) {
-            return; // Not enough data
-        }
-
-        const todayNAV = chartPoints[chartPoints.length - 1]?.unitNAV;
-        const yesterdayNAV = chartPoints[chartPoints.length - 2]?.unitNAV;
-
-        if (yesterdayNAV && todayNAV && todayNAV > 0) {
-            totalDailyProfit += (todayNAV - yesterdayNAV) * shares;
-            totalYesterdayMarketValue += yesterdayNAV * shares;
-        }
-    });
-
-    const totalDailyProfitRate = totalYesterdayMarketValue > 0
-        ? (totalDailyProfit / totalYesterdayMarketValue) * 100
-        : 0;
-
-    return { totalDailyProfit, totalDailyProfitRate };
-  }, [processedFunds]);
 
   const handleDeleteFund = useCallback((codeToDelete: string) => {
     setFunds(prevFunds => prevFunds.filter(fund => fund.code !== codeToDelete));
@@ -690,6 +825,22 @@ const App: React.FC = () => {
     });
   }, []);
 
+  const handleTagSortChange = useCallback((newKey: keyof TagAnalysisData) => {
+    setTagSortKey(prevKey => {
+      if (prevKey === newKey) {
+        setTagSortOrder(prevOrder => {
+          if (prevOrder === 'desc') return 'asc';
+          if (prevOrder === 'asc') return 'abs_desc';
+          if (prevOrder === 'abs_desc') return 'abs_asc';
+          return 'desc'; // from 'abs_asc' back to 'desc'
+        });
+      } else {
+        setTagSortOrder('desc'); // Reset to default when key changes
+      }
+      return newKey;
+    });
+  }, []);
+
   const dateHeaders = useMemo(() => {
     if (funds.length === 0) return [];
     
@@ -733,8 +884,8 @@ const App: React.FC = () => {
         <PrivacyVeil 
           onRefresh={handleRefresh} 
           lastRefreshTime={lastRefreshTime} 
-          totalDailyProfit={dailyPortfolioMetrics.totalDailyProfit}
-          totalDailyProfitRate={dailyPortfolioMetrics.totalDailyProfitRate}
+          totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit}
+          totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate}
         />
       )}
       {isAppLoading ? (
@@ -761,8 +912,17 @@ const App: React.FC = () => {
             onRefresh={handleRefresh}
             isRefreshing={isRefreshing}
             isLoading={isLoading || isAppLoading}
-            totalDailyProfit={dailyPortfolioMetrics.totalDailyProfit}
-            totalDailyProfitRate={dailyPortfolioMetrics.totalDailyProfitRate}
+            totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit}
+            totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate}
+          />
+          <TagAnalysisTable 
+            data={analysisResults.tagAnalysisData} 
+            totals={analysisResults.portfolioTotals} 
+            activeTag={activeTag}
+            onTagDoubleClick={handleTagDoubleClick}
+            sortKey={tagSortKey}
+            sortOrder={tagSortOrder}
+            onSortChange={handleTagSortChange}
           />
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow-md p-4">
             <div className="w-full overflow-x-auto">

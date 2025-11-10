@@ -23,7 +23,7 @@ export interface UserPosition {
 }
 
 export interface Fund {
-  code: string;
+  code:string;
   name: string;
   data: FundDataPoint[];
   realTimeData?: RealTimeData;
@@ -33,6 +33,7 @@ export interface Fund {
   userPosition?: UserPosition;
 }
 
+// FIX: Add ProcessedFund interface for better type safety with derived fund data.
 export interface ProcessedFund extends Fund {
     trendInfo: {
         text: string;
@@ -50,27 +51,4 @@ export interface ProcessedFund extends Fund {
     actualCost?: number;
     recentProfit?: number;
     initialMarketValueForTrend?: number;
-}
-
-export type TagSortOrder = 'asc' | 'desc' | 'abs_asc' | 'abs_desc';
-
-export interface TagAnalysisData {
-  tag: string;
-  fundCount: number;
-  totalCostBasis: number;
-  totalMarketValue: number;
-  cumulativeMarketValue: number;
-  totalHoldingProfit: number;
-  grandTotalProfit: number;
-  totalDailyProfit: number;
-  totalYesterdayMarketValue: number;
-  totalRecentProfit: number;
-  totalInitialMarketValueForTrend: number;
-  holdingProfitRate: number;
-  totalProfitRate: number;
-  dailyProfitRate: number;
-  recentProfitRate: number;
-  holdingEfficiency: number;
-  dailyEfficiency: number;
-  recentEfficiency: number;
 }

@@ -1,28 +1,11 @@
 
 
-
-
 import React, { useMemo, useState, useCallback } from 'react';
-import { Fund, FundDataPoint, UserPosition } from '../types';
+// FIX: Import the shared ProcessedFund interface.
+import { Fund, FundDataPoint, ProcessedFund } from '../types';
 import FundChart from './FundChart';
 
-interface ProcessedFund extends Fund {
-    trendInfo: {
-        text: string;
-        isPositive: boolean;
-        change: number;
-    } | null;
-    baseChartData: Partial<FundDataPoint>[];
-    zigzagPoints: Partial<FundDataPoint>[];
-    lastPivotDate: string | null;
-    navPercentile: number | null;
-    marketValue?: number;
-    costBasis?: number;
-    holdingProfit?: number;
-    totalProfit?: number;
-    actualCost?: number;
-}
-
+// FIX: Removed local ProcessedFund interface, now imported from types.ts.
 
 interface FundRowProps {
   fund: ProcessedFund;
@@ -110,7 +93,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
         console.error('Failed to copy fund code: ', err);
     });
   }, [fund.code]);
-
+  
 
   return (
     <tr className="border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
