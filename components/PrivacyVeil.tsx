@@ -25,13 +25,13 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-white z-[200] flex flex-col justify-between items-center text-slate-700 font-sans p-8"
+      className="fixed inset-0 bg-white z-[200] flex flex-col justify-center items-center text-slate-700 font-sans p-8"
       onContextMenu={(e) => e.preventDefault()}
       onClick={onRefresh}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
-        <div className="w-full max-w-lg text-left pt-12">
+        <div className="w-full max-w-lg text-left">
             <DinoIcon />
             <h1 className="text-3xl font-semibold text-slate-800 mt-4 mb-2">未连接到互联网</h1>
             <p className="text-lg mb-2">请试试以下办法：</p>
@@ -41,9 +41,9 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
             </ul>
             <p className="text-base text-slate-500">{isHovering ? `${formattedProfit} ${formattedRate}` : '-'}</p>
             <p className="text-base text-slate-500">ERR_INTERNET_DISCONNECTED</p>
-        </div>
-        <div className="w-full max-w-lg text-left text-lg text-slate-500 pb-4">
-            未连接到互联网 {lastRefreshTime}
+            <div className="text-lg text-slate-500 mt-20">
+                未连接到互联网 {lastRefreshTime}
+            </div>
         </div>
     </div>
   );
