@@ -141,7 +141,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
               return (
                 <tr 
                   key={item.tag} 
-                  className={`border-b dark:border-gray-800 cursor-pointer ${isSelected ? 'bg-gray-300 dark:bg-gray-600' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
+                  className={`border-b dark:border-gray-800 cursor-pointer ${isSelected ? 'bg-gray-300 dark:bg-gray-600' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
                   onDoubleClick={() => onTagDoubleClick(item.tag)}
                 >
                   <td className="p-0 border-x dark:border-gray-700 text-left font-medium px-1">

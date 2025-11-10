@@ -629,29 +629,21 @@ const App: React.FC = () => {
         totalCostBasis: number;
         totalMarketValue: number;
         totalHoldingProfit: number;
-        grandTotalProfit: number;
+        totalRealizedProfit: number;
         totalDailyProfit: number;
         totalYesterdayMarketValue: number;
         totalRecentProfit: number;
         totalInitialMarketValueForTrend: number;
         fundCodes: Set<string>;
+        sumDailyRates: number;
+        dailyRateCount: number;
+        sumRecentRates: number;
+        recentRateCount: number;
     } } = {};
 
     processedFunds.forEach(fund => {
         const position = fund.userPosition;
-        if (!position || !position.tag || position.shares <= 0) return;
-
-        const chartPoints = fund.baseChartData;
-        let dailyProfit = 0;
-        let yesterdayMarketValue = 0;
-        if (chartPoints.length >= 2) {
-            const todayNAV = chartPoints[chartPoints.length - 1]?.unitNAV;
-            const yesterdayNAV = chartPoints[chartPoints.length - 2]?.unitNAV;
-            if (yesterdayNAV && todayNAV && todayNAV > 0) {
-                dailyProfit = (todayNAV - yesterdayNAV) * position.shares;
-                yesterdayMarketValue = yesterdayNAV * position.shares;
-            }
-        }
+        if (!position || !position.tag) return;
 
         const customTags = position.tag.split(',').map(t => t.trim()).filter(Boolean);
 
@@ -661,29 +653,70 @@ const App: React.FC = () => {
                     totalCostBasis: 0,
                     totalMarketValue: 0,
                     totalHoldingProfit: 0,
-                    grandTotalProfit: 0,
+                    totalRealizedProfit: 0,
                     totalDailyProfit: 0,
                     totalYesterdayMarketValue: 0,
                     totalRecentProfit: 0,
                     totalInitialMarketValueForTrend: 0,
                     fundCodes: new Set<string>(),
+                    sumDailyRates: 0,
+                    dailyRateCount: 0,
+                    sumRecentRates: 0,
+                    recentRateCount: 0,
                 };
             }
-            
-            metricsByTag[tag].totalCostBasis += fund.costBasis ?? 0;
-            metricsByTag[tag].totalMarketValue += fund.marketValue ?? 0;
-            metricsByTag[tag].totalHoldingProfit += fund.holdingProfit ?? 0;
-            metricsByTag[tag].grandTotalProfit += fund.totalProfit ?? 0;
-            metricsByTag[tag].totalDailyProfit += dailyProfit;
-            metricsByTag[tag].totalYesterdayMarketValue += yesterdayMarketValue;
-            metricsByTag[tag].totalRecentProfit += fund.recentProfit ?? 0;
-            metricsByTag[tag].totalInitialMarketValueForTrend += fund.initialMarketValueForTrend ?? 0;
+            // Aggregate metrics that apply to ALL tagged funds (including zero-share)
             metricsByTag[tag].fundCodes.add(fund.code);
+            metricsByTag[tag].totalRealizedProfit += position.realizedProfit || 0;
+
+            const dailyChangeStr = fund.realTimeData?.estimatedChange ?? fund.latestChange;
+            const dailyChange = dailyChangeStr ? parseFloat(dailyChangeStr) : null;
+            if (dailyChange !== null && !isNaN(dailyChange)) {
+                metricsByTag[tag].sumDailyRates += dailyChange;
+                metricsByTag[tag].dailyRateCount++;
+            }
+            if (fund.trendInfo?.change) {
+                metricsByTag[tag].sumRecentRates += fund.trendInfo.change;
+                metricsByTag[tag].recentRateCount++;
+            }
+
+            // Only aggregate share-dependent financial data if the fund is actually held.
+            if (position.shares > 0) {
+                const chartPoints = fund.baseChartData;
+                let dailyProfit = 0;
+                let yesterdayMarketValue = 0;
+                if (chartPoints.length >= 2) {
+                    const todayNAV = chartPoints[chartPoints.length - 1]?.unitNAV;
+                    const yesterdayNAV = chartPoints[chartPoints.length - 2]?.unitNAV;
+                    if (yesterdayNAV && todayNAV && todayNAV > 0) {
+                        dailyProfit = (todayNAV - yesterdayNAV) * position.shares;
+                        yesterdayMarketValue = yesterdayNAV * position.shares;
+                    }
+                }
+                
+                metricsByTag[tag].totalCostBasis += fund.costBasis ?? 0;
+                metricsByTag[tag].totalMarketValue += fund.marketValue ?? 0;
+                metricsByTag[tag].totalHoldingProfit += fund.holdingProfit ?? 0;
+                metricsByTag[tag].totalDailyProfit += dailyProfit;
+                metricsByTag[tag].totalYesterdayMarketValue += yesterdayMarketValue;
+                metricsByTag[tag].totalRecentProfit += fund.recentProfit ?? 0;
+                metricsByTag[tag].totalInitialMarketValueForTrend += fund.initialMarketValueForTrend ?? 0;
+            }
         });
     });
 
     // Finally, map tag metrics to final data structure, including efficiency ratios
     const data = Object.entries(metricsByTag).map(([tag, metrics]) => {
+        const grandTotalProfit = metrics.totalHoldingProfit + metrics.totalRealizedProfit;
+        
+        const dailyProfitRate = metrics.totalYesterdayMarketValue > 0 
+            ? (metrics.totalDailyProfit / metrics.totalYesterdayMarketValue) * 100 
+            : (metrics.dailyRateCount > 0 ? metrics.sumDailyRates / metrics.dailyRateCount : 0);
+    
+        const recentProfitRate = metrics.totalInitialMarketValueForTrend > 0
+            ? (metrics.totalRecentProfit / metrics.totalInitialMarketValueForTrend) * 100
+            : (metrics.recentRateCount > 0 ? metrics.sumRecentRates / metrics.recentRateCount : 0);
+
         const marketValueContribution = totals.totalMarketValue > 0 ? (metrics.totalMarketValue / totals.totalMarketValue) : 0;
 
         const holdingProfitContribution = totals.totalHoldingProfit !== 0 ? (metrics.totalHoldingProfit / totals.totalHoldingProfit) : 0;
@@ -699,11 +732,12 @@ const App: React.FC = () => {
             tag,
             fundCount: metrics.fundCodes.size,
             ...metrics,
-            cumulativeMarketValue: metrics.totalCostBasis + metrics.grandTotalProfit,
+            grandTotalProfit,
+            cumulativeMarketValue: metrics.totalCostBasis + grandTotalProfit,
             holdingProfitRate: metrics.totalCostBasis > 0 ? (metrics.totalHoldingProfit / metrics.totalCostBasis) * 100 : 0,
-            totalProfitRate: metrics.totalCostBasis > 0 ? (metrics.grandTotalProfit / metrics.totalCostBasis) * 100 : 0,
-            dailyProfitRate: metrics.totalYesterdayMarketValue > 0 ? (metrics.totalDailyProfit / metrics.totalYesterdayMarketValue) * 100 : 0,
-            recentProfitRate: metrics.totalInitialMarketValueForTrend > 0 ? (metrics.totalRecentProfit / metrics.totalInitialMarketValueForTrend) * 100 : 0,
+            totalProfitRate: metrics.totalCostBasis > 0 ? (grandTotalProfit / metrics.totalCostBasis) * 100 : 0,
+            dailyProfitRate,
+            recentProfitRate,
             holdingEfficiency,
             dailyEfficiency,
             recentEfficiency,
@@ -715,6 +749,7 @@ const App: React.FC = () => {
       const valB = b[tagSortKey] as number;
 
       if (tagSortOrder === 'asc') return valA - valB;
+      // FIX: Use the already cast `valA` variable for the subtraction to avoid type errors.
       if (tagSortOrder === 'desc') return valB - valA;
       if (tagSortOrder === 'abs_asc') return Math.abs(valA) - Math.abs(valB);
       if (tagSortOrder === 'abs_desc') return Math.abs(valB) - Math.abs(valA);
