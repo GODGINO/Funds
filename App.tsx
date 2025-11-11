@@ -738,13 +738,13 @@ const App: React.FC = () => {
 
         const marketValueContribution = totals.totalMarketValue > 0 ? (metrics.totalMarketValue / totals.totalMarketValue) : 0;
 
-        const holdingProfitContribution = totals.totalHoldingProfit !== 0 ? (metrics.totalHoldingProfit / totals.totalHoldingProfit) : 0;
+        const holdingProfitContribution = totals.totalHoldingProfit !== 0 ? (metrics.totalHoldingProfit / Math.abs(totals.totalHoldingProfit)) : 0;
         const holdingEfficiency = marketValueContribution > 0 ? (holdingProfitContribution / marketValueContribution) : 0;
 
-        const dailyProfitContribution = totals.totalDailyProfit !== 0 ? (metrics.totalDailyProfit / totals.totalDailyProfit) : 0;
+        const dailyProfitContribution = totals.totalDailyProfit !== 0 ? (metrics.totalDailyProfit / Math.abs(totals.totalDailyProfit)) : 0;
         const dailyEfficiency = marketValueContribution > 0 ? (dailyProfitContribution / marketValueContribution) : 0;
         
-        const recentProfitContribution = totals.totalRecentProfit !== 0 ? (metrics.totalRecentProfit / totals.totalRecentProfit) : 0;
+        const recentProfitContribution = totals.totalRecentProfit !== 0 ? (metrics.totalRecentProfit / Math.abs(totals.totalRecentProfit)) : 0;
         const recentEfficiency = marketValueContribution > 0 ? (recentProfitContribution / marketValueContribution) : 0;
 
         return {
@@ -989,11 +989,11 @@ const App: React.FC = () => {
               <table className="w-full text-sm text-center border-collapse">
                 <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
-                    <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[250px] min-w-[250px] text-left md:sticky top-0 md:left-0 bg-gray-50 dark:bg-gray-800 md:z-20">基金名称</th>
-                    <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[300px] min-w-[300px] md:sticky top-0 md:left-[250px] bg-gray-50 dark:bg-gray-800 md:z-20">净值走势</th>
-                    <th className="p-0 border-r dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] md:sticky top-0 md:left-[550px] bg-gray-50 dark:bg-gray-800 md:z-20">当日净值</th>
+                    <th className="p-0 border-r border-gray-300 dark:border-gray-600 font-semibold text-gray-600 dark:text-gray-300 w-[250px] min-w-[250px] text-left md:sticky top-0 md:left-0 bg-gray-50 dark:bg-gray-800 md:z-20">基金名称</th>
+                    <th className="p-0 border-r border-gray-300 dark:border-gray-600 font-semibold text-gray-600 dark:text-gray-300 w-[300px] min-w-[300px] md:sticky top-0 md:left-[250px] bg-gray-50 dark:bg-gray-800 md:z-20">净值走势</th>
+                    <th className="p-0 border-r border-gray-300 dark:border-gray-600 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] md:sticky top-0 md:left-[550px] bg-gray-50 dark:bg-gray-800 md:z-20">当日净值</th>
                     {dateHeaders.map(date => (
-                      <th key={date} className="p-0 border-r dark:border-gray-700 font-normal text-gray-500 dark:text-gray-400 min-w-[60px] md:sticky top-0 bg-gray-50 dark:bg-gray-800">
+                      <th key={date} className="p-0 border-r border-gray-300 dark:border-gray-600 font-normal text-gray-500 dark:text-gray-400 min-w-[60px] md:sticky top-0 bg-gray-50 dark:bg-gray-800">
                         {date.substring(5)}{getWeekday(date)}
                       </th>
                     ))}

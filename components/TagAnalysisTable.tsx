@@ -73,7 +73,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
 
 
   return (
-    <div className="mb-4 bg-white dark:bg-gray-900 rounded-lg shadow-md p-4">
+    <div className="mb-4 bg-white dark:bg-gray-900 rounded-lg shadow-md p-4 select-none">
       <div className="w-full overflow-x-auto">
         <table className="w-full text-xs text-center border-collapse">
           <thead className="bg-gray-50 dark:bg-gray-800">
@@ -170,13 +170,13 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                   <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalHoldingProfit)}`}>
                     <span>{formatIntegerWithCommas(item.totalHoldingProfit)}</span>
                     {totals.totalHoldingProfit !== 0 && (
-                      <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalHoldingProfit / totals.totalHoldingProfit) * 100).toFixed(0)}%</span>
+                      <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalHoldingProfit / Math.abs(totals.totalHoldingProfit)) * 100).toFixed(0)}%</span>
                     )}
                   </td>
                   <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.grandTotalProfit)}`}>
                     <span>{formatIntegerWithCommas(item.grandTotalProfit)}</span>
                     {totals.grandTotalProfit !== 0 && (
-                      <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.grandTotalProfit / totals.grandTotalProfit) * 100).toFixed(0)}%</span>
+                      <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.grandTotalProfit / Math.abs(totals.grandTotalProfit)) * 100).toFixed(0)}%</span>
                     )}
                   </td>
                   <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getEfficiencyColor(item.holdingEfficiency)}`}>
@@ -187,7 +187,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                   <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalDailyProfit)}`}>
                     <span>{formatIntegerWithCommas(item.totalDailyProfit)}</span>
                     {totals.totalDailyProfit !== 0 && (
-                      <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalDailyProfit / totals.totalDailyProfit) * 100).toFixed(0)}%</span>
+                      <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalDailyProfit / Math.abs(totals.totalDailyProfit)) * 100).toFixed(0)}%</span>
                     )}
                   </td>
                   <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getEfficiencyColor(item.dailyEfficiency)}`}>
@@ -197,7 +197,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                   <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalRecentProfit)}`}>
                     <span>{formatIntegerWithCommas(item.totalRecentProfit)}</span>
                     {totals.totalRecentProfit !== 0 && (
-                      <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalRecentProfit / totals.totalRecentProfit) * 100).toFixed(0)}%</span>
+                      <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalRecentProfit / Math.abs(totals.totalRecentProfit)) * 100).toFixed(0)}%</span>
                     )}
                   </td>
                   <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getEfficiencyColor(item.recentEfficiency)}`}>

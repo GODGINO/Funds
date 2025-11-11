@@ -93,18 +93,22 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
         console.error('Failed to copy fund code: ', err);
     });
   }, [fund.code]);
+
+  const isTrendSignificant = useMemo(() => {
+    return fund.trendInfo && Math.abs(fund.trendInfo.change) > 4.5;
+  }, [fund.trendInfo]);
   
 
   return (
-    <tr className="border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+    <tr className="border-b border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50">
       <td 
-        className="p-0 border-r dark:border-gray-700 text-left md:sticky md:left-0 bg-white dark:bg-gray-900 md:z-[5] w-[250px] min-w-[250px]"
+        className={`p-0 border-r border-gray-300 dark:border-gray-600 text-left md:sticky md:left-0 md:z-[5] w-[250px] min-w-[250px] ${isTrendSignificant ? 'bg-gray-200 dark:bg-gray-700' : 'bg-white dark:bg-gray-900'}`}
         onDoubleClick={() => onShowDetails(fund)}
       >
         <div className="flex flex-col h-full justify-between p-2">
           <div>
             <div className="truncate">
-              <span className="font-medium text-gray-800 dark:text-gray-100">{fund.name}</span>
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{fund.name}</span>
               <span 
                 className={`ml-2 text-xs transition-colors duration-200 ${isCopied ? 'text-green-500 font-semibold' : 'text-gray-500 dark:text-gray-400 cursor-pointer hover:text-primary-500'}`}
                 onClick={handleCopyCode}
@@ -157,7 +161,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
           </div>
         </div>
       </td>
-      <td className="p-0 border-r dark:border-gray-700 w-[300px] min-w-[300px] md:sticky md:left-[250px] bg-white dark:bg-gray-900 md:z-[5] relative">
+      <td className="p-0 border-r border-gray-300 dark:border-gray-600 w-[300px] min-w-[300px] md:sticky md:left-[250px] bg-white dark:bg-gray-900 md:z-[5] relative">
         <div className="absolute inset-0">
           <FundChart 
             baseChartData={baseChartData}
@@ -171,7 +175,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
           />
         </div>
       </td>
-      <td className="p-0 border-r dark:border-gray-700 w-[60px] min-w-[60px] md:sticky md:left-[550px] bg-white dark:bg-gray-900 md:z-[5]">
+      <td className="p-0 border-r border-gray-300 dark:border-gray-600 w-[60px] min-w-[60px] md:sticky md:left-[550px] bg-white dark:bg-gray-900 md:z-[5]">
         {historicalDataForToday ? (
           <div className="p-2">
             <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">
@@ -222,7 +226,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
         const isPivotDate = pivotDateSet.has(date);
 
         return (
-          <td key={date} className={`p-0 border-r dark:border-gray-700 ${isPivotDate ? 'bg-gray-200 dark:bg-gray-700' : ''}`}>
+          <td key={date} className={`p-0 border-r border-gray-300 dark:border-gray-600 ${isPivotDate ? 'bg-gray-200 dark:bg-gray-700' : ''}`}>
             {point ? (
               <div className="p-2">
                 <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">{point.unitNAV.toFixed(4)}</div>
