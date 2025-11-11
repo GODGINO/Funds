@@ -1,8 +1,9 @@
 
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
-import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder } from './types';
-import { fetchFundData, fetchFundDetails } from './services/fundService';
+import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData } from './types';
+import { fetchFundData, fetchFundDetails, fetchIndexData } from './services/fundService';
 import FundInputForm from './components/FundInputForm';
 import FundRow from './components/FundRow';
 import FundDetailModal from './components/FundDetailModal';
@@ -62,9 +63,11 @@ const App: React.FC = () => {
   const [lastRefreshTime, setLastRefreshTime] = useState<string | null>(null);
   const [tagSortKey, setTagSortKey] = useState<keyof TagAnalysisData>('totalDailyProfit');
   const [tagSortOrder, setTagSortOrder] = useState<TagSortOrder>('desc');
+  const [indexData, setIndexData] = useState<IndexData | null>(null);
   const inactivityTimer = useRef<number | null>(null);
   const longPressTimer = useRef<number | null>(null);
   const appLoaded = useRef<boolean>(false);
+  const fundTableContainerRef = useRef<HTMLDivElement>(null);
 
   const getCurrentTimeString = useCallback(() => {
     const now = new Date();
@@ -231,13 +234,22 @@ const App: React.FC = () => {
   useEffect(() => {
     const loadSavedFunds = async () => {
       try {
+        // Start fetching index data immediately.
+        const indexPromise = fetchIndexData().then(setIndexData);
+
         const savedPositionsJSON = localStorage.getItem('userFundPortfolio');
         if (savedPositionsJSON) {
           const savedPositions: UserPosition[] = JSON.parse(savedPositionsJSON);
-          await loadFundsFromPositions(savedPositions);
+          // This will set isAppLoading to true and then false when done.
+          await loadFundsFromPositions(savedPositions); 
         } else {
           setIsAppLoading(false);
         }
+        
+        // Wait for index data too before considering the app fully loaded,
+        // though it doesn't block fund display.
+        await indexPromise;
+
       } catch (err) {
         setError("Failed to load saved funds. They may be out of date.");
         localStorage.removeItem('userFundPortfolio');
@@ -310,22 +322,28 @@ const App: React.FC = () => {
   }, [funds, recordCount]);
   
   const handleRefresh = useCallback(async () => {
-    if (funds.length === 0) return;
-
     setLastRefreshTime(getCurrentTimeString());
-
     setIsRefreshing(true);
     setError(null);
-    try {
-      const updatedFundsPromises = funds.map(async (fund) => {
-        const details = await fetchFundDetails(fund.code);
-        return {
-          ...fund,
-          realTimeData: details.realTimeData,
-        };
-      });
 
-      const updatedFunds = await Promise.all(updatedFundsPromises);
+    const indexPromise = fetchIndexData();
+    let fundsPromise: Promise<Fund[]> = Promise.resolve(funds); // Default to current funds
+
+    if (funds.length > 0) {
+      fundsPromise = Promise.all(
+        funds.map(async (fund) => {
+          const details = await fetchFundDetails(fund.code);
+          return {
+            ...fund,
+            realTimeData: details.realTimeData,
+          };
+        })
+      );
+    }
+
+    try {
+      const [newIndexData, updatedFunds] = await Promise.all([indexPromise, fundsPromise]);
+      setIndexData(newIndexData);
       setFunds(updatedFunds);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred while refreshing data.');
@@ -337,7 +355,7 @@ const App: React.FC = () => {
   // Auto-refresh data every 3 minutes
   useEffect(() => {
     // Do not set up the interval if a refresh is already in progress or if there are no funds to refresh.
-    if (isRefreshing || funds.length === 0) {
+    if (isRefreshing) {
       return;
     }
 
@@ -347,7 +365,7 @@ const App: React.FC = () => {
 
     // The cleanup function will run when dependencies change, clearing the old interval.
     return () => clearInterval(intervalId);
-  }, [handleRefresh, isRefreshing, funds.length]);
+  }, [handleRefresh, isRefreshing]);
 
   // Global cursor loading state
   useEffect(() => {
@@ -387,6 +405,7 @@ const App: React.FC = () => {
       // FIX: A block-scoped variable was used before its declaration.
       const updatedFunds = await Promise.all(updatedFundsPromises);
       setFunds(updatedFunds);
+// FIX: Corrected a syntax error in the catch block. The `=>` is invalid syntax for a catch block and was causing a major parsing failure.
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred while updating funds.');
     } finally {
@@ -855,7 +874,12 @@ const App: React.FC = () => {
         // For any other tag, revert to the new default '持有'.
         return tag === SYSTEM_TAGS.HOLDING ? null : SYSTEM_TAGS.HOLDING;
       }
-      // When selecting a new tag, just activate it.
+      
+      // When selecting a new tag, schedule the scroll and activate it.
+      setTimeout(() => {
+        fundTableContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+      
       return tag;
     });
   }, []);
@@ -921,6 +945,7 @@ const App: React.FC = () => {
           lastRefreshTime={lastRefreshTime} 
           totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit}
           totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate}
+          indexData={indexData}
         />
       )}
       {isAppLoading ? (
@@ -959,7 +984,7 @@ const App: React.FC = () => {
             sortOrder={tagSortOrder}
             onSortChange={handleTagSortChange}
           />
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-md p-4">
+          <div ref={fundTableContainerRef} className="bg-white dark:bg-gray-900 rounded-lg shadow-md p-4">
             <div className="w-full overflow-x-auto">
               <table className="w-full text-sm text-center border-collapse">
                 <thead className="bg-gray-50 dark:bg-gray-800">

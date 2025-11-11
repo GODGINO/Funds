@@ -1,4 +1,5 @@
-import { FundDataPoint, RealTimeData } from '../types';
+
+import { FundDataPoint, RealTimeData, IndexData } from '../types';
 
 function parseHtmlTable(htmlContent: string): FundDataPoint[] {
     const data: FundDataPoint[] = [];
@@ -219,4 +220,76 @@ export async function fetchFundData(
   }
 
   return allData.slice(0, recordCount).reverse();
+}
+
+// --- Index Data ---
+export async function fetchIndexData(): Promise<IndexData | null> {
+    try {
+        const EXPIRY_MS = 60 * 1000; // 1 minute cache
+        const now = Date.now();
+        const cache = (window as any)._sseIndexCache || null;
+
+        if (cache && (now - cache.timestamp) < EXPIRY_MS) {
+            const { first, latest } = cache.data;
+            const change = latest - first;
+            const changePercent = first > 0 ? (change / first) * 100 : 0;
+            return {
+                value: latest,
+                change,
+                changePercent,
+            };
+        }
+
+        const ts = Date.now();
+        const url = `https://push2delay.eastmoney.com/api/qt/stock/trends2/get?secid=1.000001&fields1=f1,f2,f3&fields2=f51,f52&ndays=1&_=${ts}`;
+        const resp = await fetch(url, { cache: 'no-store' });
+        if (!resp.ok) throw new Error('SSE index fetch failed');
+
+        const json = await resp.json();
+        const arr = (json?.data?.trends && Array.isArray(json.data.trends)) ? json.data.trends : [];
+        if (!arr.length) throw new Error('SSE trends empty');
+
+        const parseVal = (s: string): number | null => {
+            if (!s) return null;
+            const parts = String(s).split(',');
+            if (parts.length < 2) return null;
+            const v = parseFloat(parts[1]);
+            return isNaN(v) ? null : v;
+        };
+
+        const firstStr = arr[0];
+        const lastStr = arr[arr.length - 1];
+        const first = parseVal(firstStr);
+        const latest = parseVal(lastStr);
+
+        if (first == null || latest == null) throw new Error('SSE parse error');
+
+        (window as any)._sseIndexCache = {
+            timestamp: now,
+            data: { first, latest }
+        };
+
+        const change = latest - first;
+        const changePercent = first > 0 ? (change / first) * 100 : 0;
+
+        return {
+            value: latest,
+            change,
+            changePercent,
+        };
+    } catch (error) {
+        console.error("Failed to fetch index data:", error);
+        // On failure, return stale cache data if available.
+        if ((window as any)._sseIndexCache) {
+             const { first, latest } = (window as any)._sseIndexCache.data;
+             const change = latest - first;
+             const changePercent = first > 0 ? (change / first) * 100 : 0;
+             return {
+                 value: latest,
+                 change,
+                 changePercent,
+             };
+        }
+        return null;
+    }
 }

@@ -1,3 +1,4 @@
+
 export interface FundDataPoint {
   date: string;
   unitNAV: number;
@@ -73,4 +74,10 @@ export interface TagAnalysisData {
   holdingEfficiency: number;
   dailyEfficiency: number;
   recentEfficiency: number;
+}
+
+export interface IndexData {
+  value: number;
+  change: number;
+  changePercent: number;
 }

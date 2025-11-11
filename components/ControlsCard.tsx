@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 type SortByType = 'trend' | 'dailyChange' | 'navPercentile';
@@ -121,13 +122,13 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
         </div>
         {/* Daily Stats */}
         <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">今日盈亏</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">今日收益</label>
             <div className={`py-1.5 text-sm font-semibold ${profitColor}`}>
-                {totalDailyProfit > 0 ? '+' : ''}{totalDailyProfit.toFixed(2)}
+                {totalDailyProfit > 0 ? '+' : ''}{totalDailyProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
         </div>
         <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">日收益率</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">今日收益率</label>
             <div className={`py-1.5 text-sm font-semibold ${profitColor}`}>
                 {totalDailyProfitRate > 0 ? '+' : ''}{totalDailyProfitRate.toFixed(2)}%
             </div>
