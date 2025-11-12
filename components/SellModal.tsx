@@ -363,7 +363,7 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
 
                         {/* 卖出按钮 */}
                         <div>
-                           <button type="submit" className="flex items-center justify-center w-full h-[42px] bg-sky-400 text-white font-semibold px-4 rounded-md hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-400 dark:focus:ring-offset-gray-900 disabled:bg-gray-300 disabled:text-gray-500"
+                           <button type="submit" className="flex items-center justify-center w-full h-[42px] bg-primary-500 text-white font-semibold px-4 rounded-md hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-900 disabled:bg-gray-300 disabled:text-gray-500"
                             disabled={!shares || parseFloat(shares) <= 0 || !!error}
                            >
                                {isEditingRecord ? '更新交易' : isEditingTask ? '更新任务' : '卖出'}

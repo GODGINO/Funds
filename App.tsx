@@ -613,7 +613,7 @@ const App: React.FC = () => {
                     if (pivotNAV !== 0) {
                         const change = ((latestNAV - pivotNAV) / pivotNAV) * 100;
                         const isPositive = change >= 0;
-                        const direction = isPositive ? '上涨' : '下跌';
+                        const direction = isPositive ? '⬆︎' : '⬇︎';
                         const formattedChange = Math.abs(change).toFixed(2);
                         
                         let trendText = `近${diffDays === 0 ? 1 : diffDays}天, ${direction}${formattedChange}%`;

@@ -145,6 +145,72 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
   const todayPendingTask = todayDateStr ? pendingTaskMap.get(todayDateStr) : undefined;
   const todayTransaction = todayRecord || todayPendingTask;
 
+  const dailyChangeDisplay = useMemo(() => {
+    if (fund.realTimeData?.estimatedChange) {
+        const value = parseFloat(fund.realTimeData.estimatedChange);
+        if (isNaN(value)) return null;
+        const isPositive = value >= 0;
+        return {
+            text: `今日${isPositive ? '⬆︎' : '⬇︎'} ${Math.abs(value).toFixed(2)}%`,
+            colorClass: isPositive ? 'text-red-500' : 'text-green-600',
+        };
+    }
+    if (fund.latestChange) {
+        const isPositive = !fund.latestChange.startsWith('-');
+        const valueText = fund.latestChange.replace(/^[+-]/, ''); // e.g. "1.23%"
+        return {
+            text: `今日${isPositive ? '⬆︎' : '⬇︎'} ${valueText}`,
+            colorClass: isPositive ? 'text-red-500' : 'text-green-600',
+        };
+    }
+    return null;
+  }, [fund.realTimeData, fund.latestChange]);
+
+  const lastTransactionInfo = useMemo(() => {
+    const records = fund.userPosition?.tradingRecords;
+    if (!records || records.length === 0) {
+        return null;
+    }
+
+    const sortedRecords = [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const lastRecord = sortedRecords[0];
+
+    const latestNAV = latestNAVForComparison;
+    
+    if (!lastRecord || latestNAV <= 0 || lastRecord.nav <= 0) {
+        return null;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tradeDate = new Date(lastRecord.date);
+    tradeDate.setHours(0, 0, 0, 0);
+    const diffTime = today.getTime() - tradeDate.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    const timeAgo = `${diffDays} 天前`;
+
+    const tradeType = lastRecord.type === 'buy' ? '买入' : '卖出';
+
+    const change = ((latestNAV - lastRecord.nav) / lastRecord.nav) * 100;
+    const isPositive = change >= 0;
+    const changeSinceTradeText = `${isPositive ? '⬆︎' : '⬇︎'}${Math.abs(change).toFixed(2)}%`;
+    const colorClass = isPositive ? 'text-red-500' : 'text-green-600';
+
+    let emoji = '';
+    if (lastRecord.type === 'buy') {
+        emoji = isPositive ? '👍' : '👎';
+    } else { // sell
+        emoji = isPositive ? '👎' : '👍';
+    }
+    
+    return {
+        timeAgo,
+        tradeType,
+        changeSinceTradeText,
+        colorClass,
+        emoji
+    };
+  }, [fund.userPosition?.tradingRecords, latestNAVForComparison]);
 
   return (
     <tr className="border-b border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50">
@@ -164,10 +230,30 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
                 {isCopied ? '复制成功' : fund.code}
               </span>
             </div>
-            {trendInfo && (
-              <div className={`text-xs mt-0.5 font-semibold ${trendInfo.isPositive ? 'text-red-500' : 'text-green-600'}`}>
-                {trendInfo.text}
-              </div>
+            {(dailyChangeDisplay || trendInfo) && (
+                <div className="text-xs mt-0.5 font-semibold">
+                    {dailyChangeDisplay && (
+                        <span className={dailyChangeDisplay.colorClass}>
+                            {dailyChangeDisplay.text}
+                        </span>
+                    )}
+                    {dailyChangeDisplay && trendInfo && (
+                        <span className="text-gray-500 dark:text-gray-400">, </span>
+                    )}
+                    {trendInfo && (
+                        <span className={trendInfo.isPositive ? 'text-red-500' : 'text-green-600'}>
+                            {trendInfo.text}
+                        </span>
+                    )}
+                </div>
+            )}
+            {lastTransactionInfo && (
+                <div className="text-xs mt-0.5">
+                    <span className="text-gray-600 dark:text-gray-400">{lastTransactionInfo.timeAgo}</span>
+                    <span className={`font-semibold mx-1 ${lastTransactionInfo.tradeType === '买入' ? 'text-red-500' : 'text-blue-500'}`}>{lastTransactionInfo.tradeType}</span>
+                    <span className={`font-semibold ${lastTransactionInfo.colorClass}`}>{lastTransactionInfo.changeSinceTradeText}</span>
+                    <span className="ml-1">{lastTransactionInfo.emoji}</span>
+                </div>
             )}
           </div>
           <div>
