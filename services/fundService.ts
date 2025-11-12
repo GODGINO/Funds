@@ -278,7 +278,6 @@ export async function fetchIndexData(): Promise<IndexData | null> {
             changePercent,
         };
     } catch (error) {
-        console.error("Failed to fetch index data:", error);
         // On failure, return stale cache data if available.
         if ((window as any)._sseIndexCache) {
              const { first, latest } = (window as any)._sseIndexCache.data;

@@ -9,7 +9,7 @@ interface FundDetailModalProps {
   fund: Fund;
   onClose: () => void;
   onDelete: (code: string) => void;
-  onSave: (position: UserPosition) => void;
+  onSave: (position: UserPosition, resetTradingRecords: boolean) => void;
   zigzagThreshold: number;
 }
 
@@ -114,15 +114,26 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
 
 
     const handleSave = useCallback(() => {
-        onSave({
+        const originalShares = fund.userPosition?.shares ?? 0;
+        const originalCost = fund.userPosition?.cost ?? 0;
+
+        // Using a small tolerance for floating point comparison
+        const sharesChanged = Math.abs(numericShares - originalShares) > 1e-9;
+        const costChanged = Math.abs(numericCost - originalCost) > 1e-9;
+        
+        const resetTradingRecords = sharesChanged || costChanged;
+
+        const updatedPosition: UserPosition = {
             code: fund.code,
             shares: numericShares,
             cost: numericCost,
             tag,
             realizedProfit: metrics.realizedProfit, // Use the dynamically calculated realized profit
-        });
+        };
+
+        onSave(updatedPosition, resetTradingRecords);
         onClose();
-    }, [fund.code, numericShares, numericCost, tag, metrics.realizedProfit, onSave, onClose]);
+    }, [fund.code, fund.userPosition, numericShares, numericCost, tag, metrics.realizedProfit, onSave, onClose]);
     
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -185,6 +196,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                 costPrice={numericCost > 0 ? numericCost : null}
                                 actualCostPrice={metrics.actualCost > 0 ? metrics.actualCost : null}
                                 navPercentile={navPercentile}
+                                tradingRecords={fund.userPosition?.tradingRecords}
                             />
                         </div>
 

@@ -1,8 +1,6 @@
-
-
 import React, { useMemo, useState, useCallback } from 'react';
 // FIX: Import the shared ProcessedFund interface.
-import { Fund, FundDataPoint, ProcessedFund } from '../types';
+import { Fund, FundDataPoint, ProcessedFund, TradingRecord, TradingTask } from '../types';
 import FundChart from './FundChart';
 
 // FIX: Removed local ProcessedFund interface, now imported from types.ts.
@@ -12,6 +10,9 @@ interface FundRowProps {
   dateHeaders: string[];
   onShowDetails: (fund: Fund) => void;
   onTagDoubleClick: (tag: string) => void;
+  onTrade: (fund: ProcessedFund, date: string, type: 'buy' | 'sell', nav: number, isConfirmed: boolean, editingRecord?: TradingRecord) => void;
+  onOpenTaskModal: (task: TradingTask) => void;
+  tradingTasks: TradingTask[];
 }
 
 const SYSTEM_TAG_COLORS: { [key: string]: { bg: string; text: string; } } = {
@@ -43,14 +44,39 @@ const getTagColor = (tag: string) => {
   return COLORS[index];
 };
 
+const TradeLinks: React.FC<{ onTradeClick: (type: 'buy' | 'sell') => void }> = ({ onTradeClick }) => (
+    <div className="text-xs mt-1 space-x-2">
+        <button onClick={() => onTradeClick('buy')} className="font-semibold text-red-600 dark:text-red-400 hover:underline">买</button>
+        <button onClick={() => onTradeClick('sell')} className="font-semibold text-blue-600 dark:text-blue-400 hover:underline">卖</button>
+    </div>
+);
 
-const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onTagDoubleClick }) => {
+const RecordLink: React.FC<{ onClick: () => void }> = ({ onClick }) => (
+    <div className="text-xs mt-1">
+        <button onClick={onClick} className="font-semibold text-gray-500 dark:text-gray-400 hover:underline">记录</button>
+    </div>
+);
+
+const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onTagDoubleClick, onTrade, onOpenTaskModal, tradingTasks }) => {
   const [isCopied, setIsCopied] = useState(false);
   const { trendInfo, baseChartData, zigzagPoints, lastPivotDate, navPercentile } = fund;
 
   const dataMap = useMemo(() => {
     return new Map<string, FundDataPoint>(fund.data.map(p => [p.date, p]));
   }, [fund.data]);
+
+  const tradingRecordMap = useMemo(() => {
+    return new Map<string, TradingRecord>(fund.userPosition?.tradingRecords?.map(r => [r.date, r]) || []);
+  }, [fund.userPosition?.tradingRecords]);
+
+  const pendingTaskMap = useMemo(() => {
+    return new Map<string, TradingTask>(
+      tradingTasks
+        .filter(task => task.code === fund.code && task.status === 'pending')
+        .map(task => [task.date, task])
+    );
+  }, [tradingTasks, fund.code]);
+
 
   const historicalDataForToday = useMemo(() => {
     if (!fund.realTimeData) return undefined;
@@ -98,6 +124,27 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
     return fund.trendInfo && Math.abs(fund.trendInfo.change) > 4.5;
   }, [fund.trendInfo]);
   
+  const handleTodayTrade = (type: 'buy' | 'sell') => {
+      if (historicalDataForToday) { // Confirmed
+          const tradeDate = historicalDataForToday.date;
+          const nav = historicalDataForToday.unitNAV;
+          onTrade(fund, tradeDate, type, nav, true);
+      } else if (fund.realTimeData && fund.realTimeData.estimatedNAV > 0) { // Estimated
+          const tradeDate = fund.realTimeData.estimationTime.split(' ')[0];
+          const nav = fund.realTimeData.estimatedNAV;
+          onTrade(fund, tradeDate, type, nav, false);
+      }
+  };
+
+  const handleEditTrade = (record: TradingRecord) => {
+      onTrade(fund, record.date, record.type, record.nav, true, record);
+  };
+
+  const todayDateStr = historicalDataForToday?.date || fund.realTimeData?.estimationTime.split(' ')[0];
+  const todayRecord = todayDateStr ? tradingRecordMap.get(todayDateStr) : undefined;
+  const todayPendingTask = todayDateStr ? pendingTaskMap.get(todayDateStr) : undefined;
+  const todayTransaction = todayRecord || todayPendingTask;
+
 
   return (
     <tr className="border-b border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50">
@@ -172,44 +219,56 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
             actualCostPrice={fund.actualCost && fund.actualCost > 0 ? fund.actualCost : null}
             showLabels={false}
             navPercentile={navPercentile}
+            tradingRecords={fund.userPosition?.tradingRecords}
           />
         </div>
       </td>
-      <td className="p-0 border-r border-gray-300 dark:border-gray-600 w-[60px] min-w-[60px] md:sticky md:left-[550px] bg-white dark:bg-gray-900 md:z-[5]">
-        {historicalDataForToday ? (
-          <div className="p-2">
-            <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">
-              {historicalDataForToday.unitNAV.toFixed(4)}
-            </div>
-            <div className={`text-xs font-semibold ${
-              historicalDataForToday.dailyGrowthRate.startsWith('-') ? 'text-green-600' : 'text-red-500'
-            }`}>
-              {historicalDataForToday.dailyGrowthRate}
-            </div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              已确认
-            </div>
-          </div>
-        ) : (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) ? (
-          <div className="p-2">
-            <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">
-              {fund.realTimeData.estimatedNAV.toFixed(4)}
-            </div>
-            <div className={`text-xs font-semibold ${
-              fund.realTimeData.estimatedChange.startsWith('-') ? 'text-green-600' : 'text-red-500'
-            }`}>
-              {fund.realTimeData.estimatedChange}%
-            </div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {fund.realTimeData.estimationTime.split(' ')[1] || fund.realTimeData.estimationTime}
-            </div>
-          </div>
-        ) : (
-          <span className="text-gray-400">-</span>
-        )}
+      <td className={`p-0 border-r border-gray-300 dark:border-gray-600 w-[60px] min-w-[60px] md:sticky md:left-[550px] md:z-[5] ${todayTransaction ? (todayTransaction.type === 'buy' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-blue-50 dark:bg-blue-900/20') : 'bg-white dark:bg-gray-900'}`}>
+        <div className="p-2">
+            {historicalDataForToday ? (
+              <>
+                <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">
+                  {historicalDataForToday.unitNAV.toFixed(4)}
+                </div>
+                <div className={`text-xs font-semibold ${
+                  historicalDataForToday.dailyGrowthRate.startsWith('-') ? 'text-green-600' : 'text-red-500'
+                }`}>
+                  {historicalDataForToday.dailyGrowthRate}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  已确认
+                </div>
+              </>
+            ) : (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) ? (
+              <>
+                <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">
+                  {fund.realTimeData.estimatedNAV.toFixed(4)}
+                </div>
+                <div className={`text-xs font-semibold ${
+                  fund.realTimeData.estimatedChange.startsWith('-') ? 'text-green-600' : 'text-red-500'
+                }`}>
+                  {fund.realTimeData.estimatedChange}%
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {fund.realTimeData.estimationTime.split(' ')[1] || fund.realTimeData.estimationTime}
+                </div>
+              </>
+            ) : (
+              <span className="text-gray-400">-</span>
+            )}
+            {todayRecord ? (
+                <RecordLink onClick={() => handleEditTrade(todayRecord)} />
+            ) : todayPendingTask ? (
+                <RecordLink onClick={() => onOpenTaskModal(todayPendingTask)} />
+            ) : ((historicalDataForToday || fund.realTimeData?.estimatedNAV) && (
+                <TradeLinks onTradeClick={handleTodayTrade} />
+            ))}
+        </div>
       </td>
       {dateHeaders.map(date => {
         const point = dataMap.get(date);
+        const record = tradingRecordMap.get(date);
+        const pendingTask = pendingTaskMap.get(date);
         const pointIsPositive = point ? !point.dailyGrowthRate.startsWith('-') : true;
 
         let changeFromLatest: string | null = null;
@@ -224,9 +283,20 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
         }
         
         const isPivotDate = pivotDateSet.has(date);
+        let cellBgClass = '';
+        const transaction = record || pendingTask;
+        if (transaction) {
+            if (transaction.type === 'buy') {
+                cellBgClass = isPivotDate ? 'bg-red-200 dark:bg-red-900/60' : 'bg-red-50 dark:bg-red-900/20';
+            } else {
+                cellBgClass = isPivotDate ? 'bg-blue-200 dark:bg-blue-900/60' : 'bg-blue-50 dark:bg-blue-900/20';
+            }
+        } else if (isPivotDate) {
+            cellBgClass = 'bg-gray-200 dark:bg-gray-700';
+        }
 
         return (
-          <td key={date} className={`p-0 border-r border-gray-300 dark:border-gray-600 ${isPivotDate ? 'bg-gray-200 dark:bg-gray-700' : ''}`}>
+          <td key={date} className={`p-0 border-r border-gray-300 dark:border-gray-600 ${cellBgClass}`}>
             {point ? (
               <div className="p-2">
                 <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">{point.unitNAV.toFixed(4)}</div>
@@ -237,6 +307,13 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
                   <div className={`text-xs font-mono mt-1 ${changeIsPositive ? 'text-red-500' : 'text-green-600'}`}>
                     {changeFromLatest}
                   </div>
+                )}
+                {record ? (
+                    <RecordLink onClick={() => handleEditTrade(record)} />
+                ) : pendingTask ? (
+                    <RecordLink onClick={() => onOpenTaskModal(pendingTask)} />
+                ) : (
+                    <TradeLinks onTradeClick={(type) => onTrade(fund, date, type, point.unitNAV, true)} />
                 )}
               </div>
             ) : (

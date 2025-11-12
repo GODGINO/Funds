@@ -1,9 +1,11 @@
+
 import React, { useState } from 'react';
 
 interface FundInputFormProps {
   onAddFund: (details: { code: string; shares: number; cost: number; tag: string }) => Promise<boolean>;
   isLoading: boolean;
   onOpenImportModal: () => void;
+  onOpenTransactionManager: () => void;
   isPrivacyModeEnabled: boolean;
   onPrivacyModeChange: (enabled: boolean) => void;
 }
@@ -12,6 +14,7 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
   onAddFund, 
   isLoading, 
   onOpenImportModal,
+  onOpenTransactionManager,
   isPrivacyModeEnabled,
   onPrivacyModeChange,
 }) => {
@@ -41,7 +44,7 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
   const isDisabled = isLoading;
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-8 gap-4 items-end">
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-9 gap-4 items-end">
       {/* Fund Code */}
       <div className="md:col-span-1">
         <label htmlFor="fund-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Fund Code</label>
@@ -126,7 +129,19 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
           disabled={isDisabled}
           className="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Import
+          导入
+        </button>
+      </div>
+
+      {/* Transaction Manager Button */}
+      <div className="md:col-span-1">
+        <button
+          type="button"
+          onClick={onOpenTransactionManager}
+          disabled={isDisabled}
+          className="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          交易管理
         </button>
       </div>
 
