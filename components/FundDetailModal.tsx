@@ -1,4 +1,3 @@
-
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { Fund, UserPosition } from '../types';
 import FundChart from './FundChart';
@@ -15,7 +14,7 @@ interface FundDetailModalProps {
 
 
 const StatDisplay: React.FC<{ label: string; value: string; subValue?: string; colorClass?: string; isLarge?: boolean }> = ({ label, value, subValue, colorClass, isLarge = false }) => (
-    <div>
+    <div className="text-left">
         <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
         <div className={`${isLarge ? 'text-2xl' : 'text-lg'} font-semibold ${colorClass || 'text-gray-900 dark:text-white'}`}>{value}</div>
         {subValue && <div className={`text-xs text-blue-500`}>{subValue}</div>}
@@ -26,8 +25,8 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
     // Form state
-    const [shares, setShares] = useState<string>(String(fund.userPosition?.shares ?? 0));
-    const [cost, setCost] = useState<string>(String(fund.userPosition?.cost ?? 0));
+    const [shares, setShares] = useState<string>((fund.userPosition?.shares ?? 0).toFixed(2));
+    const [cost, setCost] = useState<string>((fund.userPosition?.cost ?? 0).toFixed(4));
     const [tag, setTag] = useState<string>(fund.userPosition?.tag ?? '');
     const [editableTotalProfit, setEditableTotalProfit] = useState<string>('');
 
@@ -80,19 +79,19 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
     }, [fund.data, fund.realTimeData, zigzagThreshold]);
 
     const metrics = useMemo(() => {
-        const marketValue = numericShares * latestNAV;
-        const costBasis = numericShares * numericCost;
-        const holdingProfit = marketValue - costBasis;
+        const marketValue = parseFloat((numericShares * latestNAV).toFixed(2));
+        const costBasis = parseFloat((numericShares * numericCost).toFixed(2));
+        const holdingProfit = parseFloat((marketValue - costBasis).toFixed(2));
         
         // Use the editable value for real-time calculation
         const currentTotalProfit = parseFloat(editableTotalProfit) || 0;
-        const realizedProfit = currentTotalProfit - holdingProfit;
+        const realizedProfit = parseFloat((currentTotalProfit - holdingProfit).toFixed(2));
 
-        const cumulativeCost = costBasis - realizedProfit;
-        const actualCost = numericShares > 0 ? cumulativeCost / numericShares : 0;
+        const cumulativeCost = parseFloat((costBasis - realizedProfit).toFixed(2));
+        const actualCost = numericShares > 0 ? parseFloat((cumulativeCost / numericShares).toFixed(4)) : 0;
         
         const dailyProfit = (latestNAV > 0 && yesterdayNAV > 0)
-            ? (latestNAV - yesterdayNAV) * numericShares
+            ? parseFloat(((latestNAV - yesterdayNAV) * numericShares).toFixed(2))
             : 0;
 
         const dailyProfitRate = (marketValue - dailyProfit) > 0 ? (dailyProfit / (marketValue - dailyProfit)) * 100 : 0;
@@ -106,9 +105,9 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
 
     useEffect(() => {
       // Initialize editableTotalProfit from saved data when modal opens or fund changes
-      const initialHoldingProfit = (numericShares * latestNAV) - (numericShares * numericCost);
+      const initialHoldingProfit = parseFloat(((numericShares * latestNAV) - (numericShares * numericCost)).toFixed(2));
       const initialRealizedProfit = fund.userPosition?.realizedProfit ?? 0;
-      const initialTotalProfit = initialHoldingProfit + initialRealizedProfit;
+      const initialTotalProfit = parseFloat((initialHoldingProfit + initialRealizedProfit).toFixed(2));
       setEditableTotalProfit(initialTotalProfit.toFixed(2));
     }, [fund, numericShares, numericCost, latestNAV]);
 
@@ -125,10 +124,10 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
 
         const updatedPosition: UserPosition = {
             code: fund.code,
-            shares: numericShares,
-            cost: numericCost,
+            shares: parseFloat(numericShares.toFixed(2)),
+            cost: parseFloat(numericCost.toFixed(4)),
             tag,
-            realizedProfit: metrics.realizedProfit, // Use the dynamically calculated realized profit
+            realizedProfit: parseFloat(metrics.realizedProfit.toFixed(2)), // Use the dynamically calculated realized profit
         };
 
         onSave(updatedPosition, resetTradingRecords);
@@ -201,7 +200,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                         </div>
 
                         {/* Stats Grid */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-2 text-center mb-6">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-2 text-left mb-6">
                             <StatDisplay label="估算总值" value={`${metrics.marketValue.toFixed(2)} 元`} isLarge/>
                             <StatDisplay label="总 / 累计成本" value={`${metrics.costBasis.toFixed(2)} 元`} subValue={`${metrics.cumulativeCost.toFixed(2)} 元`} isLarge/>
                             <StatDisplay label="持有收益" value={`${metrics.holdingProfit.toFixed(2)} 元`} colorClass={getProfitColor(metrics.holdingProfit)} isLarge/>
@@ -221,22 +220,22 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                             <div>
                                 <label className="block text-xs text-gray-500">最新净值</label>
-                                <input type="text" readOnly value={latestNAV.toFixed(4)} className="mt-1 w-full p-2 bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded text-center"/>
+                                <input type="text" readOnly value={latestNAV.toFixed(4)} className="mt-1 w-full p-2 bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded text-left"/>
                             </div>
                              <div>
                                 <label className="block text-xs text-gray-500">{showActualCost ? '成本 / 实际成本' : '成本'}</label>
-                                <input type="number" value={cost} onChange={e => setCost(e.target.value)} className="mt-1 w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-center focus:ring-primary-500 focus:border-primary-500"/>
+                                <input type="number" step="0.0001" value={cost} onChange={e => setCost(e.target.value)} className="mt-1 w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded focus:ring-primary-500 focus:border-primary-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-left"/>
                                 {showActualCost && (
-                                    <div className="text-xs text-blue-500 text-center mt-1">{metrics.actualCost.toFixed(4)}</div>
+                                    <div className="text-xs text-blue-500 text-left mt-1">{metrics.actualCost.toFixed(4)}</div>
                                 )}
                             </div>
                             <div>
                                 <label className="block text-xs text-gray-500">份额</label>
-                                <input type="number" value={shares} onChange={e => setShares(e.target.value)} className="mt-1 w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-center focus:ring-primary-500 focus:border-primary-500"/>
+                                <input type="number" step="0.01" value={shares} onChange={e => setShares(e.target.value)} className="mt-1 w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded focus:ring-primary-500 focus:border-primary-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-left"/>
                             </div>
                             <div>
                                 <label className="block text-xs text-gray-500">累计收益</label>
-                                <input type="number" value={editableTotalProfit} onChange={e => setEditableTotalProfit(e.target.value)} className="mt-1 w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-center focus:ring-primary-500 focus:border-primary-500"/>
+                                <input type="number" value={editableTotalProfit} onChange={e => setEditableTotalProfit(e.target.value)} className="mt-1 w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded focus:ring-primary-500 focus:border-primary-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-left"/>
                             </div>
                         </div>
 

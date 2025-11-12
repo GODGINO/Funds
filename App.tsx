@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
 import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingTask, TradingRecord, TradeModalState } from './types';
@@ -552,13 +551,13 @@ const App: React.FC = () => {
 
             for (const record of sortedRecords) {
                 if (record.type === 'buy') {
-                    currentShares += record.sharesChange;
-                    currentTotalCost += record.amount;
+                    currentShares = parseFloat((currentShares + record.sharesChange).toFixed(2));
+                    currentTotalCost = parseFloat((currentTotalCost + record.amount).toFixed(2));
                 } else { // sell
                     const costBasisBeforeSell = currentShares > 0 ? currentTotalCost / currentShares : 0;
-                    currentTotalCost -= costBasisBeforeSell * Math.abs(record.sharesChange);
-                    currentShares += record.sharesChange;
-                    currentRealizedProfit += record.realizedProfitChange ?? 0;
+                    currentTotalCost = parseFloat((currentTotalCost - costBasisBeforeSell * Math.abs(record.sharesChange)).toFixed(2));
+                    currentShares = parseFloat((currentShares + record.sharesChange).toFixed(2));
+                    currentRealizedProfit = parseFloat((currentRealizedProfit + (record.realizedProfitChange ?? 0)).toFixed(2));
                     if (currentShares < 1e-6) {
                         currentShares = 0;
                         currentTotalCost = 0;
@@ -567,16 +566,16 @@ const App: React.FC = () => {
             }
 
             const latestNAV = baseChartData.length > 0 ? (baseChartData[baseChartData.length - 1].unitNAV ?? 0) : 0;
-            const marketValue = currentShares * latestNAV;
+            const marketValue = parseFloat((currentShares * latestNAV).toFixed(2));
             const costBasis = currentTotalCost;
-            const holdingProfit = marketValue - costBasis;
-            const totalProfit = holdingProfit + currentRealizedProfit;
-            const actualCost = currentShares > 0 ? (costBasis - currentRealizedProfit) / currentShares : 0;
+            const holdingProfit = parseFloat((marketValue - costBasis).toFixed(2));
+            const totalProfit = parseFloat((holdingProfit + currentRealizedProfit).toFixed(2));
+            const actualCost = currentShares > 0 ? parseFloat(((costBasis - currentRealizedProfit) / currentShares).toFixed(4)) : 0;
             
             calculatedUserPosition = {
                 ...position,
                 shares: currentShares,
-                cost: currentShares > 0 ? currentTotalCost / currentShares : 0,
+                cost: currentShares > 0 ? parseFloat((currentTotalCost / currentShares).toFixed(4)) : 0,
                 realizedProfit: currentRealizedProfit,
             };
 
@@ -620,10 +619,10 @@ const App: React.FC = () => {
                         let trendText = `近${diffDays === 0 ? 1 : diffDays}天, ${direction}${formattedChange}%`;
                         const shares = calculatedUserPosition?.shares;
                         if (shares && shares > 0) {
-                            const profit = (latestNAV - pivotNAV) * shares;
+                            const profit = parseFloat(((latestNAV - pivotNAV) * shares).toFixed(2));
                             trendText += `, ${profit.toFixed(0)} 元`;
                             recentProfit = profit;
-                            initialMarketValueForTrend = pivotNAV * shares;
+                            initialMarketValueForTrend = parseFloat((pivotNAV * shares).toFixed(2));
                         }
                         
                         trendInfo = {
@@ -693,9 +692,9 @@ const App: React.FC = () => {
             const todayNAV = chartPoints[chartPoints.length - 1]?.unitNAV;
             const yesterdayNAV = chartPoints[chartPoints.length - 2]?.unitNAV;
             if (yesterdayNAV && todayNAV && todayNAV > 0) {
-                const dailyProfit = (todayNAV - yesterdayNAV) * position.shares;
+                const dailyProfit = parseFloat(((todayNAV - yesterdayNAV) * position.shares).toFixed(2));
                 totalDailyProfit += dailyProfit;
-                totalYesterdayMarketValue += yesterdayNAV * position.shares;
+                totalYesterdayMarketValue += parseFloat((yesterdayNAV * position.shares).toFixed(2));
             }
         }
     });
@@ -782,8 +781,8 @@ const App: React.FC = () => {
                     const todayNAV = chartPoints[chartPoints.length - 1]?.unitNAV;
                     const yesterdayNAV = chartPoints[chartPoints.length - 2]?.unitNAV;
                     if (yesterdayNAV && todayNAV && todayNAV > 0) {
-                        dailyProfit = (todayNAV - yesterdayNAV) * position.shares;
-                        yesterdayMarketValue = yesterdayNAV * position.shares;
+                        dailyProfit = parseFloat(((todayNAV - yesterdayNAV) * position.shares).toFixed(2));
+                        yesterdayMarketValue = parseFloat((yesterdayNAV * position.shares).toFixed(2));
                     }
                 }
                 
@@ -1079,7 +1078,7 @@ const App: React.FC = () => {
         if (type === 'buy') {
             newRecord = {
                 date: date, type: 'buy', nav: nav,
-                sharesChange: value / nav,
+                sharesChange: parseFloat((value / nav).toFixed(2)),
                 amount: value,
             };
         } else { // sell
@@ -1088,8 +1087,8 @@ const App: React.FC = () => {
             newRecord = {
                 date: date, type: 'sell', nav: nav,
                 sharesChange: -value,
-                amount: -(value * nav),
-                realizedProfitChange: (nav - costBasisForSale) * value
+                amount: parseFloat((-(value * nav)).toFixed(2)),
+                realizedProfitChange: parseFloat(((nav - costBasisForSale) * value).toFixed(2))
             };
         }
         
@@ -1185,7 +1184,7 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
                 const buyAmount = task.value;
                 newRecord = {
                     date: task.date, type: 'buy', nav: confirmedNAV,
-                    sharesChange: buyAmount / confirmedNAV,
+                    sharesChange: parseFloat((buyAmount / confirmedNAV).toFixed(2)),
                     amount: buyAmount,
                 };
             } else { // sell
@@ -1196,8 +1195,8 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
                 newRecord = {
                     date: task.date, type: 'sell', nav: confirmedNAV,
                     sharesChange: -sellShares,
-                    amount: -(sellShares * confirmedNAV),
-                    realizedProfitChange: (confirmedNAV - costBasisForSale) * sellShares,
+                    amount: parseFloat((-(sellShares * confirmedNAV)).toFixed(2)),
+                    realizedProfitChange: parseFloat(((confirmedNAV - costBasisForSale) * sellShares).toFixed(2)),
                 };
             }
             
@@ -1237,6 +1236,13 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
     }
     // This effect should run after initial load or a data refresh (which updates funds).
   }, [isAppLoading, funds, processPendingTasks]);
+
+  const currentPortfolioJSON = useMemo(() => {
+    const positionsToSave = funds
+      .map(f => f.userPosition)
+      .filter((p): p is UserPosition => !!p);
+    return JSON.stringify(positionsToSave, null, 2);
+  }, [funds]);
 
 
   return (
@@ -1351,6 +1357,7 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onImport={handleImportData}
+        currentData={currentPortfolioJSON}
       />
       
       {buyModalState && (

@@ -204,7 +204,7 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const numericShares = parseFloat(shares);
+        const numericShares = parseFloat((parseFloat(shares) || 0).toFixed(2));
         if (!numericShares || numericShares <= 0 || error) return;
         
         if (isEditingTask) {
@@ -335,6 +335,7 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
                                     required
                                     autoFocus
                                     max={availableShares}
+                                    step="0.01"
                                     className={`w-full text-center h-full px-3 bg-white dark:bg-gray-700 border placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 sm:text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${error ? 'border-red-500 text-red-600 focus:ring-red-500' : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500 focus:border-primary-500'}`}
                                 />
                                 <button

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 
 interface FundInputFormProps {
@@ -28,8 +27,8 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
     const paddedCode = code.trim().padStart(6, '0');
     const success = await onAddFund({
       code: paddedCode,
-      shares: parseFloat(shares) || 0,
-      cost: parseFloat(cost) || 0,
+      shares: parseFloat((parseFloat(shares) || 0).toFixed(2)),
+      cost: parseFloat((parseFloat(cost) || 0).toFixed(4)),
       tag: tag.trim(),
     });
 
@@ -68,6 +67,7 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
           value={shares}
           onChange={(e) => setShares(e.target.value)}
           placeholder="e.g., 1000"
+          step="0.01"
           disabled={isDisabled}
           className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
         />

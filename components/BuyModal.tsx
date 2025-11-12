@@ -150,7 +150,7 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const numericAmount = parseFloat(amount);
+        const numericAmount = parseFloat((parseFloat(amount) || 0).toFixed(2));
         if (!numericAmount || numericAmount <= 0) return;
 
         if (isEditingTask) {

@@ -1,12 +1,14 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 
 interface ImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImport: (jsonString: string) => Promise<void>;
+  currentData: string;
 }
 
-const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) => {
+const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, currentData }) => {
   const [jsonInput, setJsonInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -14,12 +16,12 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
 
   useEffect(() => {
     if (isOpen) {
-      // Reset state when modal opens
-      setJsonInput('');
+      // Reset state when modal opens, using the latest currentData
+      setJsonInput(currentData);
       setError(null);
       setIsImporting(false);
     }
-  }, [isOpen]);
+  }, [isOpen, currentData]);
 
   const handleSave = async () => {
     setError(null);
@@ -99,7 +101,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg m-4 transform transition-all flex flex-col">
         {/* Modal Header */}
         <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">从 JSON 导入数据</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">从 JSON 导入/导出数据</h3>
            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 focus:outline-none" aria-label="Close">
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -110,7 +112,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
         {/* Modal Body */}
         <div className="p-6">
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            粘贴您的基金持仓数据 JSON 字符串，或上传一个包含 'subscriptions' 数组的 JSON 文件。这将替换所有现有的本地数据。
+            文本框内已显示您当前的持仓数据，可用于备份或微调。您也可以粘贴新的 JSON 字符串，或上传一个 JSON 文件。这将替换所有现有的本地数据。
           </p>
           <input
             type="file"
