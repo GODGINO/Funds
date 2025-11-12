@@ -115,3 +115,14 @@ export interface TradeModalState {
   editingRecord?: TradingRecord; // Optional: The record being edited
   editingTask?: TradingTask; // Optional: The task being edited
 }
+
+export interface PortfolioSnapshot {
+  snapshotDate: string;
+  totalCostBasis: number;
+  currentMarketValue: number;
+  cumulativeValue: number;
+  totalProfit: number;
+  profitRate: number;
+  dailyProfit: number;
+  dailyProfitRate: number;
+}

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
-import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingTask, TradingRecord, TradeModalState } from './types';
+import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingTask, TradingRecord, TradeModalState, PortfolioSnapshot } from './types';
 import { fetchFundData, fetchFundDetails, fetchIndexData } from './services/fundService';
 import FundInputForm from './components/FundInputForm';
 import FundRow from './components/FundRow';
@@ -13,6 +13,7 @@ import TagAnalysisTable from './components/TagAnalysisTable';
 import BuyModal from './components/BuyModal';
 import SellModal from './components/SellModal';
 import TransactionManagerModal from './components/TransactionManagerModal';
+import PortfolioSnapshotTable from './components/PortfolioSnapshotTable';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042'];
 
@@ -1244,6 +1245,142 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
     return JSON.stringify(positionsToSave, null, 2);
   }, [funds]);
 
+  const portfolioSnapshots = useMemo((): PortfolioSnapshot[] => {
+    const allTransactionDates = new Set<string>();
+    funds.forEach(fund => {
+        fund.userPosition?.tradingRecords?.forEach(record => {
+            allTransactionDates.add(record.date);
+        });
+    });
+
+    const evaluatePortfolio = (
+        holdings: { code: string; shares: number; }[],
+        totalCostBasis: number,
+        totalRealizedProfit: number
+    ): Omit<PortfolioSnapshot, 'snapshotDate'> => {
+        let currentMarketValue = 0;
+        let dailyProfit = 0;
+        let yesterdayMarketValue = 0;
+        
+        holdings.forEach(holding => {
+            const currentFundData = processedFunds.find(f => f.code === holding.code);
+            if (currentFundData?.baseChartData && currentFundData.baseChartData.length > 0) {
+                const chartData = currentFundData.baseChartData;
+                const latestNAV = chartData[chartData.length - 1].unitNAV ?? 0;
+                const yesterdayNAV = chartData.length > 1 ? (chartData[chartData.length - 2].unitNAV ?? 0) : 0;
+                
+                if (latestNAV > 0) {
+                    currentMarketValue += holding.shares * latestNAV;
+                }
+                if (yesterdayNAV > 0 && latestNAV > 0) {
+                    dailyProfit += (latestNAV - yesterdayNAV) * holding.shares;
+                    yesterdayMarketValue += holding.shares * yesterdayNAV;
+                }
+            }
+        });
+
+        const cumulativeValue = currentMarketValue + totalRealizedProfit;
+        const totalProfit = cumulativeValue - totalCostBasis;
+        const profitRate = totalCostBasis > 0 ? (totalProfit / totalCostBasis) * 100 : 0;
+        const dailyProfitRate = yesterdayMarketValue > 0 ? (dailyProfit / yesterdayMarketValue) * 100 : 0;
+
+        return {
+            totalCostBasis,
+            currentMarketValue,
+            cumulativeValue,
+            totalProfit,
+            profitRate,
+            dailyProfit,
+            dailyProfitRate,
+        };
+    };
+
+    let historicalSnapshots: PortfolioSnapshot[] = [];
+    if (allTransactionDates.size > 0) {
+        const sortedDates = Array.from(allTransactionDates).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+        const snapshots = sortedDates.map(snapshotDate => {
+            let snapshotTotalCostBasis = 0;
+            let snapshotTotalRealizedProfit = 0;
+            const snapshotHoldings: { code: string; shares: number; }[] = [];
+
+            funds.forEach(fund => {
+                const position = fund.userPosition;
+                if (!position) return;
+
+                let sharesForFund = position.shares;
+                let totalCostForFund = position.shares * position.cost;
+                let realizedProfitForFund = position.realizedProfit;
+
+                const relevantRecords = (position.tradingRecords || [])
+                    .filter(r => new Date(r.date).getTime() <= new Date(snapshotDate).getTime())
+                    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                
+                for (const record of relevantRecords) {
+                    if (record.type === 'buy') {
+                        sharesForFund += record.sharesChange;
+                        totalCostForFund += record.amount;
+                    } else { // sell
+                        const costBasisPerShareBeforeSell = sharesForFund > 0 ? totalCostForFund / sharesForFund : 0;
+                        totalCostForFund -= costBasisPerShareBeforeSell * Math.abs(record.sharesChange);
+                        sharesForFund += record.sharesChange;
+                        realizedProfitForFund += (record.realizedProfitChange ?? 0);
+                        if (sharesForFund < 1e-6) {
+                            sharesForFund = 0;
+                            totalCostForFund = 0;
+                        }
+                    }
+                }
+                
+                if (sharesForFund > 0) {
+                    snapshotHoldings.push({ code: fund.code, shares: sharesForFund });
+                    snapshotTotalCostBasis += totalCostForFund;
+                }
+                snapshotTotalRealizedProfit += realizedProfitForFund;
+            });
+
+            const evaluation = evaluatePortfolio(snapshotHoldings, snapshotTotalCostBasis, snapshotTotalRealizedProfit);
+
+            return {
+                snapshotDate,
+                ...evaluation
+            };
+        });
+
+        historicalSnapshots = snapshots.reverse(); // Newest first
+    }
+
+    let baselineSnapshot: PortfolioSnapshot | null = null;
+    let baselineTotalCostBasis = 0;
+    let baselineTotalRealizedProfit = 0;
+    const baselineHoldings: { code: string; shares: number; }[] = [];
+    let hasInitialHoldings = false;
+
+    funds.forEach(fund => {
+        const position = fund.userPosition;
+        if (position && position.shares > 0) {
+            hasInitialHoldings = true;
+            baselineHoldings.push({ code: fund.code, shares: position.shares });
+            baselineTotalCostBasis += position.shares * position.cost;
+            baselineTotalRealizedProfit += position.realizedProfit;
+        }
+    });
+
+    if (hasInitialHoldings) {
+        const evaluation = evaluatePortfolio(baselineHoldings, baselineTotalCostBasis, baselineTotalRealizedProfit);
+        baselineSnapshot = {
+            snapshotDate: '基准持仓',
+            ...evaluation,
+        };
+    }
+    
+    const finalSnapshots = [...historicalSnapshots];
+    if (baselineSnapshot) {
+        finalSnapshots.push(baselineSnapshot);
+    }
+    
+    return finalSnapshots;
+}, [funds, processedFunds]);
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-800 dark:bg-gray-950 dark:text-gray-200 font-sans p-4">
@@ -1324,6 +1461,7 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
               </table>
             </div>
           </div>
+          <PortfolioSnapshotTable snapshots={portfolioSnapshots} />
         </>
       ) : (
         <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg shadow-md">
