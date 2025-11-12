@@ -55,6 +55,7 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
         sellPercentage,
         sellAmount,
         percentileColor,
+        dailyLabel,
     } = useMemo(() => {
         const pos = fund.userPosition;
 
@@ -63,10 +64,26 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
         const holdingProfit = fund.holdingProfit || 0;
 
         // Daily
-        const yesterdayNAV = fund.baseChartData.length > 1 ? fund.baseChartData[fund.baseChartData.length - 2]?.unitNAV ?? 0 : 0;
+        const latestDateInChart = fund.baseChartData.length > 0 ? fund.baseChartData[fund.baseChartData.length - 1]?.date?.split(' ')[0] : null;
+        const isLatestAvailableDate = date === latestDateInChart;
+        const dailyLabel = isLatestAvailableDate ? '今日收益/率' : '当日收益/率';
+        
+        const dataPointIndex = fund.baseChartData.findIndex(p => p.date && p.date.startsWith(date));
+        const currentDataPoint = fund.baseChartData[dataPointIndex];
+        const yesterdayNAV = dataPointIndex > 0 ? fund.baseChartData[dataPointIndex - 1]?.unitNAV ?? 0 : 0;
+        
         const dailyProfit = yesterdayNAV > 0 ? (nav - yesterdayNAV) * totalShares : 0;
+
+        let dailyProfitRate = 0;
         const yesterdayMarketValue = yesterdayNAV * totalShares;
-        const dailyProfitRate = yesterdayMarketValue > 0 ? (dailyProfit / yesterdayMarketValue) * 100 : 0;
+        if (yesterdayMarketValue > 0) {
+            dailyProfitRate = (dailyProfit / yesterdayMarketValue) * 100;
+        } else if (yesterdayNAV > 0) {
+            dailyProfitRate = ((nav - yesterdayNAV) / yesterdayNAV) * 100;
+        } else if (currentDataPoint?.dailyGrowthRate) {
+            dailyProfitRate = parseFloat(currentDataPoint.dailyGrowthRate) || 0;
+        }
+
 
         // Recent
         const recentProfit = fund.recentProfit || 0;
@@ -103,8 +120,9 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
             sellPercentage,
             sellAmount,
             percentileColor,
+            dailyLabel,
         };
-    }, [fund, shares, nav]);
+    }, [fund, shares, nav, date]);
 
 
     useEffect(() => {
@@ -154,12 +172,34 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
     const handleSharesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
         setShares(value);
+        if (value === '') {
+            setError('');
+            return;
+        }
         const numericValue = parseFloat(value);
         if (numericValue > availableShares) {
             setError(`超过可用份额: ${availableShares.toFixed(2)}`);
         } else {
             setError('');
         }
+    };
+
+    const stepValue = useMemo(() => {
+        if (nav < 1) {
+            return 200;
+        } else if (nav < 2) {
+            return 100;
+        } else {
+            return 50;
+        }
+    }, [nav]);
+
+    const handleStep = (step: number) => {
+        const currentValue = parseFloat(shares) || 0;
+        const newValue = currentValue + step;
+        const clampedValue = Math.max(0, Math.min(newValue, availableShares));
+        const roundedValue = Math.round(clampedValue * 100) / 100;
+        handleSharesChange({ target: { value: String(roundedValue) } } as React.ChangeEvent<HTMLInputElement>);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -207,7 +247,7 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
 
                 {/* Modal Body */}
                 <div className="p-6 overflow-y-auto">
-                    <div className="h-[200px] mb-6">
+                    <div className="h-[160px] mb-4">
                         <FundChart 
                             baseChartData={fund.baseChartData}
                             zigzagPoints={fund.zigzagPoints}
@@ -233,9 +273,11 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
                     <div className="grid grid-cols-3 gap-y-4 gap-x-2 text-left items-end">
                         {/* 今日收益/率 */}
                         <div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">今日收益/率</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">{dailyLabel}</div>
                             <div className={`text-xl font-semibold ${getProfitColor(dailyProfitRate)}`}>{dailyProfitRate >= 0 ? '+' : ''}{dailyProfitRate.toFixed(2)} %</div>
-                            <div className={`text-sm ${getProfitColor(dailyProfit)}`}>{dailyProfit >= 0 ? '+' : ''}{dailyProfit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                            {totalShares > 0 && (
+                                <div className={`text-sm ${getProfitColor(dailyProfit)}`}>{dailyProfit >= 0 ? '+' : ''}{dailyProfit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                            )}
                         </div>
                         {/* 近期收益/率 */}
                         <div>
@@ -274,17 +316,37 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
                         {/* 卖出份额 */}
                         <div>
                             <label htmlFor="sell-shares" className="block text-sm text-gray-700 dark:text-gray-300">卖出份额</label>
-                            <input
-                                type="number"
-                                id="sell-shares"
-                                value={shares}
-                                onChange={handleSharesChange}
-                                placeholder={`可用 ${availableShares.toFixed(2)}`}
-                                required
-                                autoFocus
-                                max={availableShares}
-                                className={`block w-full px-3 bg-white dark:bg-gray-700 border rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none sm:text-sm h-[42px] ${error ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500 focus:border-primary-500'}`}
-                            />
+                            <div className="flex items-center mt-1 h-[42px]">
+                                <button
+                                    type="button"
+                                    onClick={() => handleStep(-stepValue)}
+                                    disabled={!shares || parseFloat(shares) <= 0}
+                                    className="px-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 h-full border border-r-0 border-gray-300 dark:border-gray-600 rounded-l-md focus:outline-none disabled:opacity-50"
+                                    aria-label={`减少${stepValue}份额`}
+                                >
+                                    <span className="text-xl font-bold">-</span>
+                                </button>
+                                <input
+                                    type="number"
+                                    id="sell-shares"
+                                    value={shares}
+                                    onChange={handleSharesChange}
+                                    placeholder={`可用 ${availableShares.toFixed(2)}`}
+                                    required
+                                    autoFocus
+                                    max={availableShares}
+                                    className={`w-full text-center h-full px-3 bg-white dark:bg-gray-700 border placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 sm:text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${error ? 'border-red-500 text-red-600 focus:ring-red-500' : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500 focus:border-primary-500'}`}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => handleStep(stepValue)}
+                                    disabled={parseFloat(shares) >= availableShares}
+                                    className="px-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 h-full border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-md focus:outline-none disabled:opacity-50"
+                                    aria-label={`增加${stepValue}份额`}
+                                >
+                                    <span className="text-xl font-bold">+</span>
+                                </button>
+                            </div>
                             {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
                         </div>
                         
