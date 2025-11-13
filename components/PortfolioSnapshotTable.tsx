@@ -17,7 +17,6 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
 
   return (
     <div className="mt-6 bg-white dark:bg-gray-900 rounded-lg shadow-md p-4">
-      <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">持仓切片分析</h3>
       <div className="w-full overflow-x-auto">
         <table className="w-full text-sm text-center border-collapse">
           <thead className="bg-gray-50 dark:bg-gray-800">

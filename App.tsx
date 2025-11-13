@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
 import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingTask, TradingRecord, TradeModalState, PortfolioSnapshot } from './types';
@@ -83,7 +84,7 @@ const App: React.FC = () => {
   const [sellModalState, setSellModalState] = useState<TradeModalState | null>(null);
   const [sortBy, setSortBy] = useState<SortByType>('trend');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [activeTag, setActiveTag] = useState<string | null>(SYSTEM_TAGS.HOLDING);
+  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [isPrivacyModeEnabled, setIsPrivacyModeEnabled] = useState(window.innerWidth >= 768);
   const [isVeiled, setIsVeiled] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<string | null>(null);
