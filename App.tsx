@@ -656,6 +656,7 @@ const App: React.FC = () => {
         return {
             ...fund,
             ...portfolioMetrics,
+            initialUserPosition: fund.userPosition,
             trendInfo,
             baseChartData,
             zigzagPoints,
@@ -1254,6 +1255,7 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
         });
     });
 
+    const latestNavMap = new Map(processedFunds.map(f => [f.code, f.baseChartData[f.baseChartData.length - 1]?.unitNAV ?? 0]));
     let historicalSnapshots: PortfolioSnapshot[] = [];
 
     if (allTransactionDates.size > 0) {
@@ -1263,6 +1265,12 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
             let snapshotTotalCostBasis = 0;
             let snapshotTotalRealizedProfit = 0;
             const snapshotHoldings: { code: string; shares: number; }[] = [];
+            let netAmountChangeOnDate = 0;
+            let totalBuyAmountOnDate = 0;
+            let totalBuyFloatingProfitOnDate = 0;
+            let totalSellAmountOnDate = 0;
+            let totalSellOpportunityProfitOnDate = 0;
+            let totalSellRealizedProfitOnDate = 0;
 
             funds.forEach(fund => {
                 const position = fund.userPosition;
@@ -1277,6 +1285,22 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
                     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
                 
                 for (const record of relevantRecords) {
+                    if (record.date === snapshotDate) {
+                        netAmountChangeOnDate += record.amount;
+                        
+                        const latestNAV = latestNavMap.get(fund.code) ?? 0;
+                        if (record.type === 'buy') {
+                            const floatingProfit = latestNAV > 0 ? (latestNAV - record.nav) * record.sharesChange : 0;
+                            totalBuyFloatingProfitOnDate += floatingProfit;
+                            totalBuyAmountOnDate += record.amount;
+                        } else { // sell
+                            const opportunityProfit = latestNAV > 0 ? (record.nav - latestNAV) * Math.abs(record.sharesChange) : 0;
+                            totalSellOpportunityProfitOnDate += opportunityProfit;
+                            totalSellRealizedProfitOnDate += record.realizedProfitChange ?? 0;
+                            totalSellAmountOnDate += Math.abs(record.amount);
+                        }
+                    }
+
                     if (record.type === 'buy') {
                         sharesForFund += record.sharesChange;
                         totalCostForFund += record.amount;
@@ -1334,6 +1358,12 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
                 profitRate,
                 dailyProfit,
                 dailyProfitRate,
+                netAmountChange: netAmountChangeOnDate,
+                totalBuyAmount: totalBuyAmountOnDate,
+                totalBuyFloatingProfit: totalBuyFloatingProfitOnDate,
+                totalSellAmount: totalSellAmountOnDate,
+                totalSellOpportunityProfit: totalSellOpportunityProfitOnDate,
+                totalSellRealizedProfit: totalSellRealizedProfitOnDate,
             };
         });
 
@@ -1393,11 +1423,23 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
         profitRate: baselineProfitRate,
         dailyProfit: baselineDailyProfit,
         dailyProfitRate: baselineDailyProfitRate,
+        netAmountChange: baselineTotalCostBasis,
     };
 
     const allSnapshots = [...historicalSnapshots, baselineSnapshot];
 
-    return allSnapshots;
+    const snapshotsWithChange = allSnapshots.map((snapshot, index) => {
+      if (index < allSnapshots.length - 1) {
+          const previousSnapshot = allSnapshots[index + 1];
+          const marketValueChange = snapshot.currentMarketValue - previousSnapshot.currentMarketValue;
+          const operationProfit = marketValueChange - snapshot.netAmountChange;
+          const profitPerHundred = snapshot.netAmountChange !== 0 ? (operationProfit / snapshot.netAmountChange) * 100 : undefined;
+          return { ...snapshot, marketValueChange, operationProfit, profitPerHundred };
+      }
+      return snapshot;
+    });
+
+    return snapshotsWithChange;
 }, [funds, processedFunds]);
 
   return (

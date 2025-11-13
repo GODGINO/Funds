@@ -1,4 +1,3 @@
-
 import React, { useMemo, useEffect } from 'react';
 import { PortfolioSnapshot, ProcessedFund, TradingRecord } from '../types';
 
@@ -26,17 +25,23 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
         };
     }, [isOpen, onClose]);
 
-    const { detailedBuyRecords, detailedSellRecords, initialHoldings } = useMemo(() => {
+    const { detailedBuyRecords, buyTotals, detailedSellRecords, sellTotals, initialHoldings } = useMemo(() => {
         if (snapshot.snapshotDate === '基准持仓') {
             const holdings = funds
-                .filter(f => f.userPosition && f.userPosition.shares > 0)
+                .filter(f => f.initialUserPosition && f.initialUserPosition.shares > 0)
                 .map(f => ({
                     name: f.name,
-                    shares: f.userPosition!.shares,
-                    cost: f.userPosition!.cost,
-                    totalCost: f.userPosition!.shares * f.userPosition!.cost,
+                    shares: f.initialUserPosition!.shares,
+                    cost: f.initialUserPosition!.cost,
+                    totalCost: f.initialUserPosition!.shares * f.initialUserPosition!.cost,
                 }));
-            return { detailedBuyRecords: [], detailedSellRecords: [], initialHoldings: holdings };
+            return { 
+                detailedBuyRecords: [],
+                buyTotals: { floatingProfit: 0, amount: 0 }, 
+                detailedSellRecords: [],
+                sellTotals: { opportunityProfit: 0, realizedProfit: 0, amount: 0 },
+                initialHoldings: holdings 
+            };
         }
 
         const snapshotDate = snapshot.snapshotDate;
@@ -44,6 +49,12 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
         const detailedBuys: any[] = [];
         const detailedSells: any[] = [];
+        
+        let totalBuyFloatingProfit = 0;
+        let totalBuyAmount = 0;
+        let totalSellOpportunityProfit = 0;
+        let totalSellRealizedProfit = 0;
+        let totalSellAmount = 0;
 
         funds.forEach(fund => {
             const position = fund.userPosition;
@@ -52,9 +63,11 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
             const recordsOnDate = position.tradingRecords.filter(r => r.date === snapshotDate);
             if (recordsOnDate.length === 0) return;
 
-            let prevShares = position.shares;
-            let prevTotalCost = position.shares * position.cost;
+            // FIX: Start replay from the initial user position, not the final calculated one.
+            let prevShares = fund.initialUserPosition?.shares ?? 0;
+            let prevTotalCost = (fund.initialUserPosition?.shares ?? 0) * (fund.initialUserPosition?.cost ?? 0);
 
+            // Replay all transactions BEFORE the snapshot date to get the state at the start of the day.
             const recordsBeforeDate = (position.tradingRecords)
                 .filter(r => new Date(r.date).getTime() < new Date(snapshotDate).getTime())
                 .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -66,7 +79,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                 } else { // sell
                     const costBasisPerShareBeforeSell = prevShares > 0 ? prevTotalCost / prevShares : 0;
                     prevTotalCost -= costBasisPerShareBeforeSell * Math.abs(record.sharesChange);
-                    prevShares += record.sharesChange;
+                    prevShares += record.sharesChange; // sharesChange is negative for sell
                     if (prevShares < 1e-6) {
                         prevShares = 0;
                         prevTotalCost = 0;
@@ -86,9 +99,13 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
                     const costChange = newAvgCost - prevAvgCost;
                     const costChangePercent = prevAvgCost > 0 ? (costChange / prevAvgCost) * 100 : 0;
-                    const sharesChangePercent = prevShares > 0 ? (record.sharesChange / prevShares) * 100 : 0;
+                    // FIX: If prevShares is 0, this is the first purchase, so the change is 100%.
+                    const sharesChangePercent = prevShares > 0 ? (record.sharesChange / prevShares) * 100 : 100;
                     const floatingProfit = latestNAV > 0 ? (latestNAV - record.nav) * record.sharesChange : 0;
-                    const floatingProfitPercent = record.nav > 0 ? (floatingProfit / (record.nav * record.sharesChange)) * 100 : 0;
+                    const floatingProfitPercent = record.nav > 0 && record.amount > 0 ? (floatingProfit / record.amount) * 100 : 0;
+
+                    totalBuyFloatingProfit += floatingProfit;
+                    totalBuyAmount += record.amount;
 
                     detailedBuys.push({
                         fundName: fund.name,
@@ -99,11 +116,17 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     });
 
                 } else { // sell
+                    // FIX: The prevShares is now correct, so this calculation is correct.
                     const sharesChangePercent = prevShares > 0 ? (record.sharesChange / prevShares) * 100 : 0;
                     const opportunityProfit = latestNAV > 0 ? (record.nav - latestNAV) * Math.abs(record.sharesChange) : 0;
                     const opportunityProfitPercent = record.nav > 0 ? ((record.nav - latestNAV) / record.nav) * 100 : 0;
                     const realizedProfit = record.realizedProfitChange ?? 0;
+                    // FIX: The prevAvgCost is now correct, so this percentage is also correct.
                     const realizedProfitPercent = prevAvgCost > 0 ? ((record.nav - prevAvgCost) / prevAvgCost) * 100 : 0;
+
+                    totalSellOpportunityProfit += opportunityProfit;
+                    totalSellRealizedProfit += realizedProfit;
+                    totalSellAmount += Math.abs(record.amount);
 
                     detailedSells.push({
                         fundName: fund.name,
@@ -116,33 +139,46 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
             });
         });
 
-        return { detailedBuyRecords: detailedBuys, detailedSellRecords: detailedSells, initialHoldings: [] };
+        return { 
+            detailedBuyRecords: detailedBuys,
+            buyTotals: { floatingProfit: totalBuyFloatingProfit, amount: totalBuyAmount },
+            detailedSellRecords: detailedSells,
+            sellTotals: { opportunityProfit: totalSellOpportunityProfit, realizedProfit: totalSellRealizedProfit, amount: totalSellAmount },
+            initialHoldings: [] 
+        };
 
     }, [snapshot, funds]);
     
+    const netAmountChange = useMemo(() => {
+        if (snapshot.snapshotDate === '基准持仓') {
+            return 0;
+        }
+        return buyTotals.amount - sellTotals.amount;
+    }, [buyTotals.amount, sellTotals.amount, snapshot.snapshotDate]);
+
     const hasBuys = detailedBuyRecords.length > 0;
     const hasSells = detailedSellRecords.length > 0;
-    const hasBothTypes = hasBuys && hasSells;
-    const modalMaxWidthClass = hasBothTypes ? 'max-w-6xl' : 'max-w-4xl';
+    const hasOnlyOneType = (hasBuys && !hasSells) || (!hasBuys && hasSells);
+    const modalMaxWidthClass = hasOnlyOneType ? 'max-w-xl' : 'max-w-6xl';
 
 
     if (!isOpen) return null;
 
     const renderTransactionTables = () => (
-        <div className={`grid grid-cols-1 ${hasBothTypes ? 'md:grid-cols-2' : ''} gap-x-6 gap-y-4`}>
+        <div className={`grid grid-cols-1 ${!hasOnlyOneType ? 'md:grid-cols-2' : ''} gap-x-6 gap-y-4`}>
             {/* Buy Operations Column */}
             {hasBuys && (
-                <div>
+                <div className={`${hasOnlyOneType ? 'mx-auto w-full' : ''}`}>
                     <h4 className="text-xl font-bold mb-3 text-red-600">买入操作</h4>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
                             <thead className="bg-gray-200 dark:bg-gray-700">
                                 <tr>
-                                    <th className="p-2">基金名称</th>
-                                    <th className="p-2 text-right">成本变化</th>
-                                    <th className="p-2 text-right">份额变化</th>
-                                    <th className="p-2 text-right">浮盈</th>
-                                    <th className="p-2 text-right">金额</th>
+                                    <th className="p-2 whitespace-nowrap">基金名称</th>
+                                    <th className="p-2 text-right whitespace-nowrap">份额变化</th>
+                                    <th className="p-2 text-right whitespace-nowrap">成本变化</th>
+                                    <th className="p-2 text-right whitespace-nowrap">浮盈</th>
+                                    <th className="p-2 text-right whitespace-nowrap">买入</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -150,12 +186,12 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                                     <tr key={`buy-${index}`} className="border-b dark:border-gray-700">
                                         <td className="p-2 font-semibold">{record.fundName}</td>
                                         <td className="p-2 text-right font-mono">
-                                            <div className={getProfitColor(record.costChange * -1)}>{record.costChange.toFixed(4)}</div>
-                                            <div className={`${getProfitColor(record.costChange * -1)} text-xs`}>{`${record.costChangePercent > 0 ? '+' : ''}${record.costChangePercent.toFixed(2)}%`}</div>
-                                        </td>
-                                        <td className="p-2 text-right font-mono">
                                             <div className={getProfitColor(1)}>+{record.sharesChange.toFixed(2)}</div>
                                             <div className={`${getProfitColor(1)} text-xs`}>+{record.sharesChangePercent.toFixed(2)}%</div>
+                                        </td>
+                                        <td className="p-2 text-right font-mono">
+                                            <div className={getProfitColor(record.costChange * -1)}>{record.costChange.toFixed(4)}</div>
+                                            <div className={`${getProfitColor(record.costChange * -1)} text-xs`}>{`${record.costChangePercent > 0 ? '+' : ''}${record.costChangePercent.toFixed(2)}%`}</div>
                                         </td>
                                         <td className="p-2 text-right font-mono">
                                             <div className={getProfitColor(record.floatingProfit)}>{record.floatingProfit.toFixed(2)}</div>
@@ -165,6 +201,15 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                                     </tr>
                                 ))}
                             </tbody>
+                            <tfoot>
+                                <tr className="border-t dark:border-gray-600 font-bold">
+                                    <td className="p-2 text-left" colSpan={3}>汇总</td>
+                                    <td className="p-2 text-right font-mono">
+                                        <div className={getProfitColor(buyTotals.floatingProfit)}>{buyTotals.floatingProfit.toFixed(2)}</div>
+                                    </td>
+                                    <td className="p-2 text-right font-mono">{buyTotals.amount.toFixed(2)}</td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                 </div>
@@ -172,17 +217,17 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
             {/* Sell Operations Column */}
             {hasSells && (
-                <div>
+                <div className={`${hasOnlyOneType ? 'mx-auto w-full' : ''}`}>
                     <h4 className="text-xl font-bold mb-3 text-blue-600">卖出操作</h4>
                      <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
                             <thead className="bg-gray-200 dark:bg-gray-700">
                                 <tr>
-                                    <th className="p-2">基金名称</th>
-                                    <th className="p-2 text-right">份额变化</th>
-                                    <th className="p-2 text-right">机会收益</th>
-                                    <th className="p-2 text-right">落袋</th>
-                                    <th className="p-2 text-right">金额</th>
+                                    <th className="p-2 whitespace-nowrap">基金名称</th>
+                                    <th className="p-2 text-right whitespace-nowrap">份额变化</th>
+                                    <th className="p-2 text-right whitespace-nowrap">机会收益</th>
+                                    <th className="p-2 text-right whitespace-nowrap">落袋</th>
+                                    <th className="p-2 text-right whitespace-nowrap">到账</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -205,6 +250,18 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                                     </tr>
                                 ))}
                             </tbody>
+                            <tfoot>
+                                <tr className="border-t dark:border-gray-600 font-bold">
+                                    <td className="p-2 text-left" colSpan={2}>汇总</td>
+                                    <td className="p-2 text-right font-mono">
+                                        <div className={getProfitColor(sellTotals.opportunityProfit)}>{`${sellTotals.opportunityProfit > 0 ? '+' : ''}${sellTotals.opportunityProfit.toFixed(2)}`}</div>
+                                    </td>
+                                    <td className="p-2 text-right font-mono">
+                                        <div className={getProfitColor(sellTotals.realizedProfit)}>{sellTotals.realizedProfit.toFixed(2)}</div>
+                                    </td>
+                                    <td className="p-2 text-right font-mono">{sellTotals.amount.toFixed(2)}</td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                 </div>
@@ -253,7 +310,17 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
         >
             <div className={`bg-gray-100 dark:bg-gray-800 rounded-lg shadow-xl w-full ${modalMaxWidthClass} m-4 transform transition-all flex flex-col max-h-[90vh]`}>
                 <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700 bg-white dark:bg-gray-900 rounded-t-lg">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">操作明细: {snapshot.snapshotDate}</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-baseline flex-wrap">
+                        <span>操作明细: {snapshot.snapshotDate}</span>
+                        {netAmountChange !== 0 && (
+                            <span className="ml-4">
+                                <span>金额变动: </span>
+                                <span className={getProfitColor(netAmountChange)}>
+                                    {netAmountChange.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                            </span>
+                        )}
+                    </h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 focus:outline-none" aria-label="Close">
                         <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -263,12 +330,12 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
                 <div className="p-6 overflow-y-auto">
                     {snapshot.snapshotDate === '基准持仓' ? (
-                        initialHoldings.length > 0 ? renderInitialHoldingsTable() : <p>无初始持仓记录。</p>
+                        initialHoldings.length > 0 ? renderInitialHoldingsTable() : <p className="text-center text-gray-500 dark:text-gray-400">无初始持仓记录。</p>
                     ) : (
                         (hasBuys || hasSells) ? (
                             renderTransactionTables()
                         ) : (
-                            <p>该日期无交易记录。</p>
+                            <p className="text-center text-gray-500 dark:text-gray-400">该日期无交易记录。</p>
                         )
                     )}
                 </div>

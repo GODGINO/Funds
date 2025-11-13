@@ -75,6 +75,7 @@ export interface ProcessedFund extends Fund {
     actualCost?: number;
     recentProfit?: number;
     initialMarketValueForTrend?: number;
+    initialUserPosition?: UserPosition;
 }
 
 export type TagSortOrder = 'asc' | 'desc' | 'abs_asc' | 'abs_desc';
@@ -125,4 +126,13 @@ export interface PortfolioSnapshot {
   profitRate: number;
   dailyProfit: number;
   dailyProfitRate: number;
+  netAmountChange: number;
+  marketValueChange?: number;
+  operationProfit?: number;
+  profitPerHundred?: number;
+  totalBuyAmount?: number;
+  totalBuyFloatingProfit?: number;
+  totalSellAmount?: number;
+  totalSellOpportunityProfit?: number;
+  totalSellRealizedProfit?: number;
 }
