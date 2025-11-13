@@ -280,7 +280,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
               {snapshots.map(snapshot => {
                 const isBaselineRow = snapshot.snapshotDate === '基准持仓';
                 const rowClasses = isBaselineRow
-                  ? 'bg-primary-50 dark:bg-primary-900/30 font-semibold'
+                  ? 'font-semibold'
                   : 'hover:bg-gray-50 dark:hover:bg-gray-800/50';
                 
                 const daysAgo = isBaselineRow ? null : getDaysAgo(snapshot.snapshotDate);
