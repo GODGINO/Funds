@@ -244,6 +244,43 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                            <label className="block text-xs text-gray-500">标签</label>
                            <input type="text" value={tag} onChange={e => setTag(e.target.value)} placeholder="☀️新能源, ⬆️, 等下跌" className="mt-1 w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded focus:ring-primary-500 focus:border-primary-500"/>
                         </div>
+
+                        {/* Trading History */}
+                        {fund.userPosition?.tradingRecords && fund.userPosition.tradingRecords.length > 0 && (
+                            <div className="my-6">
+                                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">交易历史</h3>
+                                <div className="max-h-40 overflow-y-auto border rounded-md dark:border-gray-700">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0">
+                                            <tr>
+                                                <th className="p-2">日期</th>
+                                                <th className="p-2">类型</th>
+                                                <th className="p-2 text-right">成交净值</th>
+                                                <th className="p-2 text-right">份额变化</th>
+                                                <th className="p-2 text-right">金额</th>
+                                                <th className="p-2 text-right">落袋收益</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {[...fund.userPosition.tradingRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(record => (
+                                                <tr key={record.date} className="border-t dark:border-gray-700">
+                                                    <td className="p-2 font-mono">{record.date}</td>
+                                                    <td className={`p-2 font-semibold ${record.type === 'buy' ? 'text-red-500' : 'text-blue-500'}`}>{record.type === 'buy' ? '买入' : '卖出'}</td>
+                                                    <td className="p-2 text-right font-mono">{record.nav.toFixed(4)}</td>
+                                                    <td className={`p-2 text-right font-mono ${record.sharesChange > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                                                        {record.sharesChange > 0 ? '+' : ''}{record.sharesChange.toFixed(2)}
+                                                    </td>
+                                                    <td className="p-2 text-right font-mono">{record.amount.toFixed(2)}</td>
+                                                    <td className={`p-2 text-right font-mono ${record.realizedProfitChange && record.realizedProfitChange !== 0 ? getProfitColor(record.realizedProfitChange) : ''}`}>
+                                                        {record.realizedProfitChange != null ? record.realizedProfitChange.toFixed(2) : '-'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
                     </div>
                     
                     {/* Modal Footer */}

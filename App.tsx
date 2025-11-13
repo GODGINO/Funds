@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
 import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingTask, TradingRecord, TradeModalState, PortfolioSnapshot } from './types';
@@ -840,11 +841,14 @@ const App: React.FC = () => {
     })
     
     data.sort((a, b) => {
-      const valA = a[tagSortKey] as number;
-      const valB = b[tagSortKey] as number;
-
+      // FIX: Replaced the sort implementation with a more type-safe version to prevent errors.
+      // This checks if values are numbers before attempting arithmetic operations.
+      const valA = a[tagSortKey];
+      const valB = b[tagSortKey];
+      if (typeof valA !== 'number' || typeof valB !== 'number') {
+        return 0;
+      }
       if (tagSortOrder === 'asc') return valA - valB;
-      // FIX: Use the already cast `valA` variable for the subtraction to avoid type errors.
       if (tagSortOrder === 'desc') return valB - valA;
       if (tagSortOrder === 'abs_asc') return Math.abs(valA) - Math.abs(valB);
       if (tagSortOrder === 'abs_desc') return Math.abs(valB) - Math.abs(valA);
@@ -1438,9 +1442,9 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
           const profitCaused = snapshot.dailyProfit - previousSnapshot.dailyProfit;
           const profitCausedPerHundred = snapshot.netAmountChange !== 0 ? (profitCaused / Math.abs(snapshot.netAmountChange)) * 100 : undefined;
           
-          const operationEffect = previousSnapshot.dailyProfit !== 0 
+          const operationEffect = Math.abs(previousSnapshot.dailyProfit) > 1e-6
               ? (profitCaused / Math.abs(previousSnapshot.dailyProfit)) * 100 
-              : undefined;
+              : 100;
 
           return { ...snapshot, marketValueChange, operationProfit, profitPerHundred, profitCaused, profitCausedPerHundred, operationEffect };
       }

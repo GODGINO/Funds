@@ -64,8 +64,9 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
             if (recordsOnDate.length === 0) return;
 
             // FIX: Start replay from the initial user position, not the final calculated one.
-            let prevShares = fund.initialUserPosition?.shares ?? 0;
-            let prevTotalCost = (fund.initialUserPosition?.shares ?? 0) * (fund.initialUserPosition?.cost ?? 0);
+            // FIX: Add explicit type annotations to prevent type inference issues.
+            let prevShares: number = fund.initialUserPosition?.shares ?? 0;
+            let prevTotalCost: number = (fund.initialUserPosition?.shares ?? 0) * (fund.initialUserPosition?.cost ?? 0);
 
             // Replay all transactions BEFORE the snapshot date to get the state at the start of the day.
             const recordsBeforeDate = (position.tradingRecords)
