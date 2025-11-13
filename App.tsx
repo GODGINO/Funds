@@ -1449,7 +1449,7 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
             onSortChange={handleTagSortChange}
           />
           <div ref={fundTableContainerRef} className="bg-white dark:bg-gray-900 rounded-lg shadow-md p-4">
-            <div className="w-full overflow-x-auto">
+            <div className="w-full overflow-x-auto pb-4">
               <table className="w-full text-sm text-center border-collapse">
                 <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
