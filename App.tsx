@@ -1340,64 +1340,62 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
         historicalSnapshots = snapshots.reverse(); // Newest first
     }
 
-    let allSnapshots = historicalSnapshots;
-    const hasInitialHoldings = funds.some(f => f.userPosition && f.userPosition.shares > 0 && f.userPosition.cost > 0);
+    // Always generate a baseline snapshot.
+    // For new users, this will be an empty portfolio.
+    // For users with holdings, it reflects the state before any trading records are applied.
+    let baselineTotalCostBasis = 0;
+    let baselineTotalRealizedProfit = 0;
+    const baselineHoldings: { code: string; shares: number; }[] = [];
 
-    if (hasInitialHoldings) {
-        let baselineTotalCostBasis = 0;
-        let baselineTotalRealizedProfit = 0;
-        const baselineHoldings: { code: string; shares: number; }[] = [];
+    // Calculate baseline state from initial positions, ignoring tradingRecords
+    funds.forEach(fund => {
+        const position = fund.userPosition;
+        if (position && position.shares > 0) {
+            baselineHoldings.push({ code: fund.code, shares: position.shares });
+            baselineTotalCostBasis += position.shares * position.cost;
+            baselineTotalRealizedProfit += position.realizedProfit;
+        }
+    });
+    
+    // Evaluate baseline holdings against current market data
+    let baselineCurrentMarketValue = 0;
+    let baselineDailyProfit = 0;
+    let baselineYesterdayMarketValue = 0;
 
-        // Calculate baseline state from initial positions, ignoring tradingRecords
-        funds.forEach(fund => {
-            const position = fund.userPosition;
-            if (position && position.shares > 0) {
-                baselineHoldings.push({ code: fund.code, shares: position.shares });
-                baselineTotalCostBasis += position.shares * position.cost;
-                baselineTotalRealizedProfit += position.realizedProfit;
+    baselineHoldings.forEach(holding => {
+        const currentFundData = processedFunds.find(f => f.code === holding.code);
+        if (currentFundData?.baseChartData && currentFundData.baseChartData.length > 0) {
+            const chartData = currentFundData.baseChartData;
+            const latestNAV = chartData[chartData.length - 1].unitNAV ?? 0;
+            const yesterdayNAV = chartData.length > 1 ? (chartData[chartData.length - 2].unitNAV ?? 0) : 0;
+
+            if (latestNAV > 0) {
+                baselineCurrentMarketValue += holding.shares * latestNAV;
             }
-        });
-        
-        // Evaluate baseline holdings against current market data
-        let baselineCurrentMarketValue = 0;
-        let baselineDailyProfit = 0;
-        let baselineYesterdayMarketValue = 0;
-
-        baselineHoldings.forEach(holding => {
-            const currentFundData = processedFunds.find(f => f.code === holding.code);
-            if (currentFundData?.baseChartData && currentFundData.baseChartData.length > 0) {
-                const chartData = currentFundData.baseChartData;
-                const latestNAV = chartData[chartData.length - 1].unitNAV ?? 0;
-                const yesterdayNAV = chartData.length > 1 ? (chartData[chartData.length - 2].unitNAV ?? 0) : 0;
-
-                if (latestNAV > 0) {
-                    baselineCurrentMarketValue += holding.shares * latestNAV;
-                }
-                if (yesterdayNAV > 0 && latestNAV > 0) {
-                    baselineDailyProfit += (latestNAV - yesterdayNAV) * holding.shares;
-                    baselineYesterdayMarketValue += holding.shares * yesterdayNAV;
-                }
+            if (yesterdayNAV > 0 && latestNAV > 0) {
+                baselineDailyProfit += (latestNAV - yesterdayNAV) * holding.shares;
+                baselineYesterdayMarketValue += holding.shares * yesterdayNAV;
             }
-        });
-        
-        const baselineCumulativeValue = baselineCurrentMarketValue + baselineTotalRealizedProfit;
-        const baselineTotalProfit = baselineCumulativeValue - baselineTotalCostBasis;
-        const baselineProfitRate = baselineTotalCostBasis > 0 ? (baselineTotalProfit / baselineTotalCostBasis) * 100 : 0;
-        const baselineDailyProfitRate = baselineYesterdayMarketValue > 0 ? (baselineDailyProfit / baselineYesterdayMarketValue) * 100 : 0;
+        }
+    });
+    
+    const baselineCumulativeValue = baselineCurrentMarketValue + baselineTotalRealizedProfit;
+    const baselineTotalProfit = baselineCumulativeValue - baselineTotalCostBasis;
+    const baselineProfitRate = baselineTotalCostBasis > 0 ? (baselineTotalProfit / baselineTotalCostBasis) * 100 : 0;
+    const baselineDailyProfitRate = baselineYesterdayMarketValue > 0 ? (baselineDailyProfit / baselineYesterdayMarketValue) * 100 : 0;
 
-        const baselineSnapshot: PortfolioSnapshot = {
-            snapshotDate: '基准持仓',
-            totalCostBasis: baselineTotalCostBasis,
-            currentMarketValue: baselineCurrentMarketValue,
-            cumulativeValue: baselineCumulativeValue,
-            totalProfit: baselineTotalProfit,
-            profitRate: baselineProfitRate,
-            dailyProfit: baselineDailyProfit,
-            dailyProfitRate: baselineDailyProfitRate,
-        };
+    const baselineSnapshot: PortfolioSnapshot = {
+        snapshotDate: '基准持仓',
+        totalCostBasis: baselineTotalCostBasis,
+        currentMarketValue: baselineCurrentMarketValue,
+        cumulativeValue: baselineCumulativeValue,
+        totalProfit: baselineTotalProfit,
+        profitRate: baselineProfitRate,
+        dailyProfit: baselineDailyProfit,
+        dailyProfitRate: baselineDailyProfitRate,
+    };
 
-        allSnapshots = [...historicalSnapshots, baselineSnapshot];
-    }
+    const allSnapshots = [...historicalSnapshots, baselineSnapshot];
 
     return allSnapshots;
 }, [funds, processedFunds]);
@@ -1481,7 +1479,7 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
               </table>
             </div>
           </div>
-          <PortfolioSnapshotTable snapshots={portfolioSnapshots} />
+          {portfolioSnapshots.length > 1 && <PortfolioSnapshotTable snapshots={portfolioSnapshots} />}
         </>
       ) : (
         <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg shadow-md">
