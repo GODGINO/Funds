@@ -34,9 +34,9 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
           </thead>
           <tbody>
             {snapshots.map(snapshot => {
-              const isBaselineRow = snapshot.snapshotDate === '基准持仓';
-              const rowClasses = isBaselineRow
-                ? 'bg-gray-100 dark:bg-gray-800 font-semibold'
+              const isCurrentRow = snapshot.snapshotDate === '基准持仓';
+              const rowClasses = isCurrentRow
+                ? 'bg-primary-50 dark:bg-primary-900/30 font-semibold'
                 : 'hover:bg-gray-50 dark:hover:bg-gray-800/50';
 
               return (

@@ -1253,49 +1253,8 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
         });
     });
 
-    const evaluatePortfolio = (
-        holdings: { code: string; shares: number; }[],
-        totalCostBasis: number,
-        totalRealizedProfit: number
-    ): Omit<PortfolioSnapshot, 'snapshotDate'> => {
-        let currentMarketValue = 0;
-        let dailyProfit = 0;
-        let yesterdayMarketValue = 0;
-        
-        holdings.forEach(holding => {
-            const currentFundData = processedFunds.find(f => f.code === holding.code);
-            if (currentFundData?.baseChartData && currentFundData.baseChartData.length > 0) {
-                const chartData = currentFundData.baseChartData;
-                const latestNAV = chartData[chartData.length - 1].unitNAV ?? 0;
-                const yesterdayNAV = chartData.length > 1 ? (chartData[chartData.length - 2].unitNAV ?? 0) : 0;
-                
-                if (latestNAV > 0) {
-                    currentMarketValue += holding.shares * latestNAV;
-                }
-                if (yesterdayNAV > 0 && latestNAV > 0) {
-                    dailyProfit += (latestNAV - yesterdayNAV) * holding.shares;
-                    yesterdayMarketValue += holding.shares * yesterdayNAV;
-                }
-            }
-        });
-
-        const cumulativeValue = currentMarketValue + totalRealizedProfit;
-        const totalProfit = cumulativeValue - totalCostBasis;
-        const profitRate = totalCostBasis > 0 ? (totalProfit / totalCostBasis) * 100 : 0;
-        const dailyProfitRate = yesterdayMarketValue > 0 ? (dailyProfit / yesterdayMarketValue) * 100 : 0;
-
-        return {
-            totalCostBasis,
-            currentMarketValue,
-            cumulativeValue,
-            totalProfit,
-            profitRate,
-            dailyProfit,
-            dailyProfitRate,
-        };
-    };
-
     let historicalSnapshots: PortfolioSnapshot[] = [];
+
     if (allTransactionDates.size > 0) {
         const sortedDates = Array.from(allTransactionDates).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
@@ -1323,7 +1282,7 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
                     } else { // sell
                         const costBasisPerShareBeforeSell = sharesForFund > 0 ? totalCostForFund / sharesForFund : 0;
                         totalCostForFund -= costBasisPerShareBeforeSell * Math.abs(record.sharesChange);
-                        sharesForFund += record.sharesChange;
+                        sharesForFund += record.sharesChange; // sharesChange is negative for sell
                         realizedProfitForFund += (record.realizedProfitChange ?? 0);
                         if (sharesForFund < 1e-6) {
                             sharesForFund = 0;
@@ -1339,47 +1298,107 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
                 snapshotTotalRealizedProfit += realizedProfitForFund;
             });
 
-            const evaluation = evaluatePortfolio(snapshotHoldings, snapshotTotalCostBasis, snapshotTotalRealizedProfit);
+            let currentMarketValue = 0;
+            let dailyProfit = 0;
+            let yesterdayMarketValue = 0;
+            
+            snapshotHoldings.forEach(holding => {
+                const currentFundData = processedFunds.find(f => f.code === holding.code);
+                if (currentFundData?.baseChartData && currentFundData.baseChartData.length > 0) {
+                    const chartData = currentFundData.baseChartData;
+                    const latestNAV = chartData[chartData.length - 1].unitNAV ?? 0;
+                    const yesterdayNAV = chartData.length > 1 ? (chartData[chartData.length - 2].unitNAV ?? 0) : 0;
+                    
+                    if (latestNAV > 0) {
+                        currentMarketValue += holding.shares * latestNAV;
+                    }
+                    if (yesterdayNAV > 0 && latestNAV > 0) {
+                        dailyProfit += (latestNAV - yesterdayNAV) * holding.shares;
+                        yesterdayMarketValue += holding.shares * yesterdayNAV;
+                    }
+                }
+            });
+
+            const cumulativeValue = currentMarketValue + snapshotTotalRealizedProfit;
+            const totalProfit = cumulativeValue - snapshotTotalCostBasis;
+            const profitRate = snapshotTotalCostBasis > 0 ? (totalProfit / snapshotTotalCostBasis) * 100 : 0;
+            const dailyProfitRate = yesterdayMarketValue > 0 ? (dailyProfit / yesterdayMarketValue) * 100 : 0;
 
             return {
                 snapshotDate,
-                ...evaluation
+                totalCostBasis: snapshotTotalCostBasis,
+                currentMarketValue,
+                cumulativeValue,
+                totalProfit,
+                profitRate,
+                dailyProfit,
+                dailyProfitRate,
             };
         });
 
         historicalSnapshots = snapshots.reverse(); // Newest first
     }
 
-    let baselineSnapshot: PortfolioSnapshot | null = null;
-    let baselineTotalCostBasis = 0;
-    let baselineTotalRealizedProfit = 0;
-    const baselineHoldings: { code: string; shares: number; }[] = [];
-    let hasInitialHoldings = false;
-
-    funds.forEach(fund => {
-        const position = fund.userPosition;
-        if (position && position.shares > 0) {
-            hasInitialHoldings = true;
-            baselineHoldings.push({ code: fund.code, shares: position.shares });
-            baselineTotalCostBasis += position.shares * position.cost;
-            baselineTotalRealizedProfit += position.realizedProfit;
-        }
-    });
+    let allSnapshots = historicalSnapshots;
+    const hasInitialHoldings = funds.some(f => f.userPosition && f.userPosition.shares > 0 && f.userPosition.cost > 0);
 
     if (hasInitialHoldings) {
-        const evaluation = evaluatePortfolio(baselineHoldings, baselineTotalCostBasis, baselineTotalRealizedProfit);
-        baselineSnapshot = {
+        let baselineTotalCostBasis = 0;
+        let baselineTotalRealizedProfit = 0;
+        const baselineHoldings: { code: string; shares: number; }[] = [];
+
+        // Calculate baseline state from initial positions, ignoring tradingRecords
+        funds.forEach(fund => {
+            const position = fund.userPosition;
+            if (position && position.shares > 0) {
+                baselineHoldings.push({ code: fund.code, shares: position.shares });
+                baselineTotalCostBasis += position.shares * position.cost;
+                baselineTotalRealizedProfit += position.realizedProfit;
+            }
+        });
+        
+        // Evaluate baseline holdings against current market data
+        let baselineCurrentMarketValue = 0;
+        let baselineDailyProfit = 0;
+        let baselineYesterdayMarketValue = 0;
+
+        baselineHoldings.forEach(holding => {
+            const currentFundData = processedFunds.find(f => f.code === holding.code);
+            if (currentFundData?.baseChartData && currentFundData.baseChartData.length > 0) {
+                const chartData = currentFundData.baseChartData;
+                const latestNAV = chartData[chartData.length - 1].unitNAV ?? 0;
+                const yesterdayNAV = chartData.length > 1 ? (chartData[chartData.length - 2].unitNAV ?? 0) : 0;
+
+                if (latestNAV > 0) {
+                    baselineCurrentMarketValue += holding.shares * latestNAV;
+                }
+                if (yesterdayNAV > 0 && latestNAV > 0) {
+                    baselineDailyProfit += (latestNAV - yesterdayNAV) * holding.shares;
+                    baselineYesterdayMarketValue += holding.shares * yesterdayNAV;
+                }
+            }
+        });
+        
+        const baselineCumulativeValue = baselineCurrentMarketValue + baselineTotalRealizedProfit;
+        const baselineTotalProfit = baselineCumulativeValue - baselineTotalCostBasis;
+        const baselineProfitRate = baselineTotalCostBasis > 0 ? (baselineTotalProfit / baselineTotalCostBasis) * 100 : 0;
+        const baselineDailyProfitRate = baselineYesterdayMarketValue > 0 ? (baselineDailyProfit / baselineYesterdayMarketValue) * 100 : 0;
+
+        const baselineSnapshot: PortfolioSnapshot = {
             snapshotDate: '基准持仓',
-            ...evaluation,
+            totalCostBasis: baselineTotalCostBasis,
+            currentMarketValue: baselineCurrentMarketValue,
+            cumulativeValue: baselineCumulativeValue,
+            totalProfit: baselineTotalProfit,
+            profitRate: baselineProfitRate,
+            dailyProfit: baselineDailyProfit,
+            dailyProfitRate: baselineDailyProfitRate,
         };
+
+        allSnapshots = [...historicalSnapshots, baselineSnapshot];
     }
-    
-    const finalSnapshots = [...historicalSnapshots];
-    if (baselineSnapshot) {
-        finalSnapshots.push(baselineSnapshot);
-    }
-    
-    return finalSnapshots;
+
+    return allSnapshots;
 }, [funds, processedFunds]);
 
   return (
