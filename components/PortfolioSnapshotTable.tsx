@@ -9,7 +9,7 @@ interface PortfolioSnapshotTableProps {
 
 const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-green-600';
 
-const formatCurrency = (value: number) => value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const formatInteger = (value: number) => Math.round(value).toLocaleString('en-US');
 const formatPercentage = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
 const getDaysAgo = (dateString: string): number | null => {
@@ -84,17 +84,17 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                       <span className="text-gray-500 dark:text-gray-400 ml-2 text-xs">{daysAgo}</span>
                     )}
                   </td>
-                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right">{formatCurrency(snapshot.totalCostBasis)}</td>
-                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right">{formatCurrency(snapshot.currentMarketValue)}</td>
-                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right">{formatCurrency(snapshot.cumulativeValue)}</td>
+                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right">{formatInteger(snapshot.totalCostBasis)}</td>
+                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right">{formatInteger(snapshot.currentMarketValue)}</td>
+                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right">{formatInteger(snapshot.cumulativeValue)}</td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(snapshot.totalProfit)}`}>
-                    {snapshot.totalProfit >= 0 ? '+' : ''}{formatCurrency(snapshot.totalProfit)}
+                    {snapshot.totalProfit >= 0 ? '+' : ''}{formatInteger(snapshot.totalProfit)}
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(snapshot.profitRate)}`}>
                     {formatPercentage(snapshot.profitRate)}
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(snapshot.dailyProfit)}`}>
-                    {snapshot.dailyProfit >= 0 ? '+' : ''}{formatCurrency(snapshot.dailyProfit)}
+                    {snapshot.dailyProfit >= 0 ? '+' : ''}{formatInteger(snapshot.dailyProfit)}
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(snapshot.dailyProfitRate)}`}>
                     {formatPercentage(snapshot.dailyProfitRate)}
@@ -103,19 +103,19 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                     {isBaselineRow ? (
                         '-'
                     ) : (
-                        `${snapshot.netAmountChange >= 0 ? '+' : ''}${formatCurrency(snapshot.netAmountChange)}`
+                        `${snapshot.netAmountChange >= 0 ? '+' : ''}${formatInteger(snapshot.netAmountChange)}`
                     )}
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${snapshot.marketValueChange ? getProfitColor(snapshot.marketValueChange) : ''}`}>
                     {snapshot.marketValueChange != null ? (
-                      `${snapshot.marketValueChange >= 0 ? '+' : ''}${formatCurrency(snapshot.marketValueChange)}`
+                      `${snapshot.marketValueChange >= 0 ? '+' : ''}${formatInteger(snapshot.marketValueChange)}`
                     ) : (
                       '-'
                     )}
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${snapshot.operationProfit ? getProfitColor(snapshot.operationProfit) : ''}`}>
                     {snapshot.operationProfit != null ? (
-                      `${snapshot.operationProfit >= 0 ? '+' : ''}${formatCurrency(snapshot.operationProfit)}`
+                      `${snapshot.operationProfit >= 0 ? '+' : ''}${formatInteger(snapshot.operationProfit)}`
                     ) : (
                       '-'
                     )}
@@ -128,23 +128,41 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                     )}
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right`}>
-                      {snapshot.totalBuyAmount ? formatCurrency(snapshot.totalBuyAmount) : '-'}
+                      {snapshot.totalBuyAmount ? formatInteger(snapshot.totalBuyAmount) : '-'}
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(snapshot.totalBuyFloatingProfit ?? 0)}`}>
-                      {(snapshot.totalBuyAmount ?? 0) > 0 ? `${(snapshot.totalBuyFloatingProfit ?? 0) >= 0 ? '+' : ''}${formatCurrency(snapshot.totalBuyFloatingProfit ?? 0)}` : '-'}
+                    {(snapshot.totalBuyAmount ?? 0) > 0 && snapshot.totalBuyFloatingProfit != null ? (
+                      <span>
+                        {`${snapshot.totalBuyFloatingProfit >= 0 ? '+' : ''}${formatInteger(snapshot.totalBuyFloatingProfit)}`}
+                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                          |{((snapshot.totalBuyFloatingProfit / snapshot.totalBuyAmount) * 100).toFixed(2)}%
+                        </span>
+                      </span>
+                    ) : (
+                      '-'
+                    )}
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right`}>
-                      {snapshot.totalSellAmount ? formatCurrency(snapshot.totalSellAmount) : '-'}
+                      {snapshot.totalSellAmount ? formatInteger(snapshot.totalSellAmount) : '-'}
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(snapshot.totalSellOpportunityProfit ?? 0)}`}>
-                      {(snapshot.totalSellAmount ?? 0) > 0 ? `${(snapshot.totalSellOpportunityProfit ?? 0) >= 0 ? '+' : ''}${formatCurrency(snapshot.totalSellOpportunityProfit ?? 0)}` : '-'}
+                    {(snapshot.totalSellAmount ?? 0) > 0 && snapshot.totalSellOpportunityProfit != null ? (
+                        <span>
+                            {`${snapshot.totalSellOpportunityProfit >= 0 ? '+' : ''}${formatInteger(snapshot.totalSellOpportunityProfit)}`}
+                            <span className="text-gray-500 dark:text-gray-400 text-xs">
+                                |{((snapshot.totalSellOpportunityProfit / snapshot.totalSellAmount) * 100).toFixed(2)}%
+                            </span>
+                        </span>
+                    ) : (
+                        '-'
+                    )}
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(snapshot.totalSellRealizedProfit ?? 0)}`}>
-                      {(snapshot.totalSellAmount ?? 0) > 0 ? `${(snapshot.totalSellRealizedProfit ?? 0) >= 0 ? '+' : ''}${formatCurrency(snapshot.totalSellRealizedProfit ?? 0)}` : '-'}
+                      {(snapshot.totalSellAmount ?? 0) > 0 ? `${(snapshot.totalSellRealizedProfit ?? 0) >= 0 ? '+' : ''}${formatInteger(snapshot.totalSellRealizedProfit ?? 0)}` : '-'}
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${snapshot.profitCaused ? getProfitColor(snapshot.profitCaused) : ''}`}>
                     {snapshot.profitCaused != null ? (
-                        `${snapshot.profitCaused >= 0 ? '+' : ''}${formatCurrency(snapshot.profitCaused)}`
+                        `${snapshot.profitCaused >= 0 ? '+' : ''}${formatInteger(snapshot.profitCaused)}`
                     ) : (
                         '-'
                     )}
