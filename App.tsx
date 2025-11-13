@@ -1479,7 +1479,7 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
               </table>
             </div>
           </div>
-          {portfolioSnapshots.length > 1 && <PortfolioSnapshotTable snapshots={portfolioSnapshots} />}
+          {portfolioSnapshots.length > 1 && <PortfolioSnapshotTable snapshots={portfolioSnapshots} funds={processedFunds} />}
         </>
       ) : (
         <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg shadow-md">
