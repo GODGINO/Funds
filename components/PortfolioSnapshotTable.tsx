@@ -46,22 +46,25 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr>
                 <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 text-left">切片日期</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">总成本</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">持有总值</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">累计总值</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">总收益</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">收益率</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">日收益</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">日收益率</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">金额变动</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">总值变动</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">操作收益</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">每百收益</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">买入金额</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">浮盈</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">卖出金额</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">机会收益</th>
-                <th className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">落袋</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">总成本</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">持有总值</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">累计总值</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">总收益</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">收益率</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">日收益</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">日收益率</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">金额变动</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">总值变动</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">操作收益</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">每百收益</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">买入金额</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">浮盈</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">卖出金额</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">机会收益</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">落袋</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">造成盈亏</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">每百造成</th>
+                <th className="px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300">操作效果</th>
               </tr>
             </thead>
             <tbody>
@@ -138,6 +141,27 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(snapshot.totalSellRealizedProfit ?? 0)}`}>
                       {(snapshot.totalSellAmount ?? 0) > 0 ? `${(snapshot.totalSellRealizedProfit ?? 0) >= 0 ? '+' : ''}${formatCurrency(snapshot.totalSellRealizedProfit ?? 0)}` : '-'}
+                  </td>
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${snapshot.profitCaused ? getProfitColor(snapshot.profitCaused) : ''}`}>
+                    {snapshot.profitCaused != null ? (
+                        `${snapshot.profitCaused >= 0 ? '+' : ''}${formatCurrency(snapshot.profitCaused)}`
+                    ) : (
+                        '-'
+                    )}
+                  </td>
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${snapshot.profitCausedPerHundred ? getProfitColor(snapshot.profitCausedPerHundred) : ''}`}>
+                    {snapshot.profitCausedPerHundred != null ? (
+                        `${snapshot.profitCausedPerHundred >= 0 ? '+' : ''}${snapshot.profitCausedPerHundred.toFixed(2)}`
+                    ) : (
+                        '-'
+                    )}
+                  </td>
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${snapshot.operationEffect ? getProfitColor(snapshot.operationEffect) : ''}`}>
+                    {snapshot.operationEffect != null ? (
+                        formatPercentage(snapshot.operationEffect)
+                    ) : (
+                        '-'
+                    )}
                   </td>
                 </tr>
               )})}

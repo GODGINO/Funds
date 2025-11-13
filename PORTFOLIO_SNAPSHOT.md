@@ -67,6 +67,11 @@
 | **收益率** | `profitRate` | `总收益 / 总成本 × 100%`。 | <span style="color:red;">+18.44%</span> |
 | **日收益** | `dailyProfit` | `(今日净值 - 昨日净值) × 切片的历史份额`，汇总所有基金。 | <span style="color:green;">-250.75</span> |
 | **日收益率** | `dailyProfitRate` | `日收益 / 昨日持有总值 × 100%`。 | <span style="color:green;">-0.25%</span> |
+| **操作收益** | `operationProfit` | `总值变动 - 金额变动`，衡量市场波动带来的收益。 | <span style="color:red;">+120.00</span> |
+| **每百收益** | `profitPerHundred` | `(操作收益 / 金额变动绝对值) * 100`，衡量择时能力。 | <span style="color:red;">+12.00</span> |
+| **造成盈亏** | `profitCaused` | `本行日收益 - 上一行日收益`，衡量操作对每日收益能力的影响。 | <span style="color:green;">-50.00</span> |
+| **每百造成** | `profitCausedPerHundred` | `(造成盈亏 / 金额变动绝对值) * 100`，衡量操作对现金流效率的影响。 | <span style="color:green;">-5.00</span> |
+| **操作效果** | `operationEffect` | `(造成盈亏 / 上一行日收益的绝对值) * 100%`，衡量操作对收益能力的放大效应。 | <span style="color:red;">+200.00%</span> |
 
 ### 3.3. 视觉与交互
 
@@ -90,6 +95,7 @@
       profitRate: number;
       dailyProfit: number;
       dailyProfitRate: number;
+      // ... 新增操作分析字段
     }
     ```
 

@@ -1433,8 +1433,16 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
           const previousSnapshot = allSnapshots[index + 1];
           const marketValueChange = snapshot.currentMarketValue - previousSnapshot.currentMarketValue;
           const operationProfit = marketValueChange - snapshot.netAmountChange;
-          const profitPerHundred = snapshot.netAmountChange !== 0 ? (operationProfit / snapshot.netAmountChange) * 100 : undefined;
-          return { ...snapshot, marketValueChange, operationProfit, profitPerHundred };
+          const profitPerHundred = snapshot.netAmountChange !== 0 ? (operationProfit / Math.abs(snapshot.netAmountChange)) * 100 : undefined;
+          
+          const profitCaused = snapshot.dailyProfit - previousSnapshot.dailyProfit;
+          const profitCausedPerHundred = snapshot.netAmountChange !== 0 ? (profitCaused / Math.abs(snapshot.netAmountChange)) * 100 : undefined;
+          
+          const operationEffect = previousSnapshot.dailyProfit !== 0 
+              ? (profitCaused / Math.abs(previousSnapshot.dailyProfit)) * 100 
+              : undefined;
+
+          return { ...snapshot, marketValueChange, operationProfit, profitPerHundred, profitCaused, profitCausedPerHundred, operationEffect };
       }
       return snapshot;
     });

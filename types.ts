@@ -130,6 +130,9 @@ export interface PortfolioSnapshot {
   marketValueChange?: number;
   operationProfit?: number;
   profitPerHundred?: number;
+  profitCaused?: number;
+  profitCausedPerHundred?: number;
+  operationEffect?: number;
   totalBuyAmount?: number;
   totalBuyFloatingProfit?: number;
   totalSellAmount?: number;
