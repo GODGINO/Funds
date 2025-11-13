@@ -119,14 +119,19 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
         return { detailedBuyRecords: detailedBuys, detailedSellRecords: detailedSells, initialHoldings: [] };
 
     }, [snapshot, funds]);
+    
+    const hasBuys = detailedBuyRecords.length > 0;
+    const hasSells = detailedSellRecords.length > 0;
+    const hasBothTypes = hasBuys && hasSells;
+    const modalMaxWidthClass = hasBothTypes ? 'max-w-6xl' : 'max-w-4xl';
 
 
     if (!isOpen) return null;
 
     const renderTransactionTables = () => (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+        <div className={`grid grid-cols-1 ${hasBothTypes ? 'md:grid-cols-2' : ''} gap-x-6 gap-y-4`}>
             {/* Buy Operations Column */}
-            {detailedBuyRecords.length > 0 && (
+            {hasBuys && (
                 <div>
                     <h4 className="text-xl font-bold mb-3 text-red-600">买入操作</h4>
                     <div className="overflow-x-auto">
@@ -166,7 +171,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
             )}
 
             {/* Sell Operations Column */}
-            {detailedSellRecords.length > 0 && (
+            {hasSells && (
                 <div>
                     <h4 className="text-xl font-bold mb-3 text-blue-600">卖出操作</h4>
                      <div className="overflow-x-auto">
@@ -208,31 +213,33 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
     );
 
     const renderInitialHoldingsTable = () => (
-        <div>
-            <h4 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">
-                初始持仓
-            </h4>
-            <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                    <thead className="bg-gray-200 dark:bg-gray-700">
-                        <tr>
-                            <th className="p-2">基金名称</th>
-                            <th className="p-2 text-right">初始份额</th>
-                            <th className="p-2 text-right">初始成本</th>
-                            <th className="p-2 text-right">初始总成本</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {initialHoldings.map((h, index) => (
-                            <tr key={`${h.name}-${index}`} className="border-b dark:border-gray-700">
-                                <td className="p-2">{h.name}</td>
-                                <td className="p-2 text-right font-mono">{h.shares.toFixed(2)}</td>
-                                <td className="p-2 text-right font-mono">{h.cost.toFixed(4)}</td>
-                                <td className="p-2 text-right font-mono">{h.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <div className="flex justify-center">
+            <div className="w-full max-w-3xl">
+                <h4 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">
+                    初始持仓
+                </h4>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-gray-200 dark:bg-gray-700">
+                            <tr>
+                                <th className="p-2">基金名称</th>
+                                <th className="p-2 text-right">初始份额</th>
+                                <th className="p-2 text-right">初始成本</th>
+                                <th className="p-2 text-right">初始总成本</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {initialHoldings.map((h, index) => (
+                                <tr key={`${h.name}-${index}`} className="border-b dark:border-gray-700">
+                                    <td className="p-2">{h.name}</td>
+                                    <td className="p-2 text-right font-mono">{h.shares.toFixed(2)}</td>
+                                    <td className="p-2 text-right font-mono">{h.cost.toFixed(4)}</td>
+                                    <td className="p-2 text-right font-mono">{h.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -244,7 +251,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
             aria-modal="true"
             role="dialog"
         >
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-6xl m-4 transform transition-all flex flex-col max-h-[90vh]">
+            <div className={`bg-gray-100 dark:bg-gray-800 rounded-lg shadow-xl w-full ${modalMaxWidthClass} m-4 transform transition-all flex flex-col max-h-[90vh]`}>
                 <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700 bg-white dark:bg-gray-900 rounded-t-lg">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">操作明细: {snapshot.snapshotDate}</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 focus:outline-none" aria-label="Close">
@@ -258,7 +265,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     {snapshot.snapshotDate === '基准持仓' ? (
                         initialHoldings.length > 0 ? renderInitialHoldingsTable() : <p>无初始持仓记录。</p>
                     ) : (
-                        (detailedBuyRecords.length > 0 || detailedSellRecords.length > 0) ? (
+                        (hasBuys || hasSells) ? (
                             renderTransactionTables()
                         ) : (
                             <p>该日期无交易记录。</p>
@@ -266,15 +273,6 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     )}
                 </div>
 
-                <div className="px-6 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-b-lg text-right mt-auto">
-                    <button
-                        onClick={onClose}
-                        type="button"
-                        className="px-4 py-2 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                    >
-                        关闭
-                    </button>
-                </div>
             </div>
         </div>
     );
