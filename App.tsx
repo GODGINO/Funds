@@ -457,6 +457,33 @@ const App: React.FC = () => {
     }
   }, [funds]);
 
+  const handleFullReload = useCallback(async () => {
+    if (funds.length === 0) {
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const updatedFundsPromises = funds.map(async (fund) => {
+        const newData = await fetchFundData(fund.code, recordCount);
+        const latestData = newData[newData.length - 1];
+        return { 
+          ...fund, 
+          data: newData,
+          latestNAV: latestData?.unitNAV,
+          latestChange: latestData?.dailyGrowthRate,
+        };
+      });
+      const updatedFunds = await Promise.all(updatedFundsPromises);
+      setFunds(updatedFunds);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred while fully reloading funds.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [funds, recordCount]);
+
   const handleImportData = useCallback(async (jsonString: string) => {
     try {
         if (!jsonString.trim()) {
@@ -1513,6 +1540,7 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
             zigzagThreshold={zigzagThreshold}
             onZigzagThresholdChange={handleZigzagThresholdChange}
             onRefresh={handleRefresh}
+            onLongPressRefresh={handleFullReload}
             isRefreshing={isRefreshing}
             isLoading={isLoading || isAppLoading}
             totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit}

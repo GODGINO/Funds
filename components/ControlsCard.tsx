@@ -1,5 +1,6 @@
 
-import React from 'react';
+
+import React, { useRef } from 'react';
 
 type SortByType = 'trend' | 'dailyChange' | 'navPercentile';
 
@@ -18,6 +19,7 @@ interface ControlsCardProps {
   zigzagThreshold: number;
   onZigzagThresholdChange: (threshold: number) => void;
   onRefresh: () => void;
+  onLongPressRefresh: () => void;
   isRefreshing: boolean;
   isLoading: boolean;
   totalDailyProfit: number;
@@ -37,6 +39,7 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
   zigzagThreshold,
   onZigzagThresholdChange,
   onRefresh,
+  onLongPressRefresh,
   isRefreshing,
   isLoading,
   totalDailyProfit,
@@ -44,6 +47,30 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
 }) => {
   const isDisabled = isLoading || isRefreshing;
   const profitColor = totalDailyProfit >= 0 ? 'text-red-500' : 'text-green-600';
+  
+  const longPressTimer = useRef<number | null>(null);
+  const longPressTriggered = useRef<boolean>(false);
+
+  const handlePressStart = () => {
+    longPressTriggered.current = false;
+    longPressTimer.current = window.setTimeout(() => {
+      longPressTriggered.current = true;
+      onLongPressRefresh();
+    }, 3000);
+  };
+
+  const handlePressEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+    }
+  };
+
+  const handleClick = () => {
+    if (longPressTriggered.current) {
+      return;
+    }
+    onRefresh();
+  };
   
   return (
     <div className="mb-4 bg-white dark:bg-gray-900 rounded-lg shadow-md p-3 flex items-end justify-between flex-wrap gap-4">
@@ -141,10 +168,16 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
         <div>
            <button
             type="button"
-            onClick={onRefresh}
+            onClick={handleClick}
+            onMouseDown={handlePressStart}
+            onMouseUp={handlePressEnd}
+            onMouseLeave={handlePressEnd}
+            onTouchStart={handlePressStart}
+            onTouchEnd={handlePressEnd}
             disabled={isDisabled}
             className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="Refresh real-time data"
+            aria-label="Refresh real-time data. Long press to reload all historical data."
+            title="单击刷新实时估值, 长按3秒重载历史数据"
           >
             {isRefreshing ? (
               <svg className="animate-spin h-5 w-5 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
