@@ -27,6 +27,24 @@
   }
 }
 </script>
+<style>
+  @media (max-width: 768px) {
+    body {
+      overflow-x: hidden; /* Prevent horizontal scrollbar on the rotated body */
+    }
+    #root {
+      transform: rotate(90deg);
+      transform-origin: top left;
+      width: 100vh;
+      height: 100vw;
+      overflow-x: hidden;
+      overflow-y: auto;
+      position: absolute;
+      top: 0;
+      left: 100%;
+    }
+  }
+</style>
 </head>
   <body class="bg-gray-100 dark:bg-gray-900">
     <div id="root"></div>
