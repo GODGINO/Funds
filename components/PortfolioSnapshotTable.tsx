@@ -240,14 +240,14 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
     { key: 'totalBuyFloatingProfit', title: '浮盈', render: data => 
       <div className={getProfitColor(data.totalBuyFloatingProfit)}>
         {formatInteger(data.totalBuyFloatingProfit)}
-        <span className="text-gray-500 dark:text-gray-400 text-xs">|{data.floatingProfitPercent.toFixed(2)}%</span>
+        <span className="text-gray-500 dark:text-gray-400 text-[10px]">|{data.floatingProfitPercent.toFixed(2)}%</span>
       </div> 
     },
     { key: 'totalSellAmount', title: '卖出金额', render: data => <div>{formatInteger(data.totalSellAmount)}</div> },
     { key: 'totalSellOpportunityProfit', title: '机会收益', render: data => 
       <div className={getProfitColor(data.totalSellOpportunityProfit)}>
         {formatInteger(data.totalSellOpportunityProfit)}
-        <span className="text-gray-500 dark:text-gray-400 text-xs">|{data.opportunityProfitPercent.toFixed(2)}%</span>
+        <span className="text-gray-500 dark:text-gray-400 text-[10px]">|{data.opportunityProfitPercent.toFixed(2)}%</span>
       </div> 
     },
     { key: 'totalSellRealizedProfit', title: '落袋', render: data => <div className={getProfitColor(data.totalSellRealizedProfit)}>{formatInteger(data.totalSellRealizedProfit)}</div> },
@@ -264,7 +264,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
     <>
       <div className="mt-6 bg-white dark:bg-gray-900 rounded-lg shadow-md p-4">
         <div className="w-full overflow-x-auto">
-          <table className="w-full text-xs text-center border-collapse table-fixed">
+          <table className="w-full text-[11px] text-center border-collapse table-fixed">
             <thead className="bg-gray-50 dark:bg-gray-800 align-bottom">
                <tr>
                 <th rowSpan={2} className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 text-left align-middle w-20">
@@ -274,7 +274,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                    <th key={String(col.key)} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>{col.title}</th>
                 ))}
                 {summaryColumns.map(col => (
-                  <th key={String(col.key)} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 ${(col.key === 'totalBuyFloatingProfit' || col.key === 'totalSellOpportunityProfit') ? 'w-20' : ''} ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>
+                  <th key={String(col.key)} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 ${(col.key === 'totalBuyFloatingProfit' || col.key === 'totalSellOpportunityProfit') ? 'w-24' : ''} ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>
                     <div>{col.title}</div>
                   </th>
                 ))}
@@ -287,7 +287,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                 ))}
                 {summaryData ? (
                     summaryColumns.map(col => (
-                      <th key={`${String(col.key)}-summary`} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-mono font-bold ${(col.key === 'totalBuyFloatingProfit' || col.key === 'totalSellOpportunityProfit') ? 'w-20' : ''} ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>
+                      <th key={`${String(col.key)}-summary`} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-mono font-bold ${(col.key === 'totalBuyFloatingProfit' || col.key === 'totalSellOpportunityProfit') ? 'w-24' : ''} ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>
                         {col.render(summaryData)}
                       </th>
                     ))
@@ -314,7 +314,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                   <td className="w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-left">
                     <span>{isBaselineRow ? snapshot.snapshotDate : snapshot.snapshotDate.substring(2).replace(/-/g, '/')}</span>
                     {daysAgo !== null && (
-                      <span className="text-gray-500 dark:text-gray-400 ml-2 text-xs">{daysAgo}</span>
+                      <span className="text-gray-500 dark:text-gray-400 ml-2 text-[10px]">{daysAgo}</span>
                     )}
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getCellHighlightClass('totalCostBasis', snapshot.totalCostBasis, isBaselineRow)}`} style={getBar_style(snapshot.totalCostBasis, maxAbsValues.totalCostBasis ?? 0)}><div className="relative">{formatInteger(snapshot.totalCostBasis)}</div></td>
@@ -340,7 +340,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                         {(snapshot.totalBuyAmount ?? 0) > 0 && snapshot.totalBuyFloatingProfit != null ? (
                         <span>
                             {`${snapshot.totalBuyFloatingProfit >= 0 ? '+' : ''}${formatInteger(snapshot.totalBuyFloatingProfit)}`}
-                            <span className="text-gray-500 dark:text-gray-400 text-xs">
+                            <span className="text-gray-500 dark:text-gray-400 text-[10px]">
                             |{((snapshot.totalBuyFloatingProfit / snapshot.totalBuyAmount) * 100).toFixed(2)}%
                             </span>
                         </span>
@@ -357,7 +357,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                         {(snapshot.totalSellAmount ?? 0) > 0 && snapshot.totalSellOpportunityProfit != null ? (
                             <span>
                                 {`${snapshot.totalSellOpportunityProfit >= 0 ? '+' : ''}${formatInteger(snapshot.totalSellOpportunityProfit)}`}
-                                <span className="text-gray-500 dark:text-gray-400 text-xs">
+                                <span className="text-gray-500 dark:text-gray-400 text-[10px]">
                                     |{((snapshot.totalSellOpportunityProfit / snapshot.totalSellAmount) * 100).toFixed(2)}%
                                 </span>
                             </span>
