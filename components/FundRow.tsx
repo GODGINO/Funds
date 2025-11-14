@@ -45,14 +45,14 @@ const getTagColor = (tag: string) => {
 };
 
 const TradeLinks: React.FC<{ onTradeClick: (type: 'buy' | 'sell') => void }> = ({ onTradeClick }) => (
-    <div className="text-xs mt-1 space-x-2">
+    <div className="text-xs space-x-2 leading-tight">
         <button onClick={() => onTradeClick('buy')} className="font-semibold text-red-600 dark:text-red-400 hover:underline">买</button>
         <button onClick={() => onTradeClick('sell')} className="font-semibold text-blue-600 dark:text-blue-400 hover:underline">卖</button>
     </div>
 );
 
 const RecordLink: React.FC<{ onClick: () => void }> = ({ onClick }) => (
-    <div className="text-xs mt-1">
+    <div className="text-xs leading-tight">
         <button onClick={onClick} className="font-semibold text-gray-500 dark:text-gray-400 hover:underline">记录</button>
     </div>
 );
@@ -215,12 +215,12 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
   return (
     <tr className="border-b border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50">
       <td 
-        className={`p-0 border-r border-gray-300 dark:border-gray-600 text-left md:sticky md:left-0 md:z-[5] w-[250px] min-w-[250px] ${isTrendSignificant ? 'bg-gray-200 dark:bg-gray-700' : 'bg-white dark:bg-gray-900'}`}
+        className={`p-0 align-top border-r border-gray-300 dark:border-gray-600 text-left md:sticky md:left-0 md:z-[5] w-[250px] min-w-[250px] ${isTrendSignificant ? 'bg-gray-200 dark:bg-gray-700' : 'bg-white dark:bg-gray-900'}`}
         onDoubleClick={() => onShowDetails(fund)}
       >
         <div className="flex flex-col h-full justify-between p-2">
           <div>
-            <div className="truncate">
+            <div className="leading-tight">
               <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{fund.name}</span>
               <span 
                 className={`ml-2 text-xs transition-colors duration-200 ${isCopied ? 'text-green-500 font-semibold' : 'text-gray-500 dark:text-gray-400 cursor-pointer hover:text-primary-500'}`}
@@ -231,7 +231,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
               </span>
             </div>
             {(dailyChangeDisplay || trendInfo) && (
-                <div className="text-xs mt-0.5 font-semibold">
+                <div className="text-xs font-semibold leading-tight">
                     {dailyChangeDisplay && (
                         <span className={dailyChangeDisplay.colorClass}>
                             {dailyChangeDisplay.text}
@@ -248,7 +248,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
                 </div>
             )}
             {lastTransactionInfo && (
-                <div className="text-xs mt-0.5">
+                <div className="text-xs leading-tight">
                     <span className="text-gray-600 dark:text-gray-400">{lastTransactionInfo.timeAgo}</span>
                     <span className={`font-semibold mx-1 ${lastTransactionInfo.tradeType === '买入' ? 'text-red-500' : 'text-blue-500'}`}>{lastTransactionInfo.tradeType}</span>
                     <span className={`font-semibold ${lastTransactionInfo.colorClass}`}>{lastTransactionInfo.changeSinceTradeText}</span>
@@ -294,7 +294,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
           </div>
         </div>
       </td>
-      <td className="p-0 border-r border-gray-300 dark:border-gray-600 w-[450px] min-w-[450px] md:sticky md:left-[250px] bg-white dark:bg-gray-900 md:z-[5] relative">
+      <td className="p-0 align-top border-r border-gray-300 dark:border-gray-600 w-[450px] min-w-[450px] md:sticky md:left-[250px] bg-white dark:bg-gray-900 md:z-[5] relative">
         <div className="absolute inset-0">
           <FundChart 
             baseChartData={baseChartData}
@@ -309,33 +309,33 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
           />
         </div>
       </td>
-      <td className={`p-0 border-r border-gray-300 dark:border-gray-600 w-[60px] min-w-[60px] ${todayTransaction ? (todayTransaction.type === 'buy' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-blue-50 dark:bg-blue-900/20') : 'bg-white dark:bg-gray-900'}`}>
-        <div className="p-2">
+      <td className={`p-0 align-top border-r border-gray-300 dark:border-gray-600 w-[60px] min-w-[60px] ${todayTransaction ? (todayTransaction.type === 'buy' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-blue-50 dark:bg-blue-900/20') : 'bg-white dark:bg-gray-900'}`}>
+        <div className="p-0 leading-none">
             {historicalDataForToday ? (
               <>
-                <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">
+                <div className="font-normal font-mono text-xs text-gray-800 dark:text-gray-200">
                   {historicalDataForToday.unitNAV.toFixed(4)}
                 </div>
-                <div className={`text-xs font-semibold ${
+                <div className={`-mt-0.5 text-sm font-semibold ${
                   historicalDataForToday.dailyGrowthRate.startsWith('-') ? 'text-green-600' : 'text-red-500'
                 }`}>
                   {historicalDataForToday.dailyGrowthRate}
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <div className="text-xs text-gray-500 dark:text-gray-400">
                   已确认
                 </div>
               </>
             ) : (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) ? (
               <>
-                <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">
+                <div className="font-normal font-mono text-xs text-gray-800 dark:text-gray-200">
                   {fund.realTimeData.estimatedNAV.toFixed(4)}
                 </div>
-                <div className={`text-xs font-semibold ${
+                <div className={`-mt-0.5 text-sm font-semibold ${
                   fund.realTimeData.estimatedChange.startsWith('-') ? 'text-green-600' : 'text-red-500'
                 }`}>
                   {fund.realTimeData.estimatedChange}%
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <div className="text-xs text-gray-500 dark:text-gray-400">
                   {fund.realTimeData.estimationTime.split(' ')[1] || fund.realTimeData.estimationTime}
                 </div>
               </>
@@ -382,15 +382,15 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
         }
 
         return (
-          <td key={date} className={`p-0 border-r border-gray-300 dark:border-gray-600 ${cellBgClass}`}>
+          <td key={date} className={`p-0 align-top border-r border-gray-300 dark:border-gray-600 ${cellBgClass}`}>
             {point ? (
-              <div className="p-2">
-                <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">{point.unitNAV.toFixed(4)}</div>
-                <div className={`text-xs font-semibold ${pointIsPositive ? 'text-red-500' : 'text-green-600'}`}>
+              <div className="p-0 leading-none">
+                <div className="font-normal font-mono text-xs text-gray-800 dark:text-gray-200">{point.unitNAV.toFixed(4)}</div>
+                <div className={`-mt-0.5 text-sm font-semibold ${pointIsPositive ? 'text-red-500' : 'text-green-600'}`}>
                   {point.dailyGrowthRate}
                 </div>
                  {changeFromLatest !== null && (
-                  <div className={`text-xs font-mono mt-1 ${changeIsPositive ? 'text-red-500' : 'text-green-600'}`}>
+                  <div className={`text-xs font-mono ${changeIsPositive ? 'text-red-500' : 'text-green-600'}`}>
                     {changeFromLatest}
                   </div>
                 )}
