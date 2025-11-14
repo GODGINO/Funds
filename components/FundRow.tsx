@@ -294,7 +294,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
           </div>
         </div>
       </td>
-      <td className="p-0 border-r border-gray-300 dark:border-gray-600 w-[450px] min-w-[450px] md:sticky md:left-[250px] bg-white dark:bg-gray-900 md:z-[5] relative">
+      <td className="p-0 border-r border-gray-300 dark:border-gray-600 w-[450px] min-w-[450px] md:sticky md:left-[0px] bg-white dark:bg-gray-900 md:z-[5] relative">
         <div className="absolute inset-0">
           <FundChart 
             baseChartData={baseChartData}
