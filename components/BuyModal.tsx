@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { TradeModalState } from '../types';
 import FundChart from './FundChart';
 
@@ -17,6 +17,7 @@ const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-gr
 
 const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete, onUpdateTask, onCancelTask, tradeState }) => {
     const [amount, setAmount] = useState('');
+    const amountInputRef = useRef<HTMLInputElement>(null);
     const { fund, date, nav, isConfirmed, editingRecord, editingTask } = tradeState;
     const isEditingRecord = !!editingRecord;
     const isEditingTask = !!editingTask;
@@ -129,6 +130,9 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
             } else {
                 setAmount('500');
             }
+            setTimeout(() => {
+                amountInputRef.current?.select();
+            }, 50); // A small delay to ensure focus is set
         }
     }, [isOpen, isEditingRecord, editingRecord, isEditingTask, editingTask]);
     
@@ -286,6 +290,7 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                                     placeholder="500"
                                     required
                                     autoFocus
+                                    ref={amountInputRef}
                                     className="w-full text-center h-full px-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                                 <button

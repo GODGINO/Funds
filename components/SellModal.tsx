@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { TradeModalState } from '../types';
 import FundChart from './FundChart';
 
@@ -17,6 +17,7 @@ const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-gr
 const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDelete, onUpdateTask, onCancelTask, tradeState }) => {
     const [shares, setShares] = useState('');
     const [error, setError] = useState('');
+    const sharesInputRef = useRef<HTMLInputElement>(null);
 
     const { fund, date, nav, isConfirmed, editingRecord, editingTask } = tradeState;
     const isEditingRecord = !!editingRecord;
@@ -156,6 +157,9 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
                 }
             }
             setError('');
+            setTimeout(() => {
+                sharesInputRef.current?.select();
+            }, 50);
         }
     }, [isOpen, isEditingRecord, editingRecord, isEditingTask, editingTask, nav, availableShares]);
 
@@ -334,6 +338,7 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
                                     placeholder={`可用 ${availableShares.toFixed(2)}`}
                                     required
                                     autoFocus
+                                    ref={sharesInputRef}
                                     max={availableShares}
                                     step="0.01"
                                     className={`w-full text-center h-full px-3 bg-white dark:bg-gray-700 border placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 sm:text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${error ? 'border-red-500 text-red-600 focus:ring-red-500' : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500 focus:border-primary-500'}`}

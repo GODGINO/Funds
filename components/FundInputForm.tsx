@@ -145,23 +145,21 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
         </button>
       </div>
 
-       {/* Privacy Toggle */}
-      <div className="md:col-span-1 flex justify-center pb-1">
-        <label htmlFor="privacy-toggle" className="flex flex-col items-center cursor-pointer" title="隐私模式 (移出窗口, 右键或8秒无操作时触发)">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">隐私模式</span>
-          <div className="relative">
-            <input
-              id="privacy-toggle"
-              type="checkbox"
-              className="sr-only"
-              checked={isPrivacyModeEnabled}
-              onChange={e => onPrivacyModeChange(e.target.checked)}
-              disabled={isDisabled}
-            />
-            <div className={`block w-10 h-6 rounded-full transition-colors ${isPrivacyModeEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
-            <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${isPrivacyModeEnabled ? 'translate-x-4' : ''}`}></div>
-          </div>
-        </label>
+       {/* Privacy Toggle Button */}
+      <div className="md:col-span-1">
+        <button
+          type="button"
+          onClick={() => onPrivacyModeChange(!isPrivacyModeEnabled)}
+          disabled={isDisabled}
+          title="隐私模式 (移出窗口, 右键或8秒无操作时触发)"
+          className={`w-full inline-flex justify-center items-center px-4 py-2 border text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+            isPrivacyModeEnabled
+              ? 'bg-primary-600 hover:bg-primary-700 text-white border-transparent'
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+          }`}
+        >
+          隐私模式
+        </button>
       </div>
     </form>
   );
