@@ -267,14 +267,14 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
           <table className="w-full text-xs text-center border-collapse table-fixed">
             <thead className="bg-gray-50 dark:bg-gray-800 align-bottom">
                <tr>
-                <th rowSpan={2} className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 text-left align-middle w-22">
+                <th rowSpan={2} className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 text-left align-middle w-20">
                   <div>切片日期</div>
                 </th>
                 {sparklineColumns.map(col => (
                    <th key={String(col.key)} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>{col.title}</th>
                 ))}
                 {summaryColumns.map(col => (
-                  <th key={String(col.key)} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 ${(col.key === 'totalBuyFloatingProfit' || col.key === 'totalSellOpportunityProfit') ? 'w-22' : ''} ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>
+                  <th key={String(col.key)} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 ${(col.key === 'totalBuyFloatingProfit' || col.key === 'totalSellOpportunityProfit') ? 'w-20' : ''} ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>
                     <div>{col.title}</div>
                   </th>
                 ))}
@@ -287,7 +287,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                 ))}
                 {summaryData ? (
                     summaryColumns.map(col => (
-                      <th key={`${String(col.key)}-summary`} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-mono font-bold ${(col.key === 'totalBuyFloatingProfit' || col.key === 'totalSellOpportunityProfit') ? 'w-22' : ''} ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>
+                      <th key={`${String(col.key)}-summary`} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-mono font-bold ${(col.key === 'totalBuyFloatingProfit' || col.key === 'totalSellOpportunityProfit') ? 'w-20' : ''} ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>
                         {col.render(summaryData)}
                       </th>
                     ))
