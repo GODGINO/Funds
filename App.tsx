@@ -1005,8 +1005,36 @@ const App: React.FC = () => {
     });
   }, []);
 
+  const todayHeaderDate = useMemo(() => {
+    if (funds.length === 0) {
+        return null;
+    }
+
+    // Prefer real-time data date as it's most current
+    const realTimeDate = funds.find(f => f.realTimeData)?.realTimeData?.estimationTime.split(' ')[0];
+    if (realTimeDate) {
+        return realTimeDate;
+    }
+
+    // Fallback to the latest date from historical data
+    const allDates = new Set<string>();
+    funds.forEach(fund => {
+      fund.data.forEach(dataPoint => {
+        allDates.add(dataPoint.date);
+      });
+    });
+    
+    if (allDates.size === 0) {
+        return null;
+    }
+    
+    const sortedDates = Array.from(allDates).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    return sortedDates[0] || null;
+
+  }, [funds]);
+
   const dateHeaders = useMemo(() => {
-    if (funds.length === 0) return [];
+    if (funds.length === 0 || !todayHeaderDate) return [];
     
     const allDates = new Set<string>();
     funds.forEach(fund => {
@@ -1023,18 +1051,16 @@ const App: React.FC = () => {
     
     // The third column is dedicated to "today's" data (real-time or confirmed).
     // Therefore, the historical columns should never show today's date to avoid redundancy.
-    // We determine "today" based on the date from the real-time data, which is the most reliable source for the current trading day's date.
-    const todayDateStr = funds.find(f => f.realTimeData)?.realTimeData?.estimationTime.split(' ')[0];
-
+    // We determine "today" based on the todayHeaderDate.
     // If the most recent date from historical data matches "today", it means the NAV for today has been confirmed
     // and is included in the historical data (`fund.data`). We must remove it from the `dateHeaders`
     // to avoid duplication with the third column.
-    if (todayDateStr && sortedDates[0] === todayDateStr) {
+    if (sortedDates[0] === todayHeaderDate) {
         return sortedDates.slice(1);
     }
     
     return sortedDates;
-  }, [funds]);
+  }, [funds, todayHeaderDate]);
 
   const getWeekday = (dateString: string) => {
     const date = new Date(dateString);
@@ -1507,8 +1533,14 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
                 <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
                     <th className="p-0 border-r border-gray-300 dark:border-gray-600 font-semibold text-gray-600 dark:text-gray-300 w-[250px] min-w-[250px] text-left md:sticky top-0 md:left-0 bg-gray-50 dark:bg-gray-800 md:z-20">基金名称</th>
-                    <th className="p-0 border-r border-gray-300 dark:border-gray-600 font-semibold text-gray-600 dark:text-gray-300 w-[300px] min-w-[300px] md:sticky top-0 md:left-[250px] bg-gray-50 dark:bg-gray-800 md:z-20">净值走势</th>
-                    <th className="p-0 border-r border-gray-300 dark:border-gray-600 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] md:sticky top-0 md:left-[550px] bg-gray-50 dark:bg-gray-800 md:z-20">当日净值</th>
+                    <th className="p-0 border-r border-gray-300 dark:border-gray-600 font-semibold text-gray-600 dark:text-gray-300 w-[450px] min-w-[450px] md:sticky top-0 md:left-[250px] bg-gray-50 dark:bg-gray-800 md:z-20">净值走势</th>
+                    <th className="p-0 border-r border-gray-300 dark:border-gray-600 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] bg-gray-50 dark:bg-gray-800">
+                      {todayHeaderDate ? (
+                        <>{todayHeaderDate.substring(5)}{getWeekday(todayHeaderDate)}</>
+                      ) : (
+                        '当日净值'
+                      )}
+                    </th>
                     {dateHeaders.map(date => (
                       <th key={date} className="p-0 border-r border-gray-300 dark:border-gray-600 font-normal text-gray-500 dark:text-gray-400 min-w-[60px] md:sticky top-0 bg-gray-50 dark:bg-gray-800">
                         {date.substring(5)}{getWeekday(date)}

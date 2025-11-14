@@ -294,7 +294,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
           </div>
         </div>
       </td>
-      <td className="p-0 border-r border-gray-300 dark:border-gray-600 w-[300px] min-w-[300px] md:sticky md:left-[250px] bg-white dark:bg-gray-900 md:z-[5] relative">
+      <td className="p-0 border-r border-gray-300 dark:border-gray-600 w-[450px] min-w-[450px] md:sticky md:left-[250px] bg-white dark:bg-gray-900 md:z-[5] relative">
         <div className="absolute inset-0">
           <FundChart 
             baseChartData={baseChartData}
@@ -309,7 +309,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
           />
         </div>
       </td>
-      <td className={`p-0 border-r border-gray-300 dark:border-gray-600 w-[60px] min-w-[60px] md:sticky md:left-[550px] md:z-[5] ${todayTransaction ? (todayTransaction.type === 'buy' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-blue-50 dark:bg-blue-900/20') : 'bg-white dark:bg-gray-900'}`}>
+      <td className={`p-0 border-r border-gray-300 dark:border-gray-600 w-[60px] min-w-[60px] ${todayTransaction ? (todayTransaction.type === 'buy' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-blue-50 dark:bg-blue-900/20') : 'bg-white dark:bg-gray-900'}`}>
         <div className="p-2">
             {historicalDataForToday ? (
               <>
