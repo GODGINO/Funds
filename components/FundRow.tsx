@@ -215,7 +215,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
   return (
     <tr className="border-b border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50">
       <td 
-        className={`p-0 border-r border-gray-300 dark:border-gray-600 text-left md:sticky md:left-0 md:z-[5] w-[250px] min-w-[250px] ${isTrendSignificant ? 'bg-gray-200 dark:bg-gray-700' : 'bg-white dark:bg-gray-900'}`}
+        className={`p-0 border-r border-gray-300 dark:border-gray-600 text-left md:sticky md:left-0 md:z-[10] w-[250px] min-w-[250px] ${isTrendSignificant ? 'bg-gray-200 dark:bg-gray-700' : 'bg-white dark:bg-gray-900'}`}
         onDoubleClick={() => onShowDetails(fund)}
       >
         <div className="flex flex-col h-full justify-between p-2">
