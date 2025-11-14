@@ -68,6 +68,17 @@ const validateTradingTasks = (data: any): data is TradingTask[] => {
     return true;
 };
 
+const shouldAutoRefresh = (): boolean => {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // Sunday: 0, Monday: 1, ..., Saturday: 6
+    const hour = now.getHours();
+
+    const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5; // Monday to Friday
+    const isTradingHours = hour >= 9 && hour < 16; // 9:00 AM to 3:59 PM
+
+    return isWeekday && isTradingHours;
+};
+
 // FIX: Corrected component structure. A misplaced closing brace `}` was causing all subsequent hooks and the return statement to be outside the component scope, leading to multiple errors.
 const App: React.FC = () => {
   const [funds, setFunds] = useState<Fund[]>([]);
@@ -396,15 +407,17 @@ const App: React.FC = () => {
     }
   }, [funds, getCurrentTimeString]);
 
-  // Auto-refresh data every 3 minutes
+  // Auto-refresh data every 3 minutes on weekdays during trading hours
   useEffect(() => {
-    // Do not set up the interval if a refresh is already in progress or if there are no funds to refresh.
+    // Do not set up the interval if a refresh is already in progress.
     if (isRefreshing) {
       return;
     }
 
     const intervalId = setInterval(() => {
-      handleRefresh();
+      if (shouldAutoRefresh()) {
+        handleRefresh();
+      }
     }, 3 * 60 * 1000); // 3 minutes
 
     // The cleanup function will run when dependencies change, clearing the old interval.
