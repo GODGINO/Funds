@@ -19,7 +19,7 @@ import PortfolioSnapshotTable from './components/PortfolioSnapshotTable';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042'];
 
-type SortByType = 'trend' | 'dailyChange' | 'navPercentile';
+type SortByType = 'trend' | 'dailyChange' | 'navPercentile' | 'amount';
 
 const SYSTEM_TAGS = {
   HOLDING: '持有',
@@ -938,6 +938,11 @@ const App: React.FC = () => {
           const percentileA = a.navPercentile ?? -1;
           const percentileB = b.navPercentile ?? -1;
           comparison = percentileA - percentileB;
+          break;
+        case 'amount':
+          const amountA = a.marketValue ?? -Infinity;
+          const amountB = b.marketValue ?? -Infinity;
+          comparison = amountA - amountB;
           break;
         default:
           comparison = 0;
