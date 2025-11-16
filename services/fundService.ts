@@ -200,22 +200,34 @@ export async function fetchFundData(
   const recordsPerPage = 49;
   const pagesToFetch = Math.ceil(recordCount / recordsPerPage);
   const allData: FundDataPoint[] = [];
+  const MAX_RETRIES = 10;
 
   for (let page = 1; page <= pagesToFetch; page++) {
-    try {
-      const targetUrl = `https://fund.eastmoney.com/f10/F10DataApi.aspx?type=lsjz&code=${code}&page=${page}&per=${recordsPerPage}&_=${new Date().getTime()}`;
-      const pageData = await fetchEastmoneyPage(targetUrl);
-      allData.push(...pageData);
+    let success = false;
+    let attempts = 0;
+    let pageData: FundDataPoint[] = [];
+    let lastError: unknown = null;
 
-      // Stop if we received an empty page, or less than a full page, indicating no more data.
-      if (pageData.length < recordsPerPage) {
-          break;
+    while (!success && attempts < MAX_RETRIES) {
+      try {
+        const targetUrl = `https://fund.eastmoney.com/f10/F10DataApi.aspx?type=lsjz&code=${code}&page=${page}&per=${recordsPerPage}&_=${new Date().getTime()}`;
+        pageData = await fetchEastmoneyPage(targetUrl);
+        success = true;
+      } catch (error) {
+        attempts++;
+        lastError = error;
       }
-    } catch (error) {
-        console.error(`Error fetching page ${page} for fund ${code}:`, error);
-        // On error, we stop fetching more pages for this fund and return what we have so far.
-        // This makes it more resilient to single page failures.
-        break; 
+    }
+
+    if (!success) {
+      console.warn(`Could not fetch page ${page} for fund ${code} after ${MAX_RETRIES} attempts. This is a non-critical error, and the app will proceed with the data loaded so far. Final error:`, lastError);
+      break;
+    }
+
+    allData.push(...pageData);
+
+    if (pageData.length < recordsPerPage) {
+      break;
     }
   }
 

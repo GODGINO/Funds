@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 interface ImportModalProps {
   isOpen: boolean;
@@ -12,6 +12,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
   const [jsonInput, setJsonInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [shouldSaveAfterUpload, setShouldSaveAfterUpload] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -21,6 +22,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       setJsonInput(currentData);
       setError(null);
       setIsImporting(false);
+      setShouldSaveAfterUpload(false);
       // Auto-select text content after a short delay
       setTimeout(() => {
         textareaRef.current?.select();
@@ -28,7 +30,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
     }
   }, [isOpen, currentData]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     setError(null);
     setIsImporting(true);
     try {
@@ -41,7 +43,15 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
     } finally {
       setIsImporting(false);
     }
-  };
+  }, [jsonInput, onImport, onClose]);
+
+  useEffect(() => {
+    if (shouldSaveAfterUpload && jsonInput) {
+      handleSave();
+      setShouldSaveAfterUpload(false); // Reset trigger
+    }
+  }, [shouldSaveAfterUpload, jsonInput, handleSave]);
+
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -63,26 +73,56 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
 
       const reader = new FileReader();
       reader.onload = (e) => {
-          const text = e.target?.result as string;
-          const data = JSON.parse(text);
-          
-          const positions = data.subscriptions.map((sub: any) => ({
-              code: String(sub.code),
-              shares: Number(sub.shares),
-              cost: Number(sub.cost),
-              tag: sub.tag || '',
-              realizedProfit: Number(sub.realizedProfit),
-          }));
+          try {
+              const text = e.target?.result as string;
+              if (!text) {
+                  throw new Error("文件为空。");
+              }
+              const data = JSON.parse(text);
 
-          setJsonInput(JSON.stringify(positions, null, 2));
-          setError(null);
+              let positionsArray: any[];
+
+              if (Array.isArray(data)) {
+                  // Case 1: The file is a direct array of positions
+                  positionsArray = data;
+              } else if (data && typeof data === 'object' && Array.isArray(data.subscriptions)) {
+                  // Case 2: The file is an object with a 'subscriptions' key
+                  positionsArray = data.subscriptions;
+              } else {
+                  throw new Error("无效的 JSON 结构。文件应为持仓数组，或包含 'subscriptions' 键的对象。");
+              }
+
+              // Basic validation and transformation
+              const positions = positionsArray.map((sub: any) => {
+                  if (typeof sub.code === 'undefined' || typeof sub.shares === 'undefined' || typeof sub.cost === 'undefined' || typeof sub.realizedProfit === 'undefined') {
+                      throw new Error(`数组中的某个项目缺少必需字段 (code, shares, cost, realizedProfit)。`);
+                  }
+                  return {
+                      code: String(sub.code),
+                      shares: Number(sub.shares),
+                      cost: Number(sub.cost),
+                      tag: sub.tag || '',
+                      realizedProfit: Number(sub.realizedProfit),
+                  };
+              });
+              
+              setJsonInput(JSON.stringify(positions, null, 2));
+              setError(null);
+              setShouldSaveAfterUpload(true);
+
+          } catch (err) {
+              const errorMessage = err instanceof Error ? err.message : "文件处理期间发生未知错误。";
+              setError(`读取文件失败: ${errorMessage}`);
+              setJsonInput(''); // Clear input on error
+              setShouldSaveAfterUpload(false);
+          } finally {
+              // Reset file input to allow re-uploading the same file
+              if (event.target) {
+                  event.target.value = '';
+              }
+          }
       };
       reader.readAsText(file);
-
-      // Reset file input to allow re-uploading the same file
-      if (event.target) {
-          event.target.value = '';
-      }
   };
 
   const triggerFileSelect = () => {
@@ -96,6 +136,25 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
         handleSave();
       }
     }
+  };
+
+  const handleExport = () => {
+    const dataToExport = currentData;
+    if (!dataToExport) return;
+
+    const blob = new Blob([dataToExport], { type: 'application/json' });
+    const date = new Date().toISOString().split('T')[0];
+    const filename = `${date}.json`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
 
@@ -151,14 +210,24 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
 
         {/* Modal Footer */}
         <div className="flex justify-between items-center px-6 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-b-lg">
-           <button
-            onClick={triggerFileSelect}
-            type="button"
-            className="px-4 py-2 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            disabled={isImporting}
-          >
-            上传文件
-          </button>
+           <div className="flex items-center space-x-2">
+            <button
+                onClick={triggerFileSelect}
+                type="button"
+                className="px-4 py-2 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                disabled={isImporting}
+            >
+                上传文件
+            </button>
+            <button
+                onClick={handleExport}
+                type="button"
+                className="px-4 py-2 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                disabled={isImporting || !jsonInput}
+            >
+                导出文件
+            </button>
+           </div>
           <div className="flex items-center space-x-2">
             <button
                 onClick={onClose}
