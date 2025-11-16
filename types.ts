@@ -72,6 +72,8 @@ export interface ProcessedFund extends Fund {
     costBasis?: number;
     holdingProfit?: number;
     totalProfit?: number;
+    holdingProfitRate?: number;
+    totalProfitRate?: number;
     actualCost?: number;
     recentProfit?: number;
     initialMarketValueForTrend?: number;

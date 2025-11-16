@@ -13,6 +13,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
   const [error, setError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -20,6 +21,10 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       setJsonInput(currentData);
       setError(null);
       setIsImporting(false);
+      // Auto-select text content after a short delay
+      setTimeout(() => {
+        textareaRef.current?.select();
+      }, 50);
     }
   }, [isOpen, currentData]);
 
@@ -82,6 +87,15 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       fileInputRef.current?.click();
   };
 
+  const handleTextareaKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault(); // Prevent adding a new line
+      if (!isImporting && jsonInput) {
+        handleSave();
+      }
+    }
+  };
+
 
   if (!isOpen) {
     return null;
@@ -122,8 +136,10 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
             className="hidden"
           />
           <textarea
+            ref={textareaRef}
             value={jsonInput}
             onChange={(e) => setJsonInput(e.target.value)}
+            onKeyDown={handleTextareaKeyDown}
             placeholder='e.g., [{"code":"007345","shares":1000,"cost":1.7,"realizedProfit":0,"tag":"科技"}]'
             className="w-full h-48 p-2 font-mono text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary-500 focus:border-primary-500"
             disabled={isImporting}

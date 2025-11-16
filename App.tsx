@@ -19,7 +19,7 @@ import PortfolioSnapshotTable from './components/PortfolioSnapshotTable';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042'];
 
-type SortByType = 'trend' | 'dailyChange' | 'navPercentile' | 'amount';
+type SortByType = 'trend' | 'dailyChange' | 'navPercentile' | 'amount' | 'holdingProfitRate' | 'totalProfitRate';
 
 const SYSTEM_TAGS = {
   HOLDING: '持有',
@@ -614,6 +614,8 @@ const App: React.FC = () => {
             const holdingProfit = parseFloat((marketValue - costBasis).toFixed(2));
             const totalProfit = parseFloat((holdingProfit + currentRealizedProfit).toFixed(2));
             const actualCost = currentShares > 0 ? parseFloat(((costBasis - currentRealizedProfit) / currentShares).toFixed(4)) : 0;
+            const holdingProfitRate = costBasis > 0 ? parseFloat(((holdingProfit / costBasis) * 100).toFixed(2)) : 0;
+            const totalProfitRate = costBasis > 0 ? parseFloat(((totalProfit / costBasis) * 100).toFixed(2)) : 0;
             
             calculatedUserPosition = {
                 ...position,
@@ -627,6 +629,8 @@ const App: React.FC = () => {
                 costBasis,
                 holdingProfit,
                 totalProfit,
+                holdingProfitRate,
+                totalProfitRate,
                 actualCost,
                 userPosition: calculatedUserPosition
             };
@@ -943,6 +947,16 @@ const App: React.FC = () => {
           const amountA = a.marketValue ?? -Infinity;
           const amountB = b.marketValue ?? -Infinity;
           comparison = amountA - amountB;
+          break;
+        case 'holdingProfitRate':
+          const rateA = a.holdingProfitRate ?? -Infinity;
+          const rateB = b.holdingProfitRate ?? -Infinity;
+          comparison = rateA - rateB;
+          break;
+        case 'totalProfitRate':
+          const totalRateA = a.totalProfitRate ?? -Infinity;
+          const totalRateB = b.totalProfitRate ?? -Infinity;
+          comparison = totalRateA - totalRateB;
           break;
         default:
           comparison = 0;
