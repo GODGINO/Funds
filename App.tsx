@@ -725,24 +725,28 @@ const App: React.FC = () => {
     let totalInitialMarketValueForTrend = 0;
 
     processedFunds.forEach(fund => {
-        const position = fund.userPosition;
-        if (!position || position.shares <= 0) return; 
-
-        totalCostBasis += fund.costBasis ?? 0;
-        totalMarketValue += fund.marketValue ?? 0;
-        totalHoldingProfit += fund.holdingProfit ?? 0;
+        // 累计收益（grandTotalProfit）需要包含已清仓基金的落袋收益，
+        // 因此它应该对所有基金进行累加。
         grandTotalProfit += fund.totalProfit ?? 0;
-        totalRecentProfit += fund.recentProfit ?? 0;
-        totalInitialMarketValueForTrend += fund.initialMarketValueForTrend ?? 0;
-        
-        const chartPoints = fund.baseChartData;
-        if (chartPoints.length >= 2) {
-            const todayNAV = chartPoints[chartPoints.length - 1]?.unitNAV;
-            const yesterdayNAV = chartPoints[chartPoints.length - 2]?.unitNAV;
-            if (yesterdayNAV && todayNAV && todayNAV > 0) {
-                const dailyProfit = parseFloat(((todayNAV - yesterdayNAV) * position.shares).toFixed(2));
-                totalDailyProfit += dailyProfit;
-                totalYesterdayMarketValue += parseFloat((yesterdayNAV * position.shares).toFixed(2));
+
+        const position = fund.userPosition;
+        // 其他指标仅与当前持仓有关。
+        if (position && position.shares > 0) {
+            totalCostBasis += fund.costBasis ?? 0;
+            totalMarketValue += fund.marketValue ?? 0;
+            totalHoldingProfit += fund.holdingProfit ?? 0;
+            totalRecentProfit += fund.recentProfit ?? 0;
+            totalInitialMarketValueForTrend += fund.initialMarketValueForTrend ?? 0;
+            
+            const chartPoints = fund.baseChartData;
+            if (chartPoints.length >= 2) {
+                const todayNAV = chartPoints[chartPoints.length - 1]?.unitNAV;
+                const yesterdayNAV = chartPoints[chartPoints.length - 2]?.unitNAV;
+                if (yesterdayNAV && todayNAV && todayNAV > 0) {
+                    const dailyProfit = parseFloat(((todayNAV - yesterdayNAV) * position.shares).toFixed(2));
+                    totalDailyProfit += dailyProfit;
+                    totalYesterdayMarketValue += parseFloat((yesterdayNAV * position.shares).toFixed(2));
+                }
             }
         }
     });
