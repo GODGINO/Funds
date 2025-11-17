@@ -11,7 +11,10 @@
   "dependencies": {
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "recharts": "^3.3.0"
+    "recharts": "^3.3.0",
+    "path": "^0.12.7",
+    "vite": "^7.2.2",
+    "@vitejs/plugin-react": "^5.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
