@@ -28,12 +28,13 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
     const { detailedBuyRecords, buyTotals, detailedSellRecords, sellTotals, initialHoldings } = useMemo(() => {
         if (snapshot.snapshotDate === '基准持仓') {
             const holdings = funds
-                .filter(f => f.initialUserPosition && f.initialUserPosition.shares > 0)
+                .filter(f => f.initialUserPosition)
                 .map(f => ({
                     name: f.name,
                     shares: f.initialUserPosition!.shares,
                     cost: f.initialUserPosition!.cost,
                     totalCost: f.initialUserPosition!.shares * f.initialUserPosition!.cost,
+                    realizedProfit: f.initialUserPosition!.realizedProfit,
                 }));
             return { 
                 detailedBuyRecords: [],
@@ -284,6 +285,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                                 <th className="p-2 text-right">初始份额</th>
                                 <th className="p-2 text-right">初始成本</th>
                                 <th className="p-2 text-right">初始总成本</th>
+                                <th className="p-2 text-right">落袋收益</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -293,6 +295,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                                     <td className="p-2 text-right font-mono">{h.shares.toFixed(2)}</td>
                                     <td className="p-2 text-right font-mono">{h.cost.toFixed(4)}</td>
                                     <td className="p-2 text-right font-mono">{h.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td className={`p-2 text-right font-mono ${getProfitColor(h.realizedProfit)}`}>{h.realizedProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 </tr>
                             ))}
                         </tbody>

@@ -1507,7 +1507,9 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
     // Calculate baseline state from initial positions, ignoring tradingRecords
     funds.forEach(fund => {
         const position = fund.userPosition;
-        if (position && position.shares > 0) {
+        // The user wants to include funds that have been sold off (shares=0) but have realized profit.
+        // The baseline should reflect the initial state of ALL funds, regardless of their current shares.
+        if (position) {
             baselineHoldings.push({ code: fund.code, shares: position.shares });
             baselineTotalCostBasis += position.shares * position.cost;
             baselineTotalRealizedProfit += position.realizedProfit;
