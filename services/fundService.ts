@@ -90,6 +90,13 @@ function fetchFundDetailsFallback(code: string): Promise<{ name: string; realTim
 // on the global `jsonpgz` callback function.
 let fundDetailsPromise: Promise<void> = Promise.resolve();
 
+// In-memory cache for fund details
+if (!(window as any)._fundDetailsCache) {
+    (window as any)._fundDetailsCache = {};
+}
+const fundDetailsCache: { [code: string]: { name: string; realTimeData?: RealTimeData } } = (window as any)._fundDetailsCache;
+
+
 export function fetchFundDetails(code: string): Promise<{ name: string; realTimeData?: RealTimeData }> {
     const fetchPrimary = () => new Promise<{ name: string; realTimeData?: RealTimeData }>((resolve, reject) => {
         const script = document.createElement('script');
@@ -143,11 +150,24 @@ export function fetchFundDetails(code: string): Promise<{ name: string; realTime
     // FIX: Ensure the promise assigned back to fundDetailsPromise resolves to void to match its inferred type.
     fundDetailsPromise = serializedFetch.then(() => {}, () => {}); // Chain and prevent unhandled rejections from breaking the chain
     
-    return serializedFetch.catch(error => {
-        return fetchFundDetailsFallback(code).catch(fallbackError => {
-            // If fallback also fails, throw a more specific error.
-            throw new Error(`Failed to fetch fund details for ${code} from both primary and fallback sources. The fund might not exist or the code is incorrect.`);
-        });
+    // Attempt to fetch fresh data, first from primary, then from fallback.
+    const freshDataPromise = serializedFetch.catch(error => {
+        return fetchFundDetailsFallback(code);
+    });
+
+    return freshDataPromise.then(details => {
+        // Success (from either primary or fallback): update cache and return fresh data.
+        fundDetailsCache[code] = details;
+        return details;
+    }).catch(finalError => {
+        // Both primary and fallback failed. Now, check the cache as a last resort.
+        const cachedData = fundDetailsCache[code];
+        if (cachedData) {
+            // We have stale data, so we resolve with it. The failure is silent to the caller.
+            return cachedData;
+        }
+        // If there's no fresh data AND no cached data, we must fail so the caller can handle it.
+        throw finalError;
     });
 }
 

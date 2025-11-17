@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
-import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingTask, TradingRecord, TradeModalState, PortfolioSnapshot } from './types';
+import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingTask, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData } from './types';
 import { fetchFundData, fetchFundDetails, fetchIndexData } from './services/fundService';
 import FundInputForm from './components/FundInputForm';
 import FundRow from './components/FundRow';
@@ -377,35 +377,69 @@ const App: React.FC = () => {
   }, [funds, recordCount]);
   
   const handleRefresh = useCallback(async () => {
+    if (funds.length === 0) return;
     setLastRefreshTime(getCurrentTimeString());
     setIsRefreshing(true);
     setError(null);
 
     const indexPromise = fetchIndexData();
-    let fundsPromise: Promise<Fund[]> = Promise.resolve(funds); // Default to current funds
 
-    if (funds.length > 0) {
-      fundsPromise = Promise.all(
-        funds.map(async (fund) => {
-          const details = await fetchFundDetails(fund.code);
-          return {
-            ...fund,
-            realTimeData: details.realTimeData,
-          };
-        })
-      );
+    // Step 1: Initial fetch for all funds using Promise.allSettled
+    const initialFetchResults = await Promise.allSettled(
+        funds.map(fund => fetchFundDetails(fund.code))
+    );
+
+    const updatedDetailsMap = new Map<string, { realTimeData?: RealTimeData }>();
+    const failedCodesToRetry: string[] = [];
+
+    initialFetchResults.forEach((result, index) => {
+        const code = funds[index].code;
+        if (result.status === 'fulfilled') {
+            updatedDetailsMap.set(code, { realTimeData: result.value.realTimeData });
+        } else {
+            // This case now only happens if fetch fails AND there's no cache.
+            failedCodesToRetry.push(code);
+        }
+    });
+
+    // Step 2: Silently retry failed funds once
+    if (failedCodesToRetry.length > 0) {
+        const retryResults = await Promise.allSettled(
+            failedCodesToRetry.map(code => fetchFundDetails(code))
+        );
+
+        retryResults.forEach((result, index) => {
+            const code = failedCodesToRetry[index];
+            if (result.status === 'fulfilled') {
+                updatedDetailsMap.set(code, { realTimeData: result.value.realTimeData });
+            } else {
+                console.warn(`[刷新警告] 基金 ${code} 实时数据获取失败，将继续展示旧数据。`);
+            }
+        });
     }
 
+    // Step 3: Apply all successful updates (from initial fetch and retry) in one go
+    if (updatedDetailsMap.size > 0) {
+        setFunds(currentFunds =>
+            currentFunds.map(fund => {
+                const newDetails = updatedDetailsMap.get(fund.code);
+                return newDetails ? { ...fund, ...newDetails } : fund;
+            })
+        );
+    }
+
+    // Step 4: Finalize by updating index data and resetting loading state
     try {
-      const [newIndexData, updatedFunds] = await Promise.all([indexPromise, fundsPromise]);
-      setIndexData(newIndexData);
-      setFunds(updatedFunds);
+        const newIndexData = await indexPromise;
+        setIndexData(newIndexData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred while refreshing data.');
+        // Log index error but don't show a blocking UI error
+        console.error("Failed to refresh index data:", err);
     } finally {
-      setIsRefreshing(false);
+        setIsRefreshing(false);
     }
-  }, [funds, getCurrentTimeString]);
+}, [funds, getCurrentTimeString]);
+
 
   // Auto-refresh data every 3 minutes on weekdays during trading hours
   useEffect(() => {
