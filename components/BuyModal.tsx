@@ -291,6 +291,7 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                                     required
                                     autoFocus
                                     ref={amountInputRef}
+                                    step="0.01"
                                     className="w-full text-center h-full px-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                                 <button
