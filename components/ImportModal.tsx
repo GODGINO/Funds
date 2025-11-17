@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { UserPosition, TradingRecord } from '../types';
 
 interface ImportModalProps {
   isOpen: boolean;
@@ -83,27 +84,56 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
               let positionsArray: any[];
 
               if (Array.isArray(data)) {
-                  // Case 1: The file is a direct array of positions
+                  // Case 1: The file is a direct array of positions (new format)
                   positionsArray = data;
               } else if (data && typeof data === 'object' && Array.isArray(data.subscriptions)) {
-                  // Case 2: The file is an object with a 'subscriptions' key
+                  // Case 2: The file is an object with a 'subscriptions' key (old format)
                   positionsArray = data.subscriptions;
               } else {
                   throw new Error("无效的 JSON 结构。文件应为持仓数组，或包含 'subscriptions' 键的对象。");
               }
 
               // Basic validation and transformation
-              const positions = positionsArray.map((sub: any) => {
+              const positions: UserPosition[] = positionsArray.map((sub: any) => {
                   if (typeof sub.code === 'undefined' || typeof sub.shares === 'undefined' || typeof sub.cost === 'undefined' || typeof sub.realizedProfit === 'undefined') {
                       throw new Error(`数组中的某个项目缺少必需字段 (code, shares, cost, realizedProfit)。`);
                   }
-                  return {
-                      code: String(sub.code),
+                  
+                  const newPosition: UserPosition = {
+                      code: String(sub.code).padStart(6, '0'),
                       shares: Number(sub.shares),
                       cost: Number(sub.cost),
                       tag: sub.tag || '',
                       realizedProfit: Number(sub.realizedProfit),
                   };
+
+                  if (sub.tradingRecords && Array.isArray(sub.tradingRecords)) {
+                      const validatedRecords: TradingRecord[] = sub.tradingRecords.map((record: any) => {
+                           if (
+                              typeof record.date !== 'string' ||
+                              (record.type !== 'buy' && record.type !== 'sell') ||
+                              typeof record.nav !== 'number' ||
+                              typeof record.sharesChange !== 'number' ||
+                              typeof record.amount !== 'number'
+                          ) {
+                              throw new Error(`基金 ${sub.code} 的一笔交易记录格式不正确。`);
+                          }
+                          const newRecord: TradingRecord = {
+                              date: record.date,
+                              type: record.type,
+                              nav: record.nav,
+                              sharesChange: record.sharesChange,
+                              amount: record.amount,
+                          };
+                          if (record.realizedProfitChange !== undefined && record.realizedProfitChange !== null) {
+                              newRecord.realizedProfitChange = Number(record.realizedProfitChange);
+                          }
+                          return newRecord;
+                      });
+                      newPosition.tradingRecords = validatedRecords;
+                  }
+                  
+                  return newPosition;
               });
               
               setJsonInput(JSON.stringify(positions, null, 2));
@@ -176,7 +206,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg m-4 transform transition-all flex flex-col">
         {/* Modal Header */}
         <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">从 JSON 导入/导出数据</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">导入/导出缓存数据</h3>
            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 focus:outline-none" aria-label="Close">
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
