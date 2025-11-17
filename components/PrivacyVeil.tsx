@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { IndexData } from '../types';
 
@@ -11,6 +12,8 @@ interface PrivacyVeilProps {
   lastRefreshTime: string | null;
   totalDailyProfit: number;
   totalDailyProfitRate: number;
+  summaryProfitCaused?: number;
+  summaryOperationEffect?: number;
   indexData: IndexData | null;
 }
 
@@ -19,6 +22,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
     lastRefreshTime,
     totalDailyProfit,
     totalDailyProfitRate,
+    summaryProfitCaused,
+    summaryOperationEffect,
     indexData,
 }) => {
   const [isHovering, setIsHovering] = useState(false);
@@ -26,6 +31,16 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
   const formattedProfit = `${totalDailyProfit >= 0 ? '+' : ''}${totalDailyProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formattedRate = `${totalDailyProfitRate >= 0 ? '+' : ''}${totalDailyProfitRate.toFixed(2)}%`;
   
+  let formattedProfitCaused = '';
+  if (summaryProfitCaused !== undefined) {
+    formattedProfitCaused = `${summaryProfitCaused >= 0 ? '+' : ''}${summaryProfitCaused.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  
+  let formattedOperationEffect = '';
+  if (summaryOperationEffect !== undefined) {
+    formattedOperationEffect = `${summaryOperationEffect >= 0 ? '+' : ''}${summaryOperationEffect.toFixed(2)}%`;
+  }
+
   let formattedIndex = '';
   if (indexData) {
       const value = indexData.value.toFixed(2);
@@ -33,6 +48,14 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       const changePercent = `${indexData.changePercent >= 0 ? '+' : ''}${indexData.changePercent.toFixed(2)}%`;
       formattedIndex = `${value} ${change} ${changePercent}`;
   }
+
+  const hoverContent = [
+    formattedProfit,
+    formattedRate,
+    formattedProfitCaused,
+    formattedOperationEffect,
+    formattedIndex,
+  ].filter(Boolean).join(' ');
 
   return (
     <div
@@ -51,7 +74,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                 <li>重新连接到 Wi-Fi 网络</li>
             </ul>
             <p className="text-base text-slate-500 dark:text-gray-500">
-                {isHovering ? <span>{formattedProfit} {formattedRate}&nbsp;{formattedIndex || ''}</span> : '-'}
+                {isHovering ? <span>{hoverContent}</span> : '-'}
             </p>
             <p className="text-base text-slate-500 dark:text-gray-500">ERR_INTERNET_DISCONNECTED</p>
             <div className="text-lg mt-20 text-slate-700 dark:text-gray-400">

@@ -24,6 +24,8 @@ interface ControlsCardProps {
   isLoading: boolean;
   totalDailyProfit: number;
   totalDailyProfitRate: number;
+  summaryProfitCaused?: number;
+  summaryOperationEffect?: number;
 }
 
 const ControlsCard: React.FC<ControlsCardProps> = ({ 
@@ -44,9 +46,13 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
   isLoading,
   totalDailyProfit,
   totalDailyProfitRate,
+  summaryProfitCaused,
+  summaryOperationEffect,
 }) => {
   const isDisabled = isLoading || isRefreshing;
   const profitColor = totalDailyProfit >= 0 ? 'text-red-500' : 'text-green-600';
+  const profitCausedColor = summaryProfitCaused != null && summaryProfitCaused >= 0 ? 'text-red-500' : 'text-green-600';
+  const operationEffectColor = summaryOperationEffect != null && summaryOperationEffect >= 0 ? 'text-red-500' : 'text-green-600';
   
   const longPressTimer = useRef<number | null>(null);
   const longPressTriggered = useRef<boolean>(false);
@@ -163,6 +169,22 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
                 {totalDailyProfitRate > 0 ? '+' : ''}{totalDailyProfitRate.toFixed(2)}%
             </div>
         </div>
+        {summaryProfitCaused !== undefined && (
+          <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">造成盈亏</label>
+              <div className={`py-1.5 text-sm font-semibold ${profitCausedColor}`}>
+                  {summaryProfitCaused > 0 ? '+' : ''}{summaryProfitCaused.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+          </div>
+        )}
+        {summaryOperationEffect !== undefined && (
+          <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">操作效果</label>
+              <div className={`py-1.5 text-sm font-semibold ${operationEffectColor}`}>
+                  {summaryOperationEffect > 0 ? '+' : ''}{summaryOperationEffect.toFixed(2)}%
+              </div>
+          </div>
+        )}
       </div>
       
       {/* Right-side group for refresh */}

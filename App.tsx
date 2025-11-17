@@ -1543,6 +1543,29 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
     return snapshotsWithChange;
 }, [funds, processedFunds]);
 
+  const snapshotSummary = useMemo(() => {
+    if (portfolioSnapshots.length < 2) {
+      return { summaryProfitCaused: undefined, summaryOperationEffect: undefined };
+    }
+
+    const latestSnapshot = portfolioSnapshots[0];
+    const baselineSnapshot = portfolioSnapshots[portfolioSnapshots.length - 1];
+
+    // Ensure we have a valid baseline to compare against
+    if (baselineSnapshot.snapshotDate !== '基准持仓') {
+       return { summaryProfitCaused: undefined, summaryOperationEffect: undefined };
+    }
+
+    const summaryProfitCaused = latestSnapshot.dailyProfit - baselineSnapshot.dailyProfit;
+    
+    // This logic is duplicated from PortfolioSnapshotTable, as requested for consistency.
+    const summaryOperationEffect = Math.abs(baselineSnapshot.dailyProfit) > 1e-6
+        ? (summaryProfitCaused / Math.abs(baselineSnapshot.dailyProfit)) * 100
+        : 100;
+
+    return { summaryProfitCaused, summaryOperationEffect };
+  }, [portfolioSnapshots]);
+
   return (
     <div className="min-h-screen bg-gray-100 text-gray-800 dark:bg-gray-950 dark:text-gray-200 font-sans p-4">
       {isVeiled && (
@@ -1551,6 +1574,8 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
           lastRefreshTime={lastRefreshTime} 
           totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit}
           totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate}
+          summaryProfitCaused={snapshotSummary.summaryProfitCaused}
+          summaryOperationEffect={snapshotSummary.summaryOperationEffect}
           indexData={indexData}
         />
       )}
@@ -1581,6 +1606,8 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
             isLoading={isLoading || isAppLoading}
             totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit}
             totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate}
+            summaryProfitCaused={snapshotSummary.summaryProfitCaused}
+            summaryOperationEffect={snapshotSummary.summaryOperationEffect}
           />
           <TagAnalysisTable 
             data={analysisResults.tagAnalysisData} 
