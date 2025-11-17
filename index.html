@@ -2,7 +2,6 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>新标签页</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -30,21 +29,5 @@
 </head>
   <body class="bg-gray-100 dark:bg-gray-900">
     <div id="root"></div>
-    <!--
-      [工程师注释]：您好！我已修复了部署在 GitHub Pages 子目录（/Funds/）时出现的资源路径错误。
-      之前的路径如 "/index.tsx" 是从域名根目录加载，这会导致文件找不到。现在已修正为相对路径 "index.tsx"。
-
-      **重要提示**：
-      修复路径后，您会遇到下一个问题：GitHub Pages 会以错误的 MIME 类型（内容类型，例如 'video/mp2t'）来提供 .tsx 文件，
-      而浏览器需要一个 JavaScript MIME 类型（如 'application/javascript'）才能执行脚本。此外，浏览器本身无法直接运行 TSX 语法（例如 <App />）。
-
-      **要彻底解决此问题，您需要一个“构建步骤”**：
-      1. 在您的开发环境中，使用 Vite 或 Create React App 等工具将您的 .tsx 和 .ts 文件编译成普通的 .js 文件。
-      2. 将编译后生成的文件夹（通常是 `dist` 或 `build`）的内容部署到 GitHub Pages，而不是您的源代码。
-      3. 确保此 HTML 文件引用的是编译后的 .js 文件（例如 <script type="module" src="./assets/index.abcdef.js"></script>）。
-
-      由于我无法修改您的部署流程，此代码更改是解决当前路径错误的第一步，但您需要设置构建流程才能让应用正常运行。
-    -->
-    <script type="module" src="index.tsx"></script>
   </body>
 </html>
