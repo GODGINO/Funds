@@ -7,32 +7,30 @@ interface SellModalProps {
     onClose: () => void;
     onSubmit: (fund: TradeModalState['fund'], date: string, type: 'buy' | 'sell', value: number, isConfirmed: boolean, nav: number, isEditing: boolean) => void;
     onDelete: (fundCode: string, recordDate: string) => void;
-    onUpdateTask: (taskId: string, newValue: number) => void;
-    onCancelTask: (taskId: string) => void;
     tradeState: TradeModalState;
 }
 
 const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-green-600';
 
-const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDelete, onUpdateTask, onCancelTask, tradeState }) => {
+const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDelete, tradeState }) => {
     const [shares, setShares] = useState('');
     const [error, setError] = useState('');
     const sharesInputRef = useRef<HTMLInputElement>(null);
 
-    const { fund, date, nav, isConfirmed, editingRecord, editingTask } = tradeState;
-    const isEditingRecord = !!editingRecord;
-    const isEditingTask = !!editingTask;
+    const { fund, date, nav, isConfirmed, editingRecord } = tradeState;
+    const isEditing = !!editingRecord;
+    const isPending = isEditing && editingRecord.nav === undefined;
     const position = fund.userPosition;
 
     const availableShares = useMemo(() => {
         if (!position) return 0;
         // If editing a CONFIRMED record, add back the shares from that record to calculate the pool available before that trade.
-        if (isEditingRecord) {
-            return position.shares - editingRecord.sharesChange;
+        if (isEditing && !isPending) {
+            return position.shares - editingRecord.sharesChange!;
         }
-        // If creating a NEW trade or editing a PENDING task, the available shares are simply what's currently held.
+        // If creating a NEW trade or editing a PENDING record, the available shares are what's currently held.
         return position.shares;
-    }, [position, isEditingRecord, editingRecord]);
+    }, [position, isEditing, isPending, editingRecord]);
 
 
     const estimatedProfit = useMemo(() => {
@@ -128,10 +126,9 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
 
     useEffect(() => {
         if (isOpen) {
-            if (isEditingRecord) {
-                setShares(String(Math.abs(editingRecord.sharesChange)));
-            } else if (isEditingTask) {
-                setShares(String(editingTask.value));
+            if (isEditing) {
+                const initialValue = isPending ? editingRecord.value : Math.abs(editingRecord.sharesChange!);
+                setShares(String(initialValue ?? ''));
             } else {
                 // Default to ~500 CNY worth of shares, rounded to the nearest hundred.
                 if (nav > 0 && availableShares > 0) {
@@ -140,17 +137,11 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
 
                     let roundedShares = Math.round(calculatedShares / 100) * 100;
                     
-                    // If rounding results in 0, but the calculated value is positive (i.e., < 50),
-                    // a default of 0 is not helpful. We'll set a minimum of 100.
                     if (roundedShares === 0 && calculatedShares > 0) {
                         roundedShares = 100;
                     }
 
-                    // The default value cannot exceed what's available.
                     const finalShares = Math.min(roundedShares, availableShares);
-
-                    // Since the logic is about rounding to whole hundreds, we'll output an integer.
-                    // Using Math.floor to be safe with fractional available shares.
                     setShares(finalShares > 0 ? String(Math.floor(finalShares)) : '');
                 } else {
                     setShares('');
@@ -161,7 +152,7 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
                 sharesInputRef.current?.select();
             }, 50);
         }
-    }, [isOpen, isEditingRecord, editingRecord, isEditingTask, editingTask, nav, availableShares]);
+    }, [isOpen, isEditing, isPending, editingRecord, nav, availableShares]);
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -211,17 +202,11 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
         const numericShares = parseFloat((parseFloat(shares) || 0).toFixed(2));
         if (!numericShares || numericShares <= 0 || error) return;
         
-        if (isEditingTask) {
-            onUpdateTask(editingTask.id, numericShares);
-        } else {
-            onSubmit(fund, date, 'sell', numericShares, isConfirmed, nav, isEditingRecord);
-        }
+        onSubmit(fund, date, 'sell', numericShares, isConfirmed, nav, isEditing);
     };
 
     const handleDeleteOrCancel = () => {
-        if (isEditingTask) {
-            onCancelTask(editingTask.id);
-        } else if (isEditingRecord) {
+        if (isEditing) {
             onDelete(fund.code, date);
         }
     };
@@ -239,7 +224,7 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
                 {/* Modal Header */}
                 <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700 flex-shrink-0">
                     <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                        {isEditingRecord ? '修改卖出记录' : isEditingTask ? '修改卖出任务' : '卖出'} {fund.name}
+                        {isEditing ? '修改卖出记录' : '卖出'} {fund.name}
                         <span className="ml-2 text-base font-normal text-gray-500 dark:text-gray-400">{fund.code}</span>
                     </h2>
                     <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 focus:outline-none" aria-label="Close">
@@ -267,11 +252,11 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
                     <div className="mb-4">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">交易日期:</span>
                         <span className="ml-2 font-semibold text-gray-900 dark:text-white">{date}</span>
-                         {!isEditingRecord && (
+                         {!isEditing || isPending ? (
                             <span className={`ml-3 text-xs font-bold ${isConfirmed ? 'text-green-600' : 'text-yellow-600'}`}>
                                 ({isConfirmed ? `收盘净值: ${nav.toFixed(4)}` : '任务待确认'})
                             </span>
-                        )}
+                        ) : null}
                     </div>
 
                     <div className="grid grid-cols-3 gap-y-4 gap-x-2 text-left items-end">
@@ -371,21 +356,21 @@ const SellModal: React.FC<SellModalProps> = ({ isOpen, onClose, onSubmit, onDele
                            <button type="submit" className="flex items-center justify-center w-full h-[42px] bg-primary-500 text-white font-semibold px-4 rounded-md hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-900 disabled:bg-gray-300 disabled:text-gray-500"
                             disabled={!shares || parseFloat(shares) <= 0 || !!error}
                            >
-                               {isEditingRecord ? '更新交易' : isEditingTask ? '更新任务' : '卖出'}
+                               {isEditing ? '更新记录' : '卖出'}
                            </button>
                         </div>
                     </div>
                 </div>
 
                 {/* Modal Footer */}
-                {(isEditingRecord || isEditingTask) && (
+                {isEditing && (
                     <div className="flex justify-start items-center px-6 py-3 bg-gray-50 dark:bg-gray-800 border-t dark:border-gray-700 flex-shrink-0">
                        <button 
                             type="button" 
                             onClick={handleDeleteOrCancel}
                             className="bg-red-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                         >
-                            {isEditingRecord ? '删除交易' : '取消任务'}
+                            删除记录
                         </button>
                     </div>
                 )}

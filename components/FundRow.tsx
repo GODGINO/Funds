@@ -1,9 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 // FIX: Import the shared ProcessedFund interface.
-import { Fund, FundDataPoint, ProcessedFund, TradingRecord, TradingTask } from '../types';
+import { Fund, FundDataPoint, ProcessedFund, TradingRecord } from '../types';
 import FundChart from './FundChart';
-
-// FIX: Removed local ProcessedFund interface, now imported from types.ts.
 
 interface FundRowProps {
   fund: ProcessedFund;
@@ -11,8 +9,6 @@ interface FundRowProps {
   onShowDetails: (fund: Fund) => void;
   onTagDoubleClick: (tag: string) => void;
   onTrade: (fund: ProcessedFund, date: string, type: 'buy' | 'sell', nav: number, isConfirmed: boolean, editingRecord?: TradingRecord) => void;
-  onOpenTaskModal: (task: TradingTask) => void;
-  tradingTasks: TradingTask[];
 }
 
 const SYSTEM_TAG_COLORS: { [key: string]: { bg: string; text: string; } } = {
@@ -57,7 +53,7 @@ const RecordLink: React.FC<{ onClick: () => void }> = ({ onClick }) => (
     </div>
 );
 
-const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onTagDoubleClick, onTrade, onOpenTaskModal, tradingTasks }) => {
+const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onTagDoubleClick, onTrade }) => {
   const [isCopied, setIsCopied] = useState(false);
   const { trendInfo, baseChartData, zigzagPoints, lastPivotDate, navPercentile } = fund;
 
@@ -65,17 +61,21 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
     return new Map<string, FundDataPoint>(fund.data.map(p => [p.date, p]));
   }, [fund.data]);
 
-  const tradingRecordMap = useMemo(() => {
-    return new Map<string, TradingRecord>(fund.userPosition?.tradingRecords?.map(r => [r.date, r]) || []);
+  const confirmedRecordMap = useMemo(() => {
+    return new Map<string, TradingRecord>(
+      (fund.userPosition?.tradingRecords || [])
+        .filter(r => r.nav !== undefined)
+        .map(r => [r.date, r])
+    );
   }, [fund.userPosition?.tradingRecords]);
 
-  const pendingTaskMap = useMemo(() => {
-    return new Map<string, TradingTask>(
-      tradingTasks
-        .filter(task => task.code === fund.code && task.status === 'pending')
-        .map(task => [task.date, task])
+  const pendingRecordMap = useMemo(() => {
+    return new Map<string, TradingRecord>(
+      (fund.userPosition?.tradingRecords || [])
+        .filter(r => r.nav === undefined)
+        .map(r => [r.date, r])
     );
-  }, [tradingTasks, fund.code]);
+  }, [fund.userPosition?.tradingRecords]);
 
 
   const historicalDataForToday = useMemo(() => {
@@ -137,13 +137,18 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
   };
 
   const handleEditTrade = (record: TradingRecord) => {
-      onTrade(fund, record.date, record.type, record.nav, true, record);
+      onTrade(fund, record.date, record.type, record.nav!, true, record);
+  };
+  
+  const handleEditPendingTrade = (record: TradingRecord) => {
+    const navForModal = fund.realTimeData?.estimatedNAV || fund.latestNAV || 0;
+    onTrade(fund, record.date, record.type, navForModal, false, record);
   };
 
   const todayDateStr = historicalDataForToday?.date || fund.realTimeData?.estimationTime.split(' ')[0];
-  const todayRecord = todayDateStr ? tradingRecordMap.get(todayDateStr) : undefined;
-  const todayPendingTask = todayDateStr ? pendingTaskMap.get(todayDateStr) : undefined;
-  const todayTransaction = todayRecord || todayPendingTask;
+  const todayRecord = todayDateStr ? confirmedRecordMap.get(todayDateStr) : undefined;
+  const todayPendingRecord = todayDateStr ? pendingRecordMap.get(todayDateStr) : undefined;
+  const todayTransaction = todayRecord || todayPendingRecord;
 
   const dailyChangeDisplay = useMemo(() => {
     if (fund.realTimeData?.estimatedChange) {
@@ -167,7 +172,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
   }, [fund.realTimeData, fund.latestChange]);
 
   const lastTransactionInfo = useMemo(() => {
-    const records = fund.userPosition?.tradingRecords;
+    const records = fund.userPosition?.tradingRecords?.filter(r => r.nav !== undefined); // Only consider confirmed records
     if (!records || records.length === 0) {
         return null;
     }
@@ -177,7 +182,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
 
     const latestNAV = latestNAVForComparison;
     
-    if (!lastRecord || latestNAV <= 0 || lastRecord.nav <= 0) {
+    if (!lastRecord || latestNAV <= 0 || !lastRecord.nav || lastRecord.nav <= 0) {
         return null;
     }
 
@@ -344,8 +349,8 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
             )}
             {todayRecord ? (
                 <RecordLink onClick={() => handleEditTrade(todayRecord)} />
-            ) : todayPendingTask ? (
-                <RecordLink onClick={() => onOpenTaskModal(todayPendingTask)} />
+            ) : todayPendingRecord ? (
+                <RecordLink onClick={() => handleEditPendingTrade(todayPendingRecord)} />
             ) : ((historicalDataForToday || fund.realTimeData?.estimatedNAV) && (
                 <TradeLinks onTradeClick={handleTodayTrade} />
             ))}
@@ -353,8 +358,8 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
       </td>
       {dateHeaders.map(date => {
         const point = dataMap.get(date);
-        const record = tradingRecordMap.get(date);
-        const pendingTask = pendingTaskMap.get(date);
+        const record = confirmedRecordMap.get(date);
+        const pendingRecord = pendingRecordMap.get(date);
         const pointIsPositive = point ? !point.dailyGrowthRate.startsWith('-') : true;
 
         let changeFromLatest: string | null = null;
@@ -370,7 +375,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
         
         const isPivotDate = pivotDateSet.has(date);
         let cellBgClass = '';
-        const transaction = record || pendingTask;
+        const transaction = record || pendingRecord;
         if (transaction) {
             if (transaction.type === 'buy') {
                 cellBgClass = isPivotDate ? 'bg-red-200 dark:bg-red-900/60' : 'bg-red-50 dark:bg-red-900/20';
@@ -396,8 +401,8 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
                 )}
                 {record ? (
                     <RecordLink onClick={() => handleEditTrade(record)} />
-                ) : pendingTask ? (
-                    <RecordLink onClick={() => onOpenTaskModal(pendingTask)} />
+                ) : pendingRecord ? (
+                    <RecordLink onClick={() => handleEditPendingTrade(pendingRecord)} />
                 ) : (
                     <TradeLinks onTradeClick={(type) => onTrade(fund, date, type, point.unitNAV, true)} />
                 )}

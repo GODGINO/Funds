@@ -5,6 +5,7 @@ interface FundInputFormProps {
   isLoading: boolean;
   onOpenImportModal: () => void;
   onOpenTransactionManager: () => void;
+  pendingTaskCount: number;
   isPrivacyModeEnabled: boolean;
   onPrivacyModeChange: (enabled: boolean) => void;
 }
@@ -14,6 +15,7 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
   isLoading, 
   onOpenImportModal,
   onOpenTransactionManager,
+  pendingTaskCount,
   isPrivacyModeEnabled,
   onPrivacyModeChange,
 }) => {
@@ -43,7 +45,7 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
   const isDisabled = isLoading;
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-9 gap-4 items-end">
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-8 gap-4 items-end">
       {/* Fund Code */}
       <div className="md:col-span-1">
         <label htmlFor="fund-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Fund Code</label>
@@ -89,7 +91,7 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
       </div>
 
       {/* Tag */}
-      <div className="md:col-span-2">
+      <div className="md:col-span-1">
         <label htmlFor="fund-tag" className="block text-sm font-medium text-gray-700 dark:text-gray-300">标签</label>
         <input
           type="text"
@@ -132,9 +134,9 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
           导入/导出
         </button>
       </div>
-
+      
       {/* Transaction Manager Button */}
-      <div className="md:col-span-1">
+      <div className="md:col-span-1 relative">
         <button
           type="button"
           onClick={onOpenTransactionManager}
@@ -143,7 +145,13 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
         >
           交易管理
         </button>
+        {pendingTaskCount > 0 && (
+          <span className="absolute -top-2 -right-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full z-10">
+            {pendingTaskCount}
+          </span>
+        )}
       </div>
+
 
        {/* Privacy Toggle Button */}
       <div className="md:col-span-1">

@@ -7,20 +7,18 @@ interface BuyModalProps {
     onClose: () => void;
     onSubmit: (fund: TradeModalState['fund'], date: string, type: 'buy' | 'sell', value: number, isConfirmed: boolean, nav: number, isEditing: boolean) => void;
     onDelete: (fundCode: string, recordDate: string) => void;
-    onUpdateTask: (taskId: string, newValue: number) => void;
-    onCancelTask: (taskId: string) => void;
     tradeState: TradeModalState;
 }
 
 const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-green-600';
 
 
-const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete, onUpdateTask, onCancelTask, tradeState }) => {
+const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete, tradeState }) => {
     const [amount, setAmount] = useState('');
     const amountInputRef = useRef<HTMLInputElement>(null);
-    const { fund, date, nav, isConfirmed, editingRecord, editingTask } = tradeState;
-    const isEditingRecord = !!editingRecord;
-    const isEditingTask = !!editingTask;
+    const { fund, date, nav, isConfirmed, editingRecord } = tradeState;
+    const isEditing = !!editingRecord;
+    const isPending = isEditing && editingRecord.nav === undefined;
 
     const {
         dailyProfit,
@@ -123,10 +121,9 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
 
     useEffect(() => {
         if (isOpen) {
-            if (isEditingRecord) {
-                setAmount(String(editingRecord.amount));
-            } else if (isEditingTask) {
-                setAmount(String(editingTask.value));
+            if (isEditing) {
+                const initialValue = isPending ? editingRecord.value : editingRecord.amount;
+                setAmount(String(initialValue ?? ''));
             } else {
                 setAmount('500');
             }
@@ -134,7 +131,7 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                 amountInputRef.current?.select();
             }, 50); // A small delay to ensure focus is set
         }
-    }, [isOpen, isEditingRecord, editingRecord, isEditingTask, editingTask]);
+    }, [isOpen, isEditing, isPending, editingRecord]);
     
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -157,17 +154,11 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
         const numericAmount = parseFloat((parseFloat(amount) || 0).toFixed(2));
         if (!numericAmount || numericAmount <= 0) return;
 
-        if (isEditingTask) {
-            onUpdateTask(editingTask.id, numericAmount);
-        } else {
-            onSubmit(fund, date, 'buy', numericAmount, isConfirmed, nav, isEditingRecord);
-        }
+        onSubmit(fund, date, 'buy', numericAmount, isConfirmed, nav, isEditing);
     };
 
     const handleDeleteOrCancel = () => {
-        if (isEditingTask) {
-            onCancelTask(editingTask.id);
-        } else if (isEditingRecord) {
+        if (isEditing) {
             onDelete(fund.code, date);
         }
     };
@@ -185,7 +176,7 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                 {/* Modal Header */}
                 <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700 flex-shrink-0">
                     <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                        {isEditingRecord ? '修改买入记录' : isEditingTask ? '修改买入任务' : '买入'} {fund.name}
+                        {isEditing ? '修改买入记录' : '买入'} {fund.name}
                         <span className="ml-2 text-base font-normal text-gray-500 dark:text-gray-400">{fund.code}</span>
                     </h2>
                     <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 focus:outline-none" aria-label="Close">
@@ -213,11 +204,11 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                     <div className="mb-4">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">交易日期:</span>
                         <span className="ml-2 font-semibold text-gray-900 dark:text-white">{date}</span>
-                        {!isEditingRecord && (
+                        {!isEditing || isPending ? (
                              <span className={`ml-3 text-xs font-bold ${isConfirmed ? 'text-green-600' : 'text-yellow-600'}`}>
                                 ({isConfirmed ? `收盘净值: ${nav.toFixed(4)}` : '任务待确认'})
                             </span>
-                        )}
+                        ) : null}
                     </div>
 
                     <div className="grid grid-cols-3 gap-y-4 gap-x-2 text-left items-end">
@@ -322,21 +313,21 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                            <button type="submit" className="flex items-center justify-center w-full h-[42px] bg-red-500 text-white font-semibold px-4 rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-gray-900 disabled:bg-gray-300 disabled:text-gray-500"
                             disabled={!amount || parseFloat(amount) <= 0}
                            >
-                               {isEditingRecord ? '更新交易' : isEditingTask ? '更新任务' : '买入'}
+                               {isEditing ? '更新记录' : '买入'}
                            </button>
                         </div>
                     </div>
                 </div>
 
                 {/* Modal Footer */}
-                {(isEditingRecord || isEditingTask) && (
+                {isEditing && (
                     <div className="flex justify-start items-center px-6 py-3 bg-gray-50 dark:bg-gray-800 border-t dark:border-gray-700 flex-shrink-0">
                        <button 
                             type="button" 
                             onClick={handleDeleteOrCancel}
                             className="bg-red-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                         >
-                            {isEditingRecord ? '删除交易' : '取消任务'}
+                            删除记录
                         </button>
                     </div>
                 )}

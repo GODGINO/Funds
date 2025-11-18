@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UserPosition, TradingRecord } from '../types';
 
@@ -109,25 +110,17 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
 
                   if (sub.tradingRecords && Array.isArray(sub.tradingRecords)) {
                       const validatedRecords: TradingRecord[] = sub.tradingRecords.map((record: any) => {
-                           if (
-                              typeof record.date !== 'string' ||
-                              (record.type !== 'buy' && record.type !== 'sell') ||
-                              typeof record.nav !== 'number' ||
-                              typeof record.sharesChange !== 'number' ||
-                              typeof record.amount !== 'number'
-                          ) {
-                              throw new Error(`基金 ${sub.code} 的一笔交易记录格式不正确。`);
-                          }
                           const newRecord: TradingRecord = {
                               date: record.date,
                               type: record.type,
-                              nav: record.nav,
-                              sharesChange: record.sharesChange,
-                              amount: record.amount,
                           };
-                          if (record.realizedProfitChange !== undefined && record.realizedProfitChange !== null) {
-                              newRecord.realizedProfitChange = Number(record.realizedProfitChange);
-                          }
+                          // Permissively copy fields that exist, letting main app validation handle correctness.
+                          if (record.value !== undefined) newRecord.value = Number(record.value);
+                          if (record.nav !== undefined) newRecord.nav = Number(record.nav);
+                          if (record.sharesChange !== undefined) newRecord.sharesChange = Number(record.sharesChange);
+                          if (record.amount !== undefined) newRecord.amount = Number(record.amount);
+                          if (record.realizedProfitChange !== undefined) newRecord.realizedProfitChange = Number(record.realizedProfitChange);
+                          
                           return newRecord;
                       });
                       newPosition.tradingRecords = validatedRecords;

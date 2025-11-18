@@ -262,15 +262,17 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {[...fund.userPosition.tradingRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(record => (
+                                            {[...fund.userPosition.tradingRecords]
+                                                .filter(record => record.nav !== undefined)
+                                                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(record => (
                                                 <tr key={record.date} className="border-t dark:border-gray-700">
                                                     <td className="p-2 font-mono">{record.date}</td>
                                                     <td className={`p-2 font-semibold ${record.type === 'buy' ? 'text-red-500' : 'text-blue-500'}`}>{record.type === 'buy' ? '买入' : '卖出'}</td>
-                                                    <td className="p-2 text-right font-mono">{record.nav.toFixed(4)}</td>
-                                                    <td className={`p-2 text-right font-mono ${record.sharesChange > 0 ? 'text-red-500' : 'text-green-600'}`}>
-                                                        {record.sharesChange > 0 ? '+' : ''}{record.sharesChange.toFixed(2)}
+                                                    <td className="p-2 text-right font-mono">{record.nav!.toFixed(4)}</td>
+                                                    <td className={`p-2 text-right font-mono ${record.sharesChange! > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                                                        {record.sharesChange! > 0 ? '+' : ''}{record.sharesChange!.toFixed(2)}
                                                     </td>
-                                                    <td className="p-2 text-right font-mono">{record.amount.toFixed(2)}</td>
+                                                    <td className="p-2 text-right font-mono">{record.amount!.toFixed(2)}</td>
                                                     <td className={`p-2 text-right font-mono ${record.realizedProfitChange && record.realizedProfitChange !== 0 ? getProfitColor(record.realizedProfitChange) : ''}`}>
                                                         {record.realizedProfitChange != null ? record.realizedProfitChange.toFixed(2) : '-'}
                                                     </td>

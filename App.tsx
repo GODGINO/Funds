@@ -1,8 +1,9 @@
 
 
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
-import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingTask, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData } from './types';
+import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData } from './types';
 import { fetchFundData, fetchFundDetails, fetchIndexData } from './services/fundService';
 import FundInputForm from './components/FundInputForm';
 import FundRow from './components/FundRow';
@@ -14,8 +15,8 @@ import PrivacyVeil from './components/PrivacyVeil';
 import TagAnalysisTable from './components/TagAnalysisTable';
 import BuyModal from './components/BuyModal';
 import SellModal from './components/SellModal';
-import TransactionManagerModal from './components/TransactionManagerModal';
 import PortfolioSnapshotTable from './components/PortfolioSnapshotTable';
+import TransactionManagerModal from './components/TransactionManagerModal';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042'];
 
@@ -34,8 +35,7 @@ const validatePositions = (data: any): data is UserPosition[] => {
     if (!Array.isArray(data)) return false;
     for (const item of data) {
         if (
-            typeof item !== 'object' ||
-            item === null ||
+            typeof item !== 'object' || item === null ||
             typeof item.code !== 'string' ||
             typeof item.shares !== 'number' ||
             typeof item.cost !== 'number' ||
@@ -44,25 +44,23 @@ const validatePositions = (data: any): data is UserPosition[] => {
         ) {
             return false;
         }
-    }
-    return true;
-};
-
-const validateTradingTasks = (data: any): data is TradingTask[] => {
-    if (!Array.isArray(data)) return false;
-    for (const item of data) {
-        if (
-            typeof item !== 'object' || item === null ||
-            typeof item.id !== 'string' ||
-            typeof item.code !== 'string' ||
-            typeof item.name !== 'string' ||
-            (item.type !== 'buy' && item.type !== 'sell') ||
-            typeof item.date !== 'string' ||
-            typeof item.value !== 'number' ||
-            (item.status !== 'pending' && item.status !== 'completed' && item.status !== 'failed') ||
-            typeof item.createdAt !== 'number'
-        ) {
-            return false;
+        if (item.tradingRecords !== undefined) {
+            if (!Array.isArray(item.tradingRecords)) return false;
+            for (const record of item.tradingRecords) {
+                if (
+                    typeof record !== 'object' || record === null ||
+                    typeof record.date !== 'string' ||
+                    (record.type !== 'buy' && record.type !== 'sell')
+                ) {
+                    return false;
+                }
+                // A record is either pending (has 'value') or confirmed (has 'nav', 'sharesChange', 'amount').
+                const isPending = typeof record.value === 'number';
+                const isConfirmed = typeof record.nav === 'number' && typeof record.sharesChange === 'number' && typeof record.amount === 'number';
+                if (!isPending && !isConfirmed) {
+                    return false; // It must be one or the other to be valid.
+                }
+            }
         }
     }
     return true;
@@ -82,7 +80,6 @@ const shouldAutoRefresh = (): boolean => {
 // FIX: Corrected component structure. A misplaced closing brace `}` was causing all subsequent hooks and the return statement to be outside the component scope, leading to multiple errors.
 const App: React.FC = () => {
   const [funds, setFunds] = useState<Fund[]>([]);
-  const [tradingTasks, setTradingTasks] = useState<TradingTask[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [isAppLoading, setIsAppLoading] = useState<boolean>(true);
@@ -276,20 +273,16 @@ const App: React.FC = () => {
         // Start fetching index data immediately.
         const indexPromise = fetchIndexData().then(setIndexData);
 
-        // Load saved trading tasks
-        const savedTasksJSON = localStorage.getItem('tradingTasks');
-        if (savedTasksJSON) {
-            const savedTasks = JSON.parse(savedTasksJSON);
-            if (validateTradingTasks(savedTasks)) {
-                setTradingTasks(savedTasks);
-            }
-        }
-
         const savedPositionsJSON = localStorage.getItem('userFundPortfolio');
         if (savedPositionsJSON) {
-          const savedPositions: UserPosition[] = JSON.parse(savedPositionsJSON);
-          // This will set isAppLoading to true and then false when done.
-          await loadFundsFromPositions(savedPositions); 
+          const savedPositions = JSON.parse(savedPositionsJSON);
+           if (validatePositions(savedPositions)) {
+                await loadFundsFromPositions(savedPositions);
+           } else {
+                console.warn("本地存储的持仓数据格式无效，将重新开始。");
+                localStorage.removeItem('userFundPortfolio');
+                setIsAppLoading(false);
+           }
         } else {
           setIsAppLoading(false);
         }
@@ -299,9 +292,8 @@ const App: React.FC = () => {
         await indexPromise;
 
       } catch (err) {
-        setError("Failed to load saved funds. They may be out of date.");
+        setError("加载已保存的基金失败，数据可能已过期。");
         localStorage.removeItem('userFundPortfolio');
-        localStorage.removeItem('tradingTasks');
         setIsAppLoading(false);
       }
     };
@@ -317,12 +309,6 @@ const App: React.FC = () => {
       localStorage.setItem('userFundPortfolio', JSON.stringify(positionsToSave));
     }
   }, [funds, isAppLoading]);
-
-  useEffect(() => {
-      if (!isAppLoading) {
-          localStorage.setItem('tradingTasks', JSON.stringify(tradingTasks));
-      }
-  }, [tradingTasks, isAppLoading]);
 
 
   const handleAddFund = useCallback(async (details: { code: string; shares: number; cost: number; tag: string }): Promise<boolean> => {
@@ -364,6 +350,7 @@ const App: React.FC = () => {
           cost,
           realizedProfit: 0,
           tag,
+          tradingRecords: [],
         }
       };
       setFunds(prevFunds => [...prevFunds, newFund]);
@@ -539,9 +526,11 @@ const App: React.FC = () => {
         const data = JSON.parse(jsonString);
 
         if (!validatePositions(data)) {
-            throw new Error("Invalid JSON format. Please ensure it's an array of fund positions with correct keys (code, shares, cost, realizedProfit).");
+            throw new Error("Invalid JSON format. Please ensure it's an array of fund positions with correct keys (code, shares, cost, realizedProfit, and valid tradingRecords).");
         }
         
+        // When importing, we replace everything, so clear existing funds.
+        setFunds([]); 
         await loadFundsFromPositions(data);
     } catch (error) {
         console.error("Import failed:", error);
@@ -627,13 +616,16 @@ const App: React.FC = () => {
             const sortedRecords = (position.tradingRecords || []).slice().sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
             for (const record of sortedRecords) {
+                // Only process confirmed records for portfolio calculation
+                if (record.nav === undefined) continue;
+
                 if (record.type === 'buy') {
-                    currentShares = parseFloat((currentShares + record.sharesChange).toFixed(2));
-                    currentTotalCost = parseFloat((currentTotalCost + record.amount).toFixed(2));
+                    currentShares = parseFloat((currentShares + record.sharesChange!).toFixed(2));
+                    currentTotalCost = parseFloat((currentTotalCost + record.amount!).toFixed(2));
                 } else { // sell
                     const costBasisBeforeSell = currentShares > 0 ? currentTotalCost / currentShares : 0;
-                    currentTotalCost = parseFloat((currentTotalCost - costBasisBeforeSell * Math.abs(record.sharesChange)).toFixed(2));
-                    currentShares = parseFloat((currentShares + record.sharesChange).toFixed(2));
+                    currentTotalCost = parseFloat((currentTotalCost - costBasisBeforeSell * Math.abs(record.sharesChange!)).toFixed(2));
+                    currentShares = parseFloat((currentShares + record.sharesChange!).toFixed(2));
                     currentRealizedProfit = parseFloat((currentRealizedProfit + (record.realizedProfitChange ?? 0)).toFixed(2));
                     if (currentShares < 1e-6) {
                         currentShares = 0;
@@ -1174,12 +1166,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handleCancelTask = useCallback((taskId: string) => {
-      setTradingTasks(prev => prev.filter(task => task.id !== taskId));
-      setBuyModalState(null);
-      setSellModalState(null);
-  }, []);
-
  const handleTradeSubmit = useCallback((
     fund: ProcessedFund,
     date: string,
@@ -1189,22 +1175,17 @@ const App: React.FC = () => {
     nav: number,
     isEditing: boolean
 ) => {
-    if (!isConfirmed) {
-        // Create a new task for unconfirmed trades
-        const newTask: TradingTask = {
-            id: `task_${Date.now()}`,
-            code: fund.code, name: fund.name, type, date, value,
-            status: 'pending', createdAt: Date.now(),
-        };
-        setTradingTasks(prev => [...prev, newTask]);
-    } else {
-        // Process confirmed trades immediately
-        const fundToUpdate = funds.find(f => f.code === fund.code);
-        if (!fundToUpdate || !fundToUpdate.userPosition) return;
+    const fundToUpdate = funds.find(f => f.code === fund.code);
+    if (!fundToUpdate || !fundToUpdate.userPosition) return;
 
-        const currentRecords = fundToUpdate.userPosition.tradingRecords || [];
-        let newRecord: TradingRecord;
-        
+    const currentRecords = fundToUpdate.userPosition.tradingRecords || [];
+    let newRecord: TradingRecord;
+
+    if (!isConfirmed) {
+        // Create a new PENDING record for unconfirmed trades
+        newRecord = { date, type, value };
+    } else {
+        // Process confirmed trades immediately, creating a CONFIRMED record
         if (type === 'buy') {
             newRecord = {
                 date: date, type: 'buy', nav: nav,
@@ -1212,7 +1193,6 @@ const App: React.FC = () => {
                 amount: value,
             };
         } else { // sell
-// FIX: Correctly access cost from userPosition property on the ProcessedFund object.
             const costBasisForSale = fund.userPosition?.cost ?? 0;
             newRecord = {
                 date: date, type: 'sell', nav: nav,
@@ -1221,24 +1201,28 @@ const App: React.FC = () => {
                 realizedProfitChange: parseFloat(((nav - costBasisForSale) * value).toFixed(2))
             };
         }
-        
-        let updatedRecords;
-        if (isEditing) {
-            updatedRecords = currentRecords.map(r => r.date === date ? newRecord : r);
-        } else {
-            updatedRecords = [...currentRecords, newRecord];
-        }
-
-        setFunds(prevFunds => prevFunds.map(f =>
-            f.code === fund.code ? {
-                ...f,
-                userPosition: {
-                    ...f.userPosition!,
-                    tradingRecords: updatedRecords
-                }
-            } : f
-        ));
     }
+    
+    let updatedRecords;
+    const existingRecordIndex = currentRecords.findIndex(r => r.date === date);
+
+    if (isEditing || existingRecordIndex !== -1) {
+        // If editing or a record for this date already exists, replace it.
+        updatedRecords = currentRecords.map(r => r.date === date ? newRecord : r);
+    } else {
+        // Otherwise, add the new record.
+        updatedRecords = [...currentRecords, newRecord];
+    }
+
+    setFunds(prevFunds => prevFunds.map(f =>
+        f.code === fund.code ? {
+            ...f,
+            userPosition: {
+                ...f.userPosition!,
+                tradingRecords: updatedRecords
+            }
+        } : f
+    ));
 
     setBuyModalState(null);
     setSellModalState(null);
@@ -1264,79 +1248,54 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
     setSellModalState(null);
 }, [funds]);
 
-const handleUpdateTask = useCallback((taskId: string, newValue: number) => {
-    setTradingTasks(prev => prev.map(t => t.id === taskId ? { ...t, value: newValue } : t));
-    setBuyModalState(null);
-    setSellModalState(null);
-}, []);
-
-const handleOpenTaskModal = useCallback((task: TradingTask) => {
-    const fund = processedFunds.find(f => f.code === task.code);
-    if (!fund) return;
-    
-    const navForModal = fund.realTimeData?.estimatedNAV || fund.latestNAV || 0;
-
-    const modalState: TradeModalState = {
-        fund,
-        date: task.date,
-        nav: navForModal,
-        isConfirmed: false, // Tasks are always unconfirmed
-        editingTask: task
-    };
-
-    if (task.type === 'buy') {
-        setBuyModalState(modalState);
-    } else {
-        setSellModalState(modalState);
-    }
-}, [processedFunds]);
-  
   const processPendingTasks = useCallback(() => {
-    const pendingTasks = tradingTasks.filter(t => t.status === 'pending');
-    if (pendingTasks.length === 0 || funds.length === 0) return;
+    if (funds.length === 0) return;
 
-    let tasksUpdated = false;
-    const updatedTasks = [...tradingTasks];
     let fundsToUpdate: { [code: string]: TradingRecord[] } = {};
 
-    pendingTasks.forEach(task => {
-        const fund = funds.find(f => f.code === task.code);
-        const processedFund = processedFunds.find(f => f.code === task.code);
-        if (!fund || !fund.userPosition || !processedFund) return;
+    funds.forEach(fund => {
+        if (!fund.userPosition?.tradingRecords) return;
 
-        const confirmedDataPoint = fund.data.find(d => d.date === task.date);
-        if (confirmedDataPoint) {
-            const confirmedNAV = confirmedDataPoint.unitNAV;
-            const currentRecords = fundsToUpdate[task.code] || fund.userPosition.tradingRecords || [];
-            let newRecord: TradingRecord;
+        const pendingRecords = fund.userPosition.tradingRecords.filter(r => r.nav === undefined);
+        if (pendingRecords.length === 0) return;
 
-            if (task.type === 'buy') {
-                const buyAmount = task.value;
-                newRecord = {
-                    date: task.date, type: 'buy', nav: confirmedNAV,
-                    sharesChange: parseFloat((buyAmount / confirmedNAV).toFixed(2)),
-                    amount: buyAmount,
-                };
-            } else { // sell
-// FIX: Correctly access cost from userPosition property on the ProcessedFund object.
-                const costBasisForSale = processedFund.userPosition?.cost ?? 0;
-                // FIX: Define sellShares from the task value for sell operations. This resolves the 'Cannot find name' error.
-                const sellShares = task.value;
-                newRecord = {
-                    date: task.date, type: 'sell', nav: confirmedNAV,
-                    sharesChange: -sellShares,
-                    amount: parseFloat((-(sellShares * confirmedNAV)).toFixed(2)),
-                    realizedProfitChange: parseFloat(((confirmedNAV - costBasisForSale) * sellShares).toFixed(2)),
-                };
+        let recordsChanged = false;
+        // FIX: Explicitly set the return type of the `map` callback function to `TradingRecord`. This ensures that the newly created record objects are correctly typed and prevents TypeScript from widening the `type` property to a generic `string`, which was causing a type incompatibility with `TradingRecord[]`.
+        const newRecords = fund.userPosition.tradingRecords.map((record): TradingRecord => {
+            // if it's not pending, return as is
+            if (record.nav !== undefined) return record;
+
+            const confirmedDataPoint = fund.data.find(d => d.date === record.date);
+            if (confirmedDataPoint) {
+                recordsChanged = true;
+                const confirmedNAV = confirmedDataPoint.unitNAV;
+                
+                if (record.type === 'buy') {
+                    const buyAmount = record.value!;
+                    return {
+                        date: record.date, type: 'buy', nav: confirmedNAV,
+                        sharesChange: parseFloat((buyAmount / confirmedNAV).toFixed(2)),
+                        amount: buyAmount,
+                    };
+                } else { // sell
+                    // Find processed fund to get cost basis at the time of the trade
+                    const processedFund = processedFunds.find(f => f.code === fund.code);
+                    const costBasisForSale = processedFund?.userPosition?.cost ?? 0;
+                    const sellShares = record.value!;
+                    return {
+                        date: record.date, type: 'sell', nav: confirmedNAV,
+                        sharesChange: -sellShares,
+                        amount: parseFloat((-(sellShares * confirmedNAV)).toFixed(2)),
+                        realizedProfitChange: parseFloat(((confirmedNAV - costBasisForSale) * sellShares).toFixed(2)),
+                    };
+                }
             }
-            
-            fundsToUpdate[task.code] = [...currentRecords, newRecord];
+            // if not confirmed yet, return the pending record
+            return record;
+        });
 
-            const taskIndex = updatedTasks.findIndex(t => t.id === task.id);
-            if (taskIndex !== -1) {
-                updatedTasks[taskIndex] = { ...task, status: 'completed' };
-                tasksUpdated = true;
-            }
+        if (recordsChanged) {
+            fundsToUpdate[fund.code] = newRecords;
         }
     });
 
@@ -1354,11 +1313,7 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
             return f;
         }));
     }
-
-    if (tasksUpdated) {
-        setTradingTasks(updatedTasks);
-    }
-}, [tradingTasks, funds, processedFunds]);
+}, [funds, processedFunds]);
 
   useEffect(() => {
     if (!isAppLoading && funds.length > 0) {
@@ -1378,7 +1333,10 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
     const allTransactionDates = new Set<string>();
     funds.forEach(fund => {
         fund.userPosition?.tradingRecords?.forEach(record => {
-            allTransactionDates.add(record.date);
+             // Only confirmed records create snapshots
+            if (record.nav !== undefined) {
+                allTransactionDates.add(record.date);
+            }
         });
     });
 
@@ -1408,33 +1366,33 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
                 let realizedProfitForFund = position.realizedProfit;
 
                 const relevantRecords = (position.tradingRecords || [])
-                    .filter(r => new Date(r.date).getTime() <= new Date(snapshotDate).getTime())
+                    .filter(r => r.nav !== undefined && new Date(r.date).getTime() <= new Date(snapshotDate).getTime())
                     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
                 
                 for (const record of relevantRecords) {
                     if (record.date === snapshotDate) {
-                        netAmountChangeOnDate += record.amount;
+                        netAmountChangeOnDate += record.amount!;
                         
                         const latestNAV = latestNavMap.get(fund.code) ?? 0;
                         if (record.type === 'buy') {
-                            const floatingProfit = latestNAV > 0 ? (latestNAV - record.nav) * record.sharesChange : 0;
+                            const floatingProfit = latestNAV > 0 ? (latestNAV - record.nav!) * record.sharesChange! : 0;
                             totalBuyFloatingProfitOnDate += floatingProfit;
-                            totalBuyAmountOnDate += record.amount;
+                            totalBuyAmountOnDate += record.amount!;
                         } else { // sell
-                            const opportunityProfit = latestNAV > 0 ? (record.nav - latestNAV) * Math.abs(record.sharesChange) : 0;
+                            const opportunityProfit = latestNAV > 0 ? (record.nav! - latestNAV) * Math.abs(record.sharesChange!) : 0;
                             totalSellOpportunityProfitOnDate += opportunityProfit;
                             totalSellRealizedProfitOnDate += record.realizedProfitChange ?? 0;
-                            totalSellAmountOnDate += Math.abs(record.amount);
+                            totalSellAmountOnDate += Math.abs(record.amount!);
                         }
                     }
 
                     if (record.type === 'buy') {
-                        sharesForFund += record.sharesChange;
-                        totalCostForFund += record.amount;
+                        sharesForFund += record.sharesChange!;
+                        totalCostForFund += record.amount!;
                     } else { // sell
                         const costBasisPerShareBeforeSell = sharesForFund > 0 ? totalCostForFund / sharesForFund : 0;
-                        totalCostForFund -= costBasisPerShareBeforeSell * Math.abs(record.sharesChange);
-                        sharesForFund += record.sharesChange; // sharesChange is negative for sell
+                        totalCostForFund -= costBasisPerShareBeforeSell * Math.abs(record.sharesChange!);
+                        sharesForFund += record.sharesChange!; // sharesChange is negative for sell
                         realizedProfitForFund += (record.realizedProfitChange ?? 0);
                         if (sharesForFund < 1e-6) {
                             sharesForFund = 0;
@@ -1600,6 +1558,20 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
 
     return { summaryProfitCaused, summaryOperationEffect };
   }, [portfolioSnapshots]);
+  
+  const pendingTaskCount = useMemo(() => {
+    return funds.reduce((count, fund) => {
+        const pendingRecords = fund.userPosition?.tradingRecords?.filter(r => r.nav === undefined).length ?? 0;
+        return count + pendingRecords;
+    }, 0);
+  }, [funds]);
+  
+  const handleEditPendingRecord = useCallback((fund: ProcessedFund, record: TradingRecord) => {
+    setIsTransactionManagerOpen(false); // Close manager modal first
+    const navForModal = fund.realTimeData?.estimatedNAV || fund.latestNAV || 0;
+    handleOpenTradeModal(fund, record.date, record.type, navForModal, false, record);
+  }, [handleOpenTradeModal]);
+
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-800 dark:bg-gray-950 dark:text-gray-200 font-sans p-4">
@@ -1683,8 +1655,6 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
                       onShowDetails={handleShowFundDetails}
                       onTagDoubleClick={handleTagDoubleClick}
                       onTrade={handleOpenTradeModal}
-                      onOpenTaskModal={handleOpenTaskModal}
-                      tradingTasks={tradingTasks}
                     />
                   ))}
                 </tbody>
@@ -1705,6 +1675,7 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
           isLoading={isLoading || isAppLoading || isRefreshing}
           onOpenImportModal={() => setIsImportModalOpen(true)}
           onOpenTransactionManager={() => setIsTransactionManagerOpen(true)}
+          pendingTaskCount={pendingTaskCount}
           isPrivacyModeEnabled={isPrivacyModeEnabled}
           onPrivacyModeChange={setIsPrivacyModeEnabled}
         />
@@ -1728,14 +1699,20 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
         currentData={currentPortfolioJSON}
       />
       
+      <TransactionManagerModal
+        isOpen={isTransactionManagerOpen}
+        onClose={() => setIsTransactionManagerOpen(false)}
+        funds={processedFunds}
+        onEdit={handleEditPendingRecord}
+        onDelete={handleTradeDelete}
+      />
+
       {buyModalState && (
           <BuyModal 
               isOpen={!!buyModalState}
               onClose={() => setBuyModalState(null)}
               onSubmit={handleTradeSubmit}
               onDelete={handleTradeDelete}
-              onUpdateTask={handleUpdateTask}
-              onCancelTask={handleCancelTask}
               tradeState={buyModalState}
           />
       )}
@@ -1746,18 +1723,9 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
               onClose={() => setSellModalState(null)}
               onSubmit={handleTradeSubmit}
               onDelete={handleTradeDelete}
-              onUpdateTask={handleUpdateTask}
-              onCancelTask={handleCancelTask}
               tradeState={sellModalState}
           />
       )}
-
-      <TransactionManagerModal 
-          isOpen={isTransactionManagerOpen}
-          onClose={() => setIsTransactionManagerOpen(false)}
-          tasks={tradingTasks}
-          onCancelTask={handleCancelTask}
-      />
     </div>
   );
 };

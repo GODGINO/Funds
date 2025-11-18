@@ -62,12 +62,12 @@ const CustomTooltip: React.FC<any> = ({ active, payload }) => {
                            </div>
                            <div className="flex justify-between items-baseline gap-4">
                                <span className="font-medium text-gray-700 dark:text-gray-300">成交净值:</span>
-                               <span className="font-mono font-semibold">{tradeRecord.nav.toFixed(4)}</span>
+                               <span className="font-mono font-semibold">{tradeRecord.nav!.toFixed(4)}</span>
                            </div>
                            <div className="flex justify-between items-baseline gap-4">
                                <span className="font-medium text-gray-700 dark:text-gray-300">{tradeRecord.type === 'buy' ? '金额:' : '份额:'}</span>
                                <span className="font-mono font-semibold">
-                                   {tradeRecord.type === 'buy' ? `${tradeRecord.amount.toFixed(2)} 元` : `${Math.abs(tradeRecord.sharesChange).toFixed(2)} 份`}
+                                   {tradeRecord.type === 'buy' ? `${tradeRecord.amount!.toFixed(2)} 元` : `${Math.abs(tradeRecord.sharesChange!).toFixed(2)} 份`}
                                </span>
                            </div>
                         </>
@@ -109,9 +109,13 @@ const FundChart: React.FC<FundChartProps> = ({
   tradingRecords,
 }) => {
     
+  const confirmedTradingRecords = useMemo(() => {
+    return tradingRecords?.filter(r => r.nav !== undefined);
+  }, [tradingRecords]);
+
   const chartDataForRender = useMemo(() => {
     const zigzagMap = new Map(zigzagPoints.map(p => [p.date, p.unitNAV]));
-    const tradeMap = new Map(tradingRecords?.map(r => [r.date, r]));
+    const tradeMap = new Map(confirmedTradingRecords?.map(r => [r.date, r]));
 
     return baseChartData.map((p, index, arr) => {
         const zigzagNAV = zigzagMap.get(p.date);
@@ -129,7 +133,7 @@ const FundChart: React.FC<FundChartProps> = ({
         
         return { ...p, zigzagNAV, dailyProfit, tradeRecord };
     });
-  }, [baseChartData, zigzagPoints, shares, tradingRecords]);
+  }, [baseChartData, zigzagPoints, shares, confirmedTradingRecords]);
 
   const yAxisDomain = useMemo(() => {
     const navValues = baseChartData.map(p => p.unitNAV).filter((v): v is number => typeof v === 'number' && !isNaN(v));
@@ -234,11 +238,11 @@ const FundChart: React.FC<FundChartProps> = ({
             dot={false}
             isAnimationActive={false}
           />
-          {tradingRecords?.map(record => (
+          {confirmedTradingRecords?.map(record => (
             <ReferenceDot 
               key={record.date} 
               x={record.date} 
-              y={record.nav} 
+              y={record.nav!} 
               r={4}
               fill={record.type === 'buy' ? '#ef4444' : '#3b82f6'} // red-500 for buy, blue-500 for sell
               stroke="#ffffff"
