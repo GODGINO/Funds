@@ -1552,7 +1552,6 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
         profitRate: baselineProfitRate,
         dailyProfit: baselineDailyProfit,
         dailyProfitRate: baselineDailyProfitRate,
-        netAmountChange: baselineTotalCostBasis,
     };
 
     const allSnapshots = [...historicalSnapshots, baselineSnapshot];
@@ -1561,11 +1560,11 @@ const handleOpenTaskModal = useCallback((task: TradingTask) => {
       if (index < allSnapshots.length - 1) {
           const previousSnapshot = allSnapshots[index + 1];
           const marketValueChange = snapshot.currentMarketValue - previousSnapshot.currentMarketValue;
-          const operationProfit = marketValueChange - snapshot.netAmountChange;
-          const profitPerHundred = snapshot.netAmountChange !== 0 ? (operationProfit / Math.abs(snapshot.netAmountChange)) * 100 : undefined;
+          const operationProfit = marketValueChange - (snapshot.netAmountChange ?? 0);
+          const profitPerHundred = (snapshot.netAmountChange ?? 0) !== 0 ? (operationProfit / Math.abs(snapshot.netAmountChange ?? 0)) * 100 : undefined;
           
           const profitCaused = snapshot.dailyProfit - previousSnapshot.dailyProfit;
-          const profitCausedPerHundred = snapshot.netAmountChange !== 0 ? (profitCaused / Math.abs(snapshot.netAmountChange)) * 100 : undefined;
+          const profitCausedPerHundred = (snapshot.netAmountChange ?? 0) !== 0 ? (profitCaused / Math.abs(snapshot.netAmountChange ?? 0)) * 100 : undefined;
           
           const operationEffect = Math.abs(previousSnapshot.dailyProfit) > 1e-6
               ? (profitCaused / Math.abs(previousSnapshot.dailyProfit)) * 100 

@@ -128,7 +128,7 @@ export interface PortfolioSnapshot {
   profitRate: number;
   dailyProfit: number;
   dailyProfitRate: number;
-  netAmountChange: number;
+  netAmountChange?: number;
   marketValueChange?: number;
   operationProfit?: number;
   profitPerHundred?: number;

@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { TagAnalysisData, TagSortOrder } from '../types';
 
 interface TagAnalysisTableProps {
@@ -29,6 +29,51 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
   if (data.length === 0) {
     return null;
   }
+
+  const maxAbsValues = useMemo(() => {
+    if (!data || data.length === 0) {
+        return {};
+    }
+
+    const numericKeys: (keyof TagAnalysisData)[] = [
+        'totalCostBasis', 'totalMarketValue', 'cumulativeMarketValue', 
+        'totalHoldingProfit', 'grandTotalProfit', 'holdingEfficiency', 
+        'holdingProfitRate', 'totalProfitRate', 'totalDailyProfit', 
+        'dailyEfficiency', 'dailyProfitRate', 'totalRecentProfit', 
+        'recentEfficiency', 'recentProfitRate'
+    ];
+    
+    const maxVals: Partial<Record<keyof TagAnalysisData, number>> = {};
+
+    numericKeys.forEach(key => {
+        const absValues = data
+            .map(s => s[key] as number | undefined)
+            .filter((v): v is number => typeof v === 'number' && isFinite(v))
+            .map(v => Math.abs(v));
+
+        if (absValues.length > 0) {
+            maxVals[key] = Math.max(...absValues);
+        }
+    });
+
+    return maxVals;
+  }, [data]);
+
+  const getBarStyle = (value: number | undefined | null, maxAbsValue: number | undefined, type: 'normal' | 'efficiency' = 'normal') => {
+    if (value == null || maxAbsValue == null || maxAbsValue === 0) return {};
+    const widthPercent = Math.min(100, (Math.abs(value) / maxAbsValue) * 100);
+    
+    let color: string;
+    if (type === 'efficiency') {
+      color = value >= 1 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)';
+    } else {
+      color = value >= 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)';
+    }
+    
+    const background = `linear-gradient(to left, ${color} ${widthPercent}%, transparent ${widthPercent}%)`;
+    
+    return { background };
+  };
 
   const getSortIndicator = (key: keyof TagAnalysisData) => {
     if (sortKey !== key) return null;
@@ -149,61 +194,83 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                     {item.tag}
                     <span className="text-gray-500 dark:text-gray-400 ml-1">{item.fundCount}</span>
                   </td>
-                  <td className="p-0 border-x dark:border-gray-700 font-mono text-right">
-                    {formatIntegerWithCommas(item.totalCostBasis)}
-                    {totals.totalCostBasis !== 0 && (
-                      <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalCostBasis / totals.totalCostBasis) * 100).toFixed(0)}%</span>
-                    )}
+                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right" style={getBarStyle(item.totalCostBasis, maxAbsValues.totalCostBasis)}>
+                    <div className="relative">
+                      {formatIntegerWithCommas(item.totalCostBasis)}
+                      {totals.totalCostBasis !== 0 && (
+                        <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalCostBasis / totals.totalCostBasis) * 100).toFixed(0)}%</span>
+                      )}
+                    </div>
                   </td>
-                  <td className="p-0 border-x dark:border-gray-700 font-mono text-right">
-                    {formatIntegerWithCommas(item.totalMarketValue)}
-                    {totals.totalMarketValue !== 0 && (
-                      <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalMarketValue / totals.totalMarketValue) * 100).toFixed(0)}%</span>
-                    )}
+                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right" style={getBarStyle(item.totalMarketValue, maxAbsValues.totalMarketValue)}>
+                    <div className="relative">
+                      {formatIntegerWithCommas(item.totalMarketValue)}
+                      {totals.totalMarketValue !== 0 && (
+                        <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalMarketValue / totals.totalMarketValue) * 100).toFixed(0)}%</span>
+                      )}
+                    </div>
                   </td>
-                  <td className="p-0 border-x dark:border-gray-700 font-mono text-right">
-                    {formatIntegerWithCommas(item.cumulativeMarketValue)}
-                    {totals.cumulativeMarketValue !== 0 && (
-                      <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.cumulativeMarketValue / totals.cumulativeMarketValue) * 100).toFixed(0)}%</span>
-                    )}
+                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right" style={getBarStyle(item.cumulativeMarketValue, maxAbsValues.cumulativeMarketValue)}>
+                    <div className="relative">
+                      {formatIntegerWithCommas(item.cumulativeMarketValue)}
+                      {totals.cumulativeMarketValue !== 0 && (
+                        <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.cumulativeMarketValue / totals.cumulativeMarketValue) * 100).toFixed(0)}%</span>
+                      )}
+                    </div>
                   </td>
-                  <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalHoldingProfit)}`}>
-                    <span>{formatIntegerWithCommas(item.totalHoldingProfit)}</span>
-                    {totals.totalHoldingProfit !== 0 && (
-                      <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalHoldingProfit / Math.abs(totals.totalHoldingProfit)) * 100).toFixed(0)}%</span>
-                    )}
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalHoldingProfit)}`} style={getBarStyle(item.totalHoldingProfit, maxAbsValues.totalHoldingProfit)}>
+                    <div className="relative">
+                      <span>{formatIntegerWithCommas(item.totalHoldingProfit)}</span>
+                      {totals.totalHoldingProfit !== 0 && (
+                        <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalHoldingProfit / Math.abs(totals.totalHoldingProfit)) * 100).toFixed(0)}%</span>
+                      )}
+                    </div>
                   </td>
-                  <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.grandTotalProfit)}`}>
-                    <span>{formatIntegerWithCommas(item.grandTotalProfit)}</span>
-                    {totals.grandTotalProfit !== 0 && (
-                      <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.grandTotalProfit / Math.abs(totals.grandTotalProfit)) * 100).toFixed(0)}%</span>
-                    )}
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.grandTotalProfit)}`} style={getBarStyle(item.grandTotalProfit, maxAbsValues.grandTotalProfit)}>
+                    <div className="relative">
+                      <span>{formatIntegerWithCommas(item.grandTotalProfit)}</span>
+                      {totals.grandTotalProfit !== 0 && (
+                        <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.grandTotalProfit / Math.abs(totals.grandTotalProfit)) * 100).toFixed(0)}%</span>
+                      )}
+                    </div>
                   </td>
-                  <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getEfficiencyColor(item.holdingEfficiency)}`}>
-                      {formatEfficiency(item.holdingEfficiency)}
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getEfficiencyColor(item.holdingEfficiency)}`} style={getBarStyle(item.holdingEfficiency, maxAbsValues.holdingEfficiency, 'efficiency')}>
+                      <div className="relative">{formatEfficiency(item.holdingEfficiency)}</div>
                   </td>
-                  <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.holdingProfitRate)}`}>{formatPercentage(item.holdingProfitRate)}</td>
-                  <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalProfitRate)}`}>{formatPercentage(item.totalProfitRate)}</td>
-                  <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalDailyProfit)}`}>
-                    <span>{formatIntegerWithCommas(item.totalDailyProfit)}</span>
-                    {totals.totalDailyProfit !== 0 && (
-                      <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalDailyProfit / Math.abs(totals.totalDailyProfit)) * 100).toFixed(0)}%</span>
-                    )}
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.holdingProfitRate)}`} style={getBarStyle(item.holdingProfitRate, maxAbsValues.holdingProfitRate)}>
+                    <div className="relative">{formatPercentage(item.holdingProfitRate)}</div>
                   </td>
-                  <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getEfficiencyColor(item.dailyEfficiency)}`}>
-                      {formatEfficiency(item.dailyEfficiency)}
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalProfitRate)}`} style={getBarStyle(item.totalProfitRate, maxAbsValues.totalProfitRate)}>
+                    <div className="relative">{formatPercentage(item.totalProfitRate)}</div>
                   </td>
-                  <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.dailyProfitRate)}`}>{formatPercentage(item.dailyProfitRate)}</td>
-                  <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalRecentProfit)}`}>
-                    <span>{formatIntegerWithCommas(item.totalRecentProfit)}</span>
-                    {totals.totalRecentProfit !== 0 && (
-                      <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalRecentProfit / Math.abs(totals.totalRecentProfit)) * 100).toFixed(0)}%</span>
-                    )}
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalDailyProfit)}`} style={getBarStyle(item.totalDailyProfit, maxAbsValues.totalDailyProfit)}>
+                    <div className="relative">
+                      <span>{formatIntegerWithCommas(item.totalDailyProfit)}</span>
+                      {totals.totalDailyProfit !== 0 && (
+                        <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalDailyProfit / Math.abs(totals.totalDailyProfit)) * 100).toFixed(0)}%</span>
+                      )}
+                    </div>
                   </td>
-                  <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getEfficiencyColor(item.recentEfficiency)}`}>
-                      {formatEfficiency(item.recentEfficiency)}
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getEfficiencyColor(item.dailyEfficiency)}`} style={getBarStyle(item.dailyEfficiency, maxAbsValues.dailyEfficiency, 'efficiency')}>
+                      <div className="relative">{formatEfficiency(item.dailyEfficiency)}</div>
                   </td>
-                  <td className={`p-0 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.recentProfitRate)}`}>{formatPercentage(item.recentProfitRate)}</td>
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.dailyProfitRate)}`} style={getBarStyle(item.dailyProfitRate, maxAbsValues.dailyProfitRate)}>
+                    <div className="relative">{formatPercentage(item.dailyProfitRate)}</div>
+                  </td>
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalRecentProfit)}`} style={getBarStyle(item.totalRecentProfit, maxAbsValues.totalRecentProfit)}>
+                    <div className="relative">
+                      <span>{formatIntegerWithCommas(item.totalRecentProfit)}</span>
+                      {totals.totalRecentProfit !== 0 && (
+                        <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.totalRecentProfit / Math.abs(totals.totalRecentProfit)) * 100).toFixed(0)}%</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getEfficiencyColor(item.recentEfficiency)}`} style={getBarStyle(item.recentEfficiency, maxAbsValues.recentEfficiency, 'efficiency')}>
+                      <div className="relative">{formatEfficiency(item.recentEfficiency)}</div>
+                  </td>
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.recentProfitRate)}`} style={getBarStyle(item.recentProfitRate, maxAbsValues.recentProfitRate)}>
+                    <div className="relative">{formatPercentage(item.recentProfitRate)}</div>
+                  </td>
                 </tr>
               )
             })}
