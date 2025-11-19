@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UserPosition, TradingRecord, Fund } from '../types';
 
@@ -11,10 +12,6 @@ interface ImportModalProps {
 
 const GIST_ID = '32c1c67e4610e63f15aa68041282cad7';
 const GIST_FILENAME = 'fund_data.json';
-
-// TODO: 请在此处填入您的 GitHub Personal Access Token
-// 获取方式: GitHub Settings -> Developer settings -> Personal access tokens (classic) -> Generate new token -> 勾选 gist 权限
-const GITHUB_TOKEN = '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'; 
 
 const PullIcon = () => (
   <svg width="100%" height="100%" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-8 h-8">
@@ -42,6 +39,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
   const [shouldSaveAfterUpload, setShouldSaveAfterUpload] = useState(false);
   const [isCopiedNewFormat, setIsCopiedNewFormat] = useState(false);
   const [gistLoading, setGistLoading] = useState<'pull' | 'push' | null>(null);
+  const [githubToken, setGithubToken] = useState(localStorage.getItem('GITHUB_TOKEN') || '');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -55,6 +53,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       setShouldSaveAfterUpload(false);
       setIsCopiedNewFormat(false);
       setGistLoading(null);
+      setGithubToken(localStorage.getItem('GITHUB_TOKEN') || '');
       
       // Auto-select text content after a short delay
       setTimeout(() => {
@@ -100,6 +99,12 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
     };
   }, [isOpen, onClose]);
 
+  const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newToken = e.target.value;
+    setGithubToken(newToken);
+    localStorage.setItem('GITHUB_TOKEN', newToken);
+  };
+
   const handleGistPull = async () => {
       setGistLoading('pull');
       setError(null);
@@ -107,8 +112,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
           // For pulling public gists, token is optional but helps with rate limits.
           // If the gist is private, token is required.
           const headers: HeadersInit = {};
-          if (GITHUB_TOKEN) {
-              headers['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
+          if (githubToken) {
+              headers['Authorization'] = `Bearer ${githubToken}`;
           }
 
           const response = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers });
@@ -134,8 +139,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
   };
 
   const handleGistPush = async () => {
-      if (!GITHUB_TOKEN) {
-          setError('请先在代码中配置 GITHUB_TOKEN。');
+      if (!githubToken) {
+          setError('请先输入 GitHub Token 以进行同步。');
           return;
       }
       if (!jsonInput) {
@@ -149,7 +154,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
           const response = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
               method: 'PATCH',
               headers: {
-                  'Authorization': `Bearer ${GITHUB_TOKEN}`,
+                  'Authorization': `Bearer ${githubToken}`,
                   'Content-Type': 'application/json',
               },
               body: JSON.stringify({
@@ -337,7 +342,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
         {/* Modal Body */}
         <div className="p-6">
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            您可以备份当前数据，或粘贴 JSON 恢复数据。使用左右按钮可从 GitHub Gist 同步。
+            您可以备份当前数据，或粘贴 JSON 恢复数据。
           </p>
           <input
             type="file"
@@ -347,16 +352,29 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
             className="hidden"
           />
           
+          {/* GitHub Token Input */}
+          <div className="mb-4">
+            <input
+                id="github-token"
+                type="password"
+                value={githubToken}
+                onChange={handleTokenChange}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+            />
+          </div>
+
           {/* Gist Controls & Textarea Container */}
           <div className="flex gap-2 mb-2">
-              <button 
-                onClick={handleGistPull}
-                disabled={gistLoading !== null}
-                className="flex-shrink-0 w-12 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                title="从 GitHub Gist 拉取数据 (Pull)"
-              >
-                  {gistLoading === 'pull' ? <LoadingSpinner /> : <PullIcon />}
-              </button>
+              {githubToken && (
+                <button 
+                    onClick={handleGistPull}
+                    disabled={gistLoading !== null}
+                    className="flex-shrink-0 w-12 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                    title="拉取数据 (Pull)"
+                >
+                    {gistLoading === 'pull' ? <LoadingSpinner /> : <PullIcon />}
+                </button>
+              )}
 
               <textarea
                 ref={textareaRef}
@@ -368,14 +386,16 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
                 disabled={isImporting}
               />
 
-              <button 
-                onClick={handleGistPush}
-                disabled={gistLoading !== null}
-                className="flex-shrink-0 w-12 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                title="同步数据到 GitHub Gist (Push)"
-              >
-                  {gistLoading === 'push' ? <LoadingSpinner /> : <SyncIcon />}
-              </button>
+              {githubToken && (
+                <button 
+                    onClick={handleGistPush}
+                    disabled={gistLoading !== null}
+                    className="flex-shrink-0 w-12 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                    title="同步数据"
+                >
+                    {gistLoading === 'push' ? <LoadingSpinner /> : <SyncIcon />}
+                </button>
+              )}
           </div>
           
           {/* Error Message */}
