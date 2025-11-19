@@ -117,6 +117,19 @@ const App: React.FC = () => {
     }
   }, [isAppLoading, getCurrentTimeString]);
 
+  // Effect to capture Token from URL and clean it up
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromUrl = urlParams.get('token');
+    if (tokenFromUrl) {
+      localStorage.setItem('GITHUB_TOKEN', tokenFromUrl);
+      urlParams.delete('token');
+      const newSearch = urlParams.toString();
+      const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
+      window.history.replaceState({}, document.title, newUrl);
+    }
+  }, []);
+
   // Effect for Privacy Mode
   useEffect(() => {
     if (!isPrivacyModeEnabled) {

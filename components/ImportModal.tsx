@@ -52,13 +52,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       setShouldSaveAfterUpload(false);
       setIsCopiedNewFormat(false);
       setGistLoading(null);
-      
-      // Check URL for token and save if present
-      const urlParams = new URLSearchParams(window.location.search);
-      const tokenFromUrl = urlParams.get('token');
-      if (tokenFromUrl) {
-        localStorage.setItem('GITHUB_TOKEN', tokenFromUrl);
-      }
 
       setGithubToken(localStorage.getItem('GITHUB_TOKEN') || '');
       
@@ -342,9 +335,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
 
         {/* Modal Body */}
         <div className="p-6">
-          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            您可以备份当前数据，或粘贴 JSON 恢复数据。
-          </p>
           <input
             type="file"
             ref={fileInputRef}
@@ -354,7 +344,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
           />
           
           {/* Gist Controls & Textarea Container */}
-          <div className="flex gap-2 mb-2">
+          <div className="flex gap-4 mb-2">
               {githubToken && (
                 <button 
                     onClick={handleGistPull}
@@ -393,8 +383,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
         </div>
 
         {/* Modal Footer */}
-        <div className="flex justify-between items-center px-6 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-b-lg flex-wrap gap-2">
-           <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex justify-between items-center px-6 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-b-lg flex-wrap gap-4">
+           <div className="flex items-center gap-4 flex-wrap">
             <button
                 onClick={triggerFileSelect}
                 type="button"
@@ -421,7 +411,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
                 {isCopiedNewFormat ? '复制成功' : '复制json'}
             </button>
            </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-4">
             <button
                 onClick={handleSave}
                 type="button"
