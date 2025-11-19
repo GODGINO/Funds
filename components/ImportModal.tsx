@@ -1,20 +1,20 @@
-
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { UserPosition, TradingRecord } from '../types';
+import { UserPosition, TradingRecord, Fund } from '../types';
 
 interface ImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImport: (jsonString: string) => Promise<void>;
   currentData: string;
+  funds: Fund[];
 }
 
-const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, currentData }) => {
+const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, currentData, funds }) => {
   const [jsonInput, setJsonInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [shouldSaveAfterUpload, setShouldSaveAfterUpload] = useState(false);
+  const [isCopiedNewFormat, setIsCopiedNewFormat] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -25,6 +25,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       setError(null);
       setIsImporting(false);
       setShouldSaveAfterUpload(false);
+      setIsCopiedNewFormat(false);
       // Auto-select text content after a short delay
       setTimeout(() => {
         textareaRef.current?.select();
@@ -180,6 +181,22 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
     URL.revokeObjectURL(url);
   };
 
+  const handleCopyNewFormat = () => {
+    if (!funds || funds.length === 0) return;
+
+    const newFormatData = funds.map((fund, index) => ({
+      name: fund.name,
+      code: fund.code,
+      cyfe: fund.userPosition?.shares ?? 0,
+      cbj: fund.userPosition?.cost ?? 0,
+      originSort: index
+    }));
+
+    navigator.clipboard.writeText(JSON.stringify(newFormatData));
+    setIsCopiedNewFormat(true);
+    setTimeout(() => setIsCopiedNewFormat(false), 2000);
+  };
+
 
   if (!isOpen) {
     return null;
@@ -232,12 +249,12 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
         </div>
 
         {/* Modal Footer */}
-        <div className="flex justify-between items-center px-6 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-b-lg">
-           <div className="flex items-center space-x-2">
+        <div className="flex justify-between items-center px-6 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-b-lg flex-wrap gap-2">
+           <div className="flex items-center gap-2 flex-wrap">
             <button
                 onClick={triggerFileSelect}
                 type="button"
-                className="px-4 py-2 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                className="px-3 py-2 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                 disabled={isImporting}
             >
                 上传文件
@@ -245,21 +262,22 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
             <button
                 onClick={handleExport}
                 type="button"
-                className="px-4 py-2 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                className="px-3 py-2 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                 disabled={isImporting || !jsonInput}
             >
                 导出文件
             </button>
+            <button
+                onClick={handleCopyNewFormat}
+                type="button"
+                className="px-3 py-2 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                disabled={isImporting || !funds.length}
+                title="复制外部系统兼容的 JSON 格式 (包含名称、份额、成本)"
+            >
+                {isCopiedNewFormat ? '复制成功' : '复制json'}
+            </button>
            </div>
           <div className="flex items-center space-x-2">
-            <button
-                onClick={onClose}
-                type="button"
-                className="px-4 py-2 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                disabled={isImporting}
-            >
-                取消
-            </button>
             <button
                 onClick={handleSave}
                 type="button"

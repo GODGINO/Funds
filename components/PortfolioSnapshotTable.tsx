@@ -251,7 +251,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
       </div> 
     },
     { key: 'totalSellRealizedProfit', title: '落袋', render: data => <div className={getProfitColor(data.totalSellRealizedProfit)}>{formatInteger(data.totalSellRealizedProfit)}</div> },
-    { key: 'netAmountChange', title: 'Δ金额', render: data => <div className={getProfitColor(data.netAmountChange)}>{formatInteger(data.netAmountChange)}</div> },
+    { key: 'netAmountChange', title: '▲金额', render: data => <div className={getProfitColor(data.netAmountChange)}>{formatInteger(data.netAmountChange)}</div> },
     { key: 'marketValueChange', title: '总值变动', render: data => <div className={getProfitColor(data.marketValueChange)}>{formatInteger(data.marketValueChange)}</div> },
     { key: 'operationProfit', title: '操作收益', render: data => <div className={getProfitColor(data.operationProfit)}>{formatInteger(data.operationProfit)}</div> },
     { key: 'profitPerHundred', title: '每百收益', render: data => <div className={getProfitColor(data.profitPerHundred)}>{data.profitPerHundred.toFixed(2)}</div> },

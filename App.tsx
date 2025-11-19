@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
 import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData } from './types';
@@ -1697,6 +1694,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
         onClose={() => setIsImportModalOpen(false)}
         onImport={handleImportData}
         currentData={currentPortfolioJSON}
+        funds={funds}
       />
       
       <TransactionManagerModal
