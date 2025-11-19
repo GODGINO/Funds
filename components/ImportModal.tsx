@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UserPosition, TradingRecord, Fund } from '../types';
 
@@ -53,6 +52,14 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       setShouldSaveAfterUpload(false);
       setIsCopiedNewFormat(false);
       setGistLoading(null);
+      
+      // Check URL for token and save if present
+      const urlParams = new URLSearchParams(window.location.search);
+      const tokenFromUrl = urlParams.get('token');
+      if (tokenFromUrl) {
+        localStorage.setItem('GITHUB_TOKEN', tokenFromUrl);
+      }
+
       setGithubToken(localStorage.getItem('GITHUB_TOKEN') || '');
       
       // Auto-select text content after a short delay
@@ -98,12 +105,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, onClose]);
-
-  const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newToken = e.target.value;
-    setGithubToken(newToken);
-    localStorage.setItem('GITHUB_TOKEN', newToken);
-  };
 
   const handleGistPull = async () => {
       setGistLoading('pull');
@@ -352,17 +353,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
             className="hidden"
           />
           
-          {/* GitHub Token Input */}
-          <div className="mb-4">
-            <input
-                id="github-token"
-                type="password"
-                value={githubToken}
-                onChange={handleTokenChange}
-                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            />
-          </div>
-
           {/* Gist Controls & Textarea Container */}
           <div className="flex gap-2 mb-2">
               {githubToken && (
