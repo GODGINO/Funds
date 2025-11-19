@@ -14,7 +14,7 @@ const GIST_FILENAME = 'fund_data.json';
 
 // TODO: 请在此处填入您的 GitHub Personal Access Token
 // 获取方式: GitHub Settings -> Developer settings -> Personal access tokens (classic) -> Generate new token -> 勾选 gist 权限
-const GITHUB_TOKEN = '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'; 
+const GITHUB_TOKEN = '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'; 
 
 const PullIcon = () => (
   <svg width="100%" height="100%" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-8 h-8">
