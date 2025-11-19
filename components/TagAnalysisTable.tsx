@@ -187,10 +187,10 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
               return (
                 <tr 
                   key={item.tag} 
-                  className={`border-b dark:border-gray-800 cursor-pointer ${isSelected ? 'bg-gray-300 dark:bg-gray-600' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                  className={`group border-b dark:border-gray-800 cursor-pointer ${isSelected ? 'bg-gray-300 dark:bg-gray-600' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
                   onDoubleClick={() => onTagDoubleClick(item.tag)}
                 >
-                  <td className={`p-0 border-x dark:border-gray-700 text-left font-medium px-1 sticky left-0 z-10 ${isSelected ? 'bg-gray-300 dark:bg-gray-600' : 'bg-white dark:bg-gray-900'}`}>
+                  <td className={`p-0 border-x dark:border-gray-700 text-left font-medium px-1 sticky left-0 z-10 ${isSelected ? 'bg-gray-300 dark:bg-gray-600' : 'bg-white dark:bg-gray-900 group-hover:bg-gray-100 dark:group-hover:bg-gray-800'}`}>
                     {item.tag}
                     <span className="text-gray-500 dark:text-gray-400 ml-1">{item.fundCount}</span>
                   </td>
