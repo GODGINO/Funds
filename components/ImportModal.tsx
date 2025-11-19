@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UserPosition, TradingRecord, Fund } from '../types';
 
