@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 
 interface FundInputFormProps {
@@ -5,6 +6,7 @@ interface FundInputFormProps {
   isLoading: boolean;
   onOpenImportModal: () => void;
   onOpenTransactionManager: () => void;
+  onOpenTerminal: () => void;
   pendingTaskCount: number;
   isPrivacyModeEnabled: boolean;
   onPrivacyModeChange: (enabled: boolean) => void;
@@ -15,6 +17,7 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
   isLoading, 
   onOpenImportModal,
   onOpenTransactionManager,
+  onOpenTerminal,
   pendingTaskCount,
   isPrivacyModeEnabled,
   onPrivacyModeChange,
@@ -45,7 +48,7 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
   const isDisabled = isLoading;
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-8 gap-4 items-end">
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-9 gap-4 items-end">
       {/* Fund Code */}
       <div className="md:col-span-1">
         <label htmlFor="fund-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Fund Code</label>
@@ -117,9 +120,9 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Fetching...
+              Wait
             </>
-          ) : 'Add Fund'}
+          ) : 'Add'}
         </button>
       </div>
       
@@ -131,7 +134,7 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
           disabled={isDisabled}
           className="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          导入/导出
+          Import
         </button>
       </div>
       
@@ -143,7 +146,7 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
           disabled={isDisabled}
           className="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          交易管理
+          TxMgr
         </button>
         {pendingTaskCount > 0 && (
           <span className="absolute -top-2 -right-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full z-10">
@@ -152,6 +155,17 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
         )}
       </div>
 
+       {/* Terminal Button */}
+      <div className="md:col-span-1">
+        <button
+          type="button"
+          onClick={onOpenTerminal}
+          disabled={isDisabled}
+          className="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-black hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span className="text-green-500 font-mono font-bold mr-1">{`>_`}</span> Term
+        </button>
+      </div>
 
        {/* Privacy Toggle Button */}
       <div className="md:col-span-1">
@@ -166,7 +180,7 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
               : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
           }`}
         >
-          隐私模式
+          Privacy
         </button>
       </div>
     </form>

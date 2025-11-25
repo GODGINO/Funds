@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
 import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData } from './types';
@@ -14,6 +15,10 @@ import BuyModal from './components/BuyModal';
 import SellModal from './components/SellModal';
 import PortfolioSnapshotTable from './components/PortfolioSnapshotTable';
 import TransactionManagerModal from './components/TransactionManagerModal';
+import GeminiAdvisorModal from './components/GeminiAdvisorModal';
+import { generatePortfolioAdvice } from './services/geminiService';
+import TerminalModal from './components/TerminalModal';
+import { processTerminalCommand } from './services/terminalService';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042'];
 
@@ -86,6 +91,12 @@ const App: React.FC = () => {
   const [selectedFundForModal, setSelectedFundForModal] = useState<Fund | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isTransactionManagerOpen, setIsTransactionManagerOpen] = useState(false);
+  const [isGeminiModalOpen, setIsGeminiModalOpen] = useState(false);
+  const [geminiAnalysisResult, setGeminiAnalysisResult] = useState<string | null>(null);
+  const [isGeminiLoading, setIsGeminiLoading] = useState(false);
+  const [geminiError, setGeminiError] = useState<string | null>(null);
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+
   const [buyModalState, setBuyModalState] = useState<TradeModalState | null>(null);
   const [sellModalState, setSellModalState] = useState<TradeModalState | null>(null);
   const [sortBy, setSortBy] = useState<SortByType>('trend');
@@ -737,7 +748,7 @@ const App: React.FC = () => {
         return {
             ...fund,
             ...portfolioMetrics,
-            initialUserPosition: fund.userPosition,
+            initialUserPosition: fund.userPosition, // Keep the original "base" position here for replay logic
             trendInfo,
             baseChartData,
             zigzagPoints,
@@ -1582,6 +1593,35 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
     handleOpenTradeModal(fund, record.date, record.type, navForModal, false, record);
   }, [handleOpenTradeModal]);
 
+  const handleGenerateAdvice = useCallback(async () => {
+    setIsGeminiLoading(true);
+    setGeminiError(null);
+    try {
+      const result = await generatePortfolioAdvice({
+        funds: processedFunds,
+        snapshots: portfolioSnapshots,
+        indexData: indexData,
+        activeTag: activeTag,
+      });
+      setGeminiAnalysisResult(result);
+    } catch (err) {
+      setGeminiError(err instanceof Error ? err.message : '生成建议失败');
+    } finally {
+      setIsGeminiLoading(false);
+    }
+  }, [processedFunds, portfolioSnapshots, indexData, activeTag]);
+
+  const handleOpenGemini = () => {
+    setIsGeminiModalOpen(true);
+    // Reset result if user wants to start fresh every time they open, 
+    // or keep it if you want caching. Here we keep it unless funds change,
+    // but the effect in modal handles auto-generation if empty.
+  };
+
+  const handleTerminalCommand = useCallback((cmd: string) => {
+     return processTerminalCommand(cmd, processedFunds, setFunds, { recordCount, zigzagThreshold }, portfolioSnapshots);
+  }, [processedFunds, setFunds, recordCount, zigzagThreshold, portfolioSnapshots]);
+
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-800 dark:bg-gray-950 dark:text-gray-200 font-sans p-4">
@@ -1625,6 +1665,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
             totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate}
             summaryProfitCaused={snapshotSummary.summaryProfitCaused}
             summaryOperationEffect={snapshotSummary.summaryOperationEffect}
+            onOpenGemini={handleOpenGemini}
           />
           <TagAnalysisTable 
             data={analysisResults.tagAnalysisData} 
@@ -1685,6 +1726,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
           isLoading={isLoading || isAppLoading || isRefreshing}
           onOpenImportModal={() => setIsImportModalOpen(true)}
           onOpenTransactionManager={() => setIsTransactionManagerOpen(true)}
+          onOpenTerminal={() => setIsTerminalOpen(true)}
           pendingTaskCount={pendingTaskCount}
           isPrivacyModeEnabled={isPrivacyModeEnabled}
           onPrivacyModeChange={setIsPrivacyModeEnabled}
@@ -1716,6 +1758,21 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
         funds={processedFunds}
         onEdit={handleEditPendingRecord}
         onDelete={handleTradeDelete}
+      />
+
+      <GeminiAdvisorModal
+        isOpen={isGeminiModalOpen}
+        onClose={() => setIsGeminiModalOpen(false)}
+        isLoading={isGeminiLoading}
+        analysisResult={geminiAnalysisResult}
+        error={geminiError}
+        onGenerate={handleGenerateAdvice}
+      />
+
+      <TerminalModal
+        isOpen={isTerminalOpen}
+        onClose={() => setIsTerminalOpen(false)}
+        onCommand={handleTerminalCommand}
       />
 
       {buyModalState && (
