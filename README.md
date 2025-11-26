@@ -3,6 +3,22 @@
 
 一款交互式的 Web 应用，旨在帮助用户跟踪、可视化、比较多支投资基金的历史表现，并管理个人持仓信息。
 
+## 部署故障排除 (Troubleshooting)
+
+如果您在 Netlify 或其他平台部署后遇到**白屏 (Blank Screen)** 问题，通常是因为缺少必要的环境变量配置。
+
+### 1. Gemini API Key 配置
+本应用集成了 Google Gemini 智能投顾功能，该功能依赖于 API Key。为了防止应用在启动时因缺少 Key 而崩溃，请确保：
+
+- **Netlify**: 在 Site Settings > Environment variables 中添加变量：
+  - Key: `GEMINI_API_KEY`
+  - Value: `您的_Google_Gemini_API_Key`
+
+- **本地开发**: 在项目根目录创建 `.env` 文件，并添加：
+  - `GEMINI_API_KEY=您的_Google_Gemini_API_Key`
+
+如果未配置 Key，应用仍可正常加载，但点击“智能投顾”功能时会报错提示。
+
 ## 核心功能
 
 - **[新功能] Terminal 极客终端**:

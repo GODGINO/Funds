@@ -2,7 +2,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { ProcessedFund, PortfolioSnapshot, IndexData } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// REMOVED TOP LEVEL INIT to prevent app crash on load if API key is missing
+// const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 interface AnalysisContext {
   funds: ProcessedFund[];
@@ -81,6 +82,9 @@ function formatSnapshotsForPrompt(snapshots: PortfolioSnapshot[]): string {
 }
 
 export async function generatePortfolioAdvice(context: AnalysisContext) {
+  // Initialize AI client lazily to avoid top-level crashes if API key is missing
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
   const { funds, snapshots, indexData, activeTag } = context;
 
   // Filter funds if a tag is active to focus analysis
@@ -156,6 +160,9 @@ ${fundsContext}
     return response.text;
   } catch (error) {
     console.error("Gemini Analysis Failed:", error);
+    if (String(error).includes("API key")) {
+        throw new Error("API Key 无效或未配置。请检查 Netlify 环境变量 GEMINI_API_KEY。");
+    }
     throw new Error("AI 分析暂时不可用，请检查网络或稍后再试。");
   }
 }
