@@ -5,19 +5,25 @@
 
 ## 部署故障排除 (Troubleshooting)
 
-如果您在 Netlify 或其他平台部署后遇到**白屏 (Blank Screen)** 问题，通常是因为缺少必要的环境变量配置。
+### 🚨 部署后出现白屏 (Blank Screen)
 
-### 1. Gemini API Key 配置
-本应用集成了 Google Gemini 智能投顾功能，该功能依赖于 API Key。为了防止应用在启动时因缺少 Key 而崩溃，请确保：
+如果您在 Netlify 或其他平台部署后网页显示一片空白，通常是因为**环境变量缺失**导致构建出的代码在浏览器中运行时报错。
 
-- **Netlify**: 在 Site Settings > Environment variables 中添加变量：
-  - Key: `GEMINI_API_KEY`
-  - Value: `您的_Google_Gemini_API_Key`
+**原因**: 
+项目依赖 `GEMINI_API_KEY`。如果构建时未找到该变量，Vite 默认可能会将代码中的 `process.env.API_KEY` 保留，而浏览器无法识别 `process` 对象，导致 `ReferenceError: process is not defined` 错误，应用崩溃。
 
-- **本地开发**: 在项目根目录创建 `.env` 文件，并添加：
-  - `GEMINI_API_KEY=您的_Google_Gemini_API_Key`
+**解决方法**:
 
-如果未配置 Key，应用仍可正常加载，但点击“智能投顾”功能时会报错提示。
+1.  **配置环境变量**:
+    *   登录 **Netlify** 控制台。
+    *   进入 **Site Settings** > **Environment variables**。
+    *   添加变量:
+        *   Key: `GEMINI_API_KEY`
+        *   Value: `您的_Google_Gemini_API_Key` (如果没有，可以填任意非空字符串以恢复页面显示，但 AI 功能将不可用)。
+    *   **重新部署 (Trigger Deploy)** 以应用更改。
+
+2.  **代码层面的修复 (已包含)**:
+    *   最新代码已在 `vite.config.ts` 中添加了安全回退逻辑 (`|| ''`)，确保即使未配置环境变量，应用也能正常加载（白屏问题已修复），仅 AI 智能投顾功能会提示错误。
 
 ## 核心功能
 

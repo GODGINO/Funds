@@ -82,9 +82,6 @@ function formatSnapshotsForPrompt(snapshots: PortfolioSnapshot[]): string {
 }
 
 export async function generatePortfolioAdvice(context: AnalysisContext) {
-  // Initialize AI client lazily to avoid top-level crashes if API key is missing
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
   const { funds, snapshots, indexData, activeTag } = context;
 
   // Filter funds if a tag is active to focus analysis
@@ -148,6 +145,9 @@ ${fundsContext}
   console.log(systemPrompt);
 
   try {
+    // Initialize AI client lazily and inside try-catch to avoid crashes if API key is missing or invalid
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: systemPrompt,
