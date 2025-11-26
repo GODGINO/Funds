@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useCallback } from 'react';
 // FIX: Import the shared ProcessedFund interface.
 import { Fund, FundDataPoint, ProcessedFund, TradingRecord } from '../types';
@@ -218,12 +217,8 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
     };
   }, [fund.userPosition?.tradingRecords, latestNAVForComparison]);
 
-  // FIX: Added 'h-[88px]' to ensure the row has a minimum fixed height.
-  // This is crucial because the FundChart is absolutely positioned.
-  // Without a fixed height, the row might collapse or render with height=0 during initial layout,
-  // causing the Recharts 'width(-1)' or 'height(-1)' crash.
   return (
-    <tr className="border-b border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50 h-[88px]">
+    <tr className="border-b border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50">
       <td 
         className={`p-0 border-r border-gray-300 dark:border-gray-600 text-left md:sticky md:left-0 md:z-[10] w-[250px] min-w-[250px] ${isTrendSignificant ? 'bg-gray-200 dark:bg-gray-700' : 'bg-white dark:bg-gray-900'}`}
         onDoubleClick={() => onShowDetails(fund)}
