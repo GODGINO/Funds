@@ -41,7 +41,11 @@ function parseHtmlTable(htmlContent: string): FundDataPoint[] {
 }
 
 // Fallback function for fund details
+// NOTE: We keep the fallback serial (using a promise chain) because the fallback API 
+// (eastmoney/pingzhongdata) pollutes global variables (fS_name, etc.) without a unique ID in the response.
+// Running these in parallel would cause race conditions on the global variables.
 let fundDetailsFallbackPromise: Promise<void> = Promise.resolve();
+
 function fetchFundDetailsFallback(code: string): Promise<{ name: string; realTimeData?: undefined }> {
     const fetchPromise = () => new Promise<{ name: string; realTimeData?: undefined }>((resolve, reject) => {
         const script = document.createElement('script');
@@ -86,9 +90,28 @@ function fetchFundDetailsFallback(code: string): Promise<{ name: string; realTim
 
 // --- JSONP implementation for fundgz.1234567.com.cn ---
 
-// Global promise to serialize requests to fund details API (fundgz) to avoid race conditions
-// on the global `jsonpgz` callback function.
-let fundDetailsPromise: Promise<void> = Promise.resolve();
+// CONCURRENCY UPGRADE:
+// Instead of a serial queue, we use a "Global Router Pattern".
+// The server always calls `jsonpgz(data)`. We define this function ONCE.
+// It looks at `data.fundcode` and routes the response to the correct pending Promise.
+// This allows full concurrency.
+
+const activeRequests = new Map<string, (data: any) => void>();
+
+// Initialize the global JSONP router once
+if (!(window as any).jsonpgz) {
+    (window as any).jsonpgz = (data: any) => {
+        // The API returns 'fundcode' in the data object
+        const code = data?.fundcode;
+        if (code && activeRequests.has(code)) {
+            const handler = activeRequests.get(code);
+            if (handler) {
+                handler(data);
+                // We don't delete immediately here to be safe, logic handles cleanup via callback execution
+            }
+        }
+    };
+}
 
 // In-memory cache for fund details
 if (!(window as any)._fundDetailsCache) {
@@ -98,16 +121,14 @@ const fundDetailsCache: { [code: string]: { name: string; realTimeData?: RealTim
 
 
 export function fetchFundDetails(code: string): Promise<{ name: string; realTimeData?: RealTimeData }> {
+    
+    // Concurrent Primary Fetcher
     const fetchPrimary = () => new Promise<{ name: string; realTimeData?: RealTimeData }>((resolve, reject) => {
-        const script = document.createElement('script');
-        // Add a timestamp to prevent browser caching
-        script.src = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${new Date().getTime()}`;
-        script.charset = 'utf-8';
-
-        (window as any).jsonpgz = (data: any) => {
-            document.head.removeChild(script);
-            (window as any).jsonpgz = undefined;
-
+        // Register the handler for this specific fund code
+        activeRequests.set(code, (data: any) => {
+            // Remove from active requests
+            activeRequests.delete(code);
+            
             if (data && data.name) {
                 const estimatedNAV = parseFloat(data.gsz);
                 if (!isNaN(estimatedNAV)) {
@@ -121,54 +142,74 @@ export function fetchFundDetails(code: string): Promise<{ name: string; realTime
                         realTimeData: realTimeData
                     });
                 } else {
-                    // Fund exists, but no valid real-time data (e.g., gsz is '--')
+                    // Fund exists, but no valid real-time data
                     resolve({
                         name: data.name,
                         realTimeData: undefined
                     });
                 }
             } else {
-                 // No data or no name in response (e.g., empty jsonpgz() call)
                 reject(new Error('no_fund_details'));
             }
+        });
+
+        const script = document.createElement('script');
+        // Add timestamp to bypass browser cache
+        script.src = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${new Date().getTime()}`;
+        script.charset = 'utf-8';
+
+        script.onload = () => {
+            document.head.removeChild(script);
+            // If the script loaded but didn't execute the callback (e.g. empty file or bad format),
+            // we need a timeout or a check. But usually, if it loads, jsonpgz fires first.
+            // We'll leave the cleanup to the handler or the timeout logic if we added one.
+            // For now, if the API returns 200 OK but invalid JS, the promise might hang without a timeout wrapper.
+            // Adding a simple safety cleanup if handler wasn't called:
+             setTimeout(() => {
+                if (activeRequests.has(code)) {
+                    activeRequests.delete(code);
+                    reject(new Error('timeout_or_parse_error'));
+                }
+            }, 2000); // 2s safety timeout after load
         };
 
         script.onerror = () => {
-            if (script.parentNode) {
-                script.parentNode.removeChild(script);
-            }
-            if ((window as any).jsonpgz) {
-                (window as any).jsonpgz = undefined;
-            }
+            document.head.removeChild(script);
+            activeRequests.delete(code);
             reject(new Error('network_error'));
         };
 
         document.head.appendChild(script);
     });
 
-    const serializedFetch = fundDetailsPromise.then(() => fetchPrimary());
-    // FIX: Ensure the promise assigned back to fundDetailsPromise resolves to void to match its inferred type.
-    fundDetailsPromise = serializedFetch.then(() => {}, () => {}); // Chain and prevent unhandled rejections from breaking the chain
+    // Robust Logic:
+    // 1. Try Primary (Concurrent).
+    // 2. If Primary fails, CHECK CACHE FIRST. If cache has real data, use it.
+    // 3. Only if Cache is useless, use Fallback (Serialized).
     
-    // Attempt to fetch fresh data, first from primary, then from fallback.
-    const freshDataPromise = serializedFetch.catch(error => {
-        return fetchFundDetailsFallback(code);
-    });
-
-    return freshDataPromise.then(details => {
-        // Success (from either primary or fallback): update cache and return fresh data.
+    // Note: We removed the `fundDetailsPromise` chain. `fetchPrimary` is now called immediately.
+    const robustFetch = fetchPrimary().then(details => {
+        // Primary success: update cache
         fundDetailsCache[code] = details;
         return details;
-    }).catch(finalError => {
-        // Both primary and fallback failed. Now, check the cache as a last resort.
+    }).catch(error => {
+        // Primary failed. Check cache for valid data.
         const cachedData = fundDetailsCache[code];
-        if (cachedData) {
-            // We have stale data, so we resolve with it. The failure is silent to the caller.
+        if (cachedData && cachedData.realTimeData) {
+            console.warn(`[FundService] Primary fetch failed for ${code}, using cached real-time data.`);
             return cachedData;
         }
-        // If there's no fresh data AND no cached data, we must fail so the caller can handle it.
-        throw finalError;
+
+        // Cache is missing or invalid. Now we must try fallback to at least get the Name.
+        console.warn(`[FundService] Primary fetch failed for ${code} and no cache. Trying fallback.`);
+        return fetchFundDetailsFallback(code).then(fallbackDetails => {
+             // Fallback success (got name). Update cache, preserving existing if any race occurred (unlikely).
+             fundDetailsCache[code] = fallbackDetails;
+             return fallbackDetails;
+        });
     });
+
+    return robustFetch;
 }
 
 // --- JSONP-style implementation for fund.eastmoney.com ---

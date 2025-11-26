@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { TradeModalState } from '../types';
 import FundChart from './FundChart';
@@ -15,6 +16,7 @@ const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-gr
 
 const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete, tradeState }) => {
     const [amount, setAmount] = useState('');
+    const [isCopied, setIsCopied] = useState(false);
     const amountInputRef = useRef<HTMLInputElement>(null);
     const { fund, date, nav, isConfirmed, editingRecord } = tradeState;
     const isEditing = !!editingRecord;
@@ -127,6 +129,7 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
             } else {
                 setAmount('500');
             }
+            setIsCopied(false);
             setTimeout(() => {
                 amountInputRef.current?.select();
             }, 50); // A small delay to ensure focus is set
@@ -163,6 +166,15 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
         }
     };
 
+    const handleCopyCode = () => {
+        navigator.clipboard.writeText(fund.code).then(() => {
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 1000);
+        }).catch(err => {
+            console.error('Failed to copy fund code: ', err);
+        });
+    };
+
     if (!isOpen) return null;
     
     return (
@@ -177,7 +189,13 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                 <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700 flex-shrink-0">
                     <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                         {isEditing ? '修改买入记录' : '买入'} {fund.name}
-                        <span className="ml-2 text-base font-normal text-gray-500 dark:text-gray-400">{fund.code}</span>
+                        <span 
+                            className={`ml-2 text-base font-normal transition-colors duration-200 cursor-pointer hover:text-primary-500 ${isCopied ? 'text-green-500 font-semibold' : 'text-gray-500 dark:text-gray-400'}`}
+                            onClick={handleCopyCode}
+                            title="点击复制基金代码"
+                        >
+                            {isCopied ? '复制成功' : fund.code}
+                        </span>
                     </h2>
                     <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 focus:outline-none" aria-label="Close">
                         <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
