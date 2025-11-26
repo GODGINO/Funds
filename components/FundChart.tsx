@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, XAxis, ReferenceArea, Tooltip, ReferenceDot } from 'recharts';
 import { FundDataPoint, TradingRecord } from '../types';
@@ -169,8 +170,8 @@ const FundChart: React.FC<FundChartProps> = ({
 
 
   return (
-    <div className="relative w-full h-full">
-      <ResponsiveContainer>
+    <div className="relative w-full h-full min-w-[10px] min-h-[10px]">
+      <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10}>
         <LineChart data={chartDataForRender} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
