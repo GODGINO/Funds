@@ -29,8 +29,9 @@ const SYSTEM_TAGS = {
   WATCHING: '自选',
   PROFIT: '盈利',
   LOSS: '亏损',
+  RECENT_TRANSACTION: '近期有交易',
 };
-const ORDERED_SYSTEM_TAGS = [SYSTEM_TAGS.HOLDING, SYSTEM_TAGS.WATCHING, SYSTEM_TAGS.PROFIT, SYSTEM_TAGS.LOSS];
+const ORDERED_SYSTEM_TAGS = [SYSTEM_TAGS.HOLDING, SYSTEM_TAGS.WATCHING, SYSTEM_TAGS.PROFIT, SYSTEM_TAGS.LOSS, SYSTEM_TAGS.RECENT_TRANSACTION];
 
 
 const validatePositions = (data: any): data is UserPosition[] => {
@@ -565,40 +566,6 @@ const App: React.FC = () => {
     }
   }, [loadFundsFromPositions]);
 
-  const allTags = useMemo(() => {
-    const customTagSet = new Set<string>();
-    const systemTagSet = new Set<string>();
-
-    funds.forEach(fund => {
-        const position = fund.userPosition;
-        if (position && position.shares > 0) {
-            systemTagSet.add(SYSTEM_TAGS.HOLDING);
-            const latestNAV = (fund.realTimeData?.estimatedNAV > 0 ? fund.realTimeData.estimatedNAV : fund.latestNAV) ?? 0;
-            const holdingProfit = (latestNAV - position.cost) * position.shares;
-            if (holdingProfit > 0) {
-                systemTagSet.add(SYSTEM_TAGS.PROFIT);
-            } else if (holdingProfit < 0) {
-                systemTagSet.add(SYSTEM_TAGS.LOSS);
-            }
-        } else {
-            systemTagSet.add(SYSTEM_TAGS.WATCHING);
-        }
-        
-        if (fund.userPosition?.tag) {
-            fund.userPosition.tag
-                .split(',')
-                .map(t => t.trim())
-                .filter(t => t)
-                .forEach(t => customTagSet.add(t));
-        }
-    });
-    
-    const sortedSystemTags = ORDERED_SYSTEM_TAGS.filter(tag => systemTagSet.has(tag));
-    const customTags = Array.from(customTagSet).sort();
-
-    return [...sortedSystemTags, ...customTags];
-}, [funds]);
-
   // FIX: Add explicit return type to useMemo for processedFunds to ensure properties are recognized downstream.
   const processedFunds = useMemo((): ProcessedFund[] => {
     return funds.map((fund): ProcessedFund => {
@@ -722,7 +689,8 @@ const App: React.FC = () => {
                         trendInfo = {
                             text: trendText,
                             isPositive: isPositive,
-                            change: change
+                            change: change,
+                            days: diffDays === 0 ? 1 : diffDays
                         };
                     }
                 }
@@ -760,6 +728,47 @@ const App: React.FC = () => {
     });
   }, [funds, zigzagThreshold]);
 
+  const allTags = useMemo(() => {
+    const customTagSet = new Set<string>();
+    const systemTagSet = new Set<string>();
+
+    processedFunds.forEach(fund => {
+        const position = fund.userPosition;
+        if (position && position.shares > 0) {
+            systemTagSet.add(SYSTEM_TAGS.HOLDING);
+            const latestNAV = (fund.realTimeData?.estimatedNAV && fund.realTimeData.estimatedNAV > 0 ? fund.realTimeData.estimatedNAV : fund.latestNAV) ?? 0;
+            const holdingProfit = (latestNAV - position.cost) * position.shares;
+            if (holdingProfit > 0) {
+                systemTagSet.add(SYSTEM_TAGS.PROFIT);
+            } else if (holdingProfit < 0) {
+                systemTagSet.add(SYSTEM_TAGS.LOSS);
+            }
+        } else {
+            systemTagSet.add(SYSTEM_TAGS.WATCHING);
+        }
+        
+        if (fund.userPosition?.tag) {
+            fund.userPosition.tag
+                .split(',')
+                .map(t => t.trim())
+                .filter(t => t)
+                .forEach(t => customTagSet.add(t));
+        }
+
+        if (fund.trendInfo && fund.trendInfo.days > 0 && fund.lastPivotDate && fund.userPosition?.tradingRecords) {
+             const hasRecentTx = fund.userPosition.tradingRecords.some(r => {
+                 return new Date(r.date).getTime() >= new Date(fund.lastPivotDate!).getTime();
+             });
+             if (hasRecentTx) systemTagSet.add(SYSTEM_TAGS.RECENT_TRANSACTION);
+        }
+    });
+    
+    const sortedSystemTags = ORDERED_SYSTEM_TAGS.filter(tag => systemTagSet.has(tag));
+    const customTags = Array.from(customTagSet).sort();
+
+    return [...sortedSystemTags, ...customTags];
+}, [processedFunds]);
+
   const analysisResults = useMemo(() => {
     // First, calculate totals for the entire portfolio
     let totalCostBasis = 0;
@@ -770,11 +779,19 @@ const App: React.FC = () => {
     let totalYesterdayMarketValue = 0;
     let totalRecentProfit = 0;
     let totalInitialMarketValueForTrend = 0;
+    let totalHasRecentTransaction = false;
 
     processedFunds.forEach(fund => {
         // 累计收益（grandTotalProfit）需要包含已清仓基金的落袋收益，
         // 因此它应该对所有基金进行累加。
         grandTotalProfit += fund.totalProfit ?? 0;
+        
+        // Calculate recent transaction status for the whole portfolio summary
+        if (fund.trendInfo && fund.trendInfo.days > 0 && fund.lastPivotDate && fund.userPosition?.tradingRecords?.some(r => {
+             return new Date(r.date).getTime() >= new Date(fund.lastPivotDate!).getTime();
+        })) {
+             totalHasRecentTransaction = true;
+        }
 
         const position = fund.userPosition;
         // 其他指标仅与当前持仓有关。
@@ -813,6 +830,7 @@ const App: React.FC = () => {
         totalProfitRate: totalCostBasis > 0 ? (grandTotalProfit / totalCostBasis) * 100 : 0,
         dailyProfitRate: totalYesterdayMarketValue > 0 ? (totalDailyProfit / totalYesterdayMarketValue) * 100 : 0,
         recentProfitRate: totalInitialMarketValueForTrend > 0 ? (totalRecentProfit / totalInitialMarketValueForTrend) * 100 : 0,
+        hasRecentTransaction: totalHasRecentTransaction,
     };
     
     // Second, calculate metrics per tag
@@ -830,9 +848,14 @@ const App: React.FC = () => {
         dailyRateCount: number;
         sumRecentRates: number;
         recentRateCount: number;
+        hasRecentTransaction: boolean;
     } } = {};
 
     processedFunds.forEach(fund => {
+        const hasRecentTx = !!(fund.trendInfo && fund.trendInfo.days > 0 && fund.lastPivotDate && fund.userPosition?.tradingRecords?.some(r => {
+             return new Date(r.date).getTime() >= new Date(fund.lastPivotDate!).getTime();
+        }));
+
         const position = fund.userPosition;
         if (!position || !position.tag) return;
 
@@ -854,11 +877,16 @@ const App: React.FC = () => {
                     dailyRateCount: 0,
                     sumRecentRates: 0,
                     recentRateCount: 0,
+                    hasRecentTransaction: false,
                 };
             }
             // Aggregate metrics that apply to ALL tagged funds (including zero-share)
             metricsByTag[tag].fundCodes.add(fund.code);
             metricsByTag[tag].totalRealizedProfit += position.realizedProfit || 0;
+            
+            if (hasRecentTx) {
+                metricsByTag[tag].hasRecentTransaction = true;
+            }
 
             const dailyChangeStr = fund.realTimeData?.estimatedChange ?? fund.latestChange;
             const dailyChange = dailyChangeStr ? parseFloat(dailyChangeStr) : null;
@@ -932,6 +960,7 @@ const App: React.FC = () => {
             holdingEfficiency,
             dailyEfficiency,
             recentEfficiency,
+            hasRecentTransaction: metrics.hasRecentTransaction,
         };
     })
     
@@ -969,6 +998,11 @@ const App: React.FC = () => {
                 return (fund.holdingProfit ?? 0) > 0;
             case SYSTEM_TAGS.LOSS:
                 return (fund.holdingProfit ?? 0) < 0;
+            case SYSTEM_TAGS.RECENT_TRANSACTION:
+                 if (!fund.lastPivotDate || !position?.tradingRecords) return false;
+                 return position.tradingRecords.some(r => {
+                     return new Date(r.date).getTime() >= new Date(fund.lastPivotDate!).getTime();
+                 });
         }
 
         if (!position?.tag) return false;

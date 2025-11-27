@@ -1,3 +1,4 @@
+
 export interface FundDataPoint {
   date: string;
   unitNAV: number;
@@ -57,6 +58,7 @@ export interface ProcessedFund extends Fund {
         text: string;
         isPositive: boolean;
         change: number;
+        days: number;
     } | null;
     baseChartData: Partial<FundDataPoint>[];
     zigzagPoints: Partial<FundDataPoint>[];
@@ -95,6 +97,7 @@ export interface TagAnalysisData {
   holdingEfficiency: number;
   dailyEfficiency: number;
   recentEfficiency: number;
+  hasRecentTransaction: boolean;
 }
 
 export interface IndexData {

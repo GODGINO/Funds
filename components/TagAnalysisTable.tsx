@@ -24,7 +24,6 @@ const formatEfficiency = (value: number) => {
     return `${value.toFixed(2)}x`;
 };
 
-
 const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activeTag, onTagDoubleClick, sortKey, sortOrder, onSortChange }) => {
   if (data.length === 0) {
     return null;
@@ -174,7 +173,11 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
               </SortableHeader>
               <SortableHeader sortableKey="recentProfitRate">
                 <div>近期收益率</div>
-                <div className={`font-mono font-normal ${getProfitColor(totals.recentProfitRate)}`}>{formatPercentage(totals.recentProfitRate)}</div>
+                <div className={`font-mono font-normal ${getProfitColor(totals.recentProfitRate)}`}>
+                    <div className="relative flex items-center justify-end gap-1">
+                        {formatPercentage(totals.recentProfitRate)}
+                    </div>
+                </div>
               </SortableHeader>
             </tr>
           </thead>
@@ -183,7 +186,9 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
               const isSelected = activeTag === item.tag;
               const recentProfitRate = item.recentProfitRate;
               const isRecentSignificant = recentProfitRate < -4.5 || (recentProfitRate > 0 && recentProfitRate < 4.5);
-              const recentHighlightClass = isRecentSignificant ? 'bg-gray-200 dark:bg-gray-700' : '';
+              const recentHighlightClass = (isRecentSignificant && !isSelected) 
+                  ? 'bg-gray-200 dark:bg-gray-700 group-hover:bg-gray-300 dark:group-hover:bg-gray-600' 
+                  : '';
 
               return (
                 <tr 
@@ -270,7 +275,10 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                       <div className="relative">{formatEfficiency(item.recentEfficiency)}</div>
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.recentProfitRate)} ${recentHighlightClass}`} style={getBarStyle(item.recentProfitRate, maxAbsValues.recentProfitRate)}>
-                    <div className="relative">{formatPercentage(item.recentProfitRate)}</div>
+                    <div className="relative flex items-center justify-end gap-1">
+                        {item.hasRecentTransaction && <span className="text-gray-800 dark:text-gray-200 text-[10px] leading-none transform translate-y-px">●</span>}
+                        {formatPercentage(item.recentProfitRate)}
+                    </div>
                   </td>
                 </tr>
               )
