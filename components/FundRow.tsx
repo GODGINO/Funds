@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useCallback } from 'react';
 // FIX: Import the shared ProcessedFund interface.
 import { Fund, FundDataPoint, ProcessedFund, TradingRecord } from '../types';
@@ -121,7 +122,12 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
   }, [fund.code]);
 
   const isTrendSignificant = useMemo(() => {
-    return fund.trendInfo && Math.abs(fund.trendInfo.change) > 4.5;
+    if (!fund.trendInfo) return false;
+    const change = fund.trendInfo.change;
+    // Highlight if:
+    // 1. Drop is significant (less than -4.5%)
+    // 2. Mild increase (between 0% and 4.5%)
+    return (change < -4.5) || (change > 0 && change < 4.5);
   }, [fund.trendInfo]);
   
   const handleTodayTrade = (type: 'buy' | 'sell') => {

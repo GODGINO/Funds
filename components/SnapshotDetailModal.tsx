@@ -1,3 +1,4 @@
+
 import React, { useMemo, useEffect } from 'react';
 import { PortfolioSnapshot, ProcessedFund, TradingRecord } from '../types';
 
@@ -64,8 +65,6 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
             const recordsOnDate = position.tradingRecords.filter(r => r.date === snapshotDate);
             if (recordsOnDate.length === 0) return;
 
-            // FIX: Start replay from the initial user position, not the final calculated one.
-            // FIX: Add explicit type annotations to prevent type inference issues.
             let prevShares: number = fund.initialUserPosition?.shares ?? 0;
             let prevTotalCost: number = (fund.initialUserPosition?.shares ?? 0) * (fund.initialUserPosition?.cost ?? 0);
 
@@ -76,12 +75,12 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
             for (const record of recordsBeforeDate) {
                 if (record.type === 'buy') {
-                    prevShares += record.sharesChange;
-                    prevTotalCost += record.amount;
+                    prevShares += record.sharesChange ?? 0;
+                    prevTotalCost += record.amount ?? 0;
                 } else { // sell
                     const costBasisPerShareBeforeSell = prevShares > 0 ? prevTotalCost / prevShares : 0;
-                    prevTotalCost -= costBasisPerShareBeforeSell * Math.abs(record.sharesChange);
-                    prevShares += record.sharesChange; // sharesChange is negative for sell
+                    prevTotalCost -= costBasisPerShareBeforeSell * Math.abs(record.sharesChange ?? 0);
+                    prevShares += record.sharesChange ?? 0; // sharesChange is negative for sell
                     if (prevShares < 1e-6) {
                         prevShares = 0;
                         prevTotalCost = 0;
@@ -95,47 +94,52 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                 const latestNAV = latestNavMap.get(fund.code) ?? 0;
                 
                 if (record.type === 'buy') {
-                    const newTotalShares = prevShares + record.sharesChange;
-                    const newTotalCost = prevTotalCost + record.amount;
+                    const sChange = record.sharesChange ?? 0;
+                    const rAmount = record.amount ?? 0;
+                    const rNav = record.nav ?? 0;
+
+                    const newTotalShares = prevShares + sChange;
+                    const newTotalCost = prevTotalCost + rAmount;
                     const newAvgCost = newTotalShares > 0 ? newTotalCost / newTotalShares : 0;
 
                     const costChange = newAvgCost - prevAvgCost;
                     const costChangePercent = prevAvgCost > 0 ? (costChange / prevAvgCost) * 100 : 0;
-                    // FIX: If prevShares is 0, this is the first purchase, so the change is 100%.
-                    const sharesChangePercent = prevShares > 0 ? (record.sharesChange / prevShares) * 100 : 100;
-                    const floatingProfit = latestNAV > 0 ? (latestNAV - record.nav) * record.sharesChange : 0;
-                    const floatingProfitPercent = record.nav > 0 && record.amount > 0 ? (floatingProfit / record.amount) * 100 : 0;
+                    const sharesChangePercent = prevShares > 0 ? (sChange / prevShares) * 100 : 100;
+                    const floatingProfit = latestNAV > 0 ? (latestNAV - rNav) * sChange : 0;
+                    const floatingProfitPercent = rNav > 0 && rAmount > 0 ? (floatingProfit / rAmount) * 100 : 0;
 
                     totalBuyFloatingProfit += floatingProfit;
-                    totalBuyAmount += record.amount;
+                    totalBuyAmount += rAmount;
 
                     detailedBuys.push({
                         fundName: fund.name,
                         costChange, costChangePercent,
-                        sharesChange: record.sharesChange, sharesChangePercent,
+                        sharesChange: sChange, sharesChangePercent,
                         floatingProfit, floatingProfitPercent,
-                        amount: record.amount
+                        amount: rAmount
                     });
 
                 } else { // sell
-                    // FIX: The prevShares is now correct, so this calculation is correct.
-                    const sharesChangePercent = prevShares > 0 ? (record.sharesChange / prevShares) * 100 : 0;
-                    const opportunityProfit = latestNAV > 0 ? (record.nav - latestNAV) * Math.abs(record.sharesChange) : 0;
-                    const opportunityProfitPercent = record.nav > 0 ? ((record.nav - latestNAV) / record.nav) * 100 : 0;
+                    const sChange = record.sharesChange ?? 0;
+                    const rNav = record.nav ?? 0;
+                    const rAmount = record.amount ?? 0;
+
+                    const sharesChangePercent = prevShares > 0 ? (sChange / prevShares) * 100 : 0;
+                    const opportunityProfit = latestNAV > 0 ? (rNav - latestNAV) * Math.abs(sChange) : 0;
+                    const opportunityProfitPercent = rNav > 0 ? ((rNav - latestNAV) / rNav) * 100 : 0;
                     const realizedProfit = record.realizedProfitChange ?? 0;
-                    // FIX: The prevAvgCost is now correct, so this percentage is also correct.
-                    const realizedProfitPercent = prevAvgCost > 0 ? ((record.nav - prevAvgCost) / prevAvgCost) * 100 : 0;
+                    const realizedProfitPercent = prevAvgCost > 0 ? ((rNav - prevAvgCost) / prevAvgCost) * 100 : 0;
 
                     totalSellOpportunityProfit += opportunityProfit;
                     totalSellRealizedProfit += realizedProfit;
-                    totalSellAmount += Math.abs(record.amount);
+                    totalSellAmount += Math.abs(rAmount);
 
                     detailedSells.push({
                         fundName: fund.name,
-                        sharesChange: record.sharesChange, sharesChangePercent,
+                        sharesChange: sChange, sharesChangePercent,
                         opportunityProfit, opportunityProfitPercent,
                         realizedProfit, realizedProfitPercent,
-                        amount: Math.abs(record.amount)
+                        amount: Math.abs(rAmount)
                     });
                 }
             });
@@ -170,11 +174,11 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
         <div className={`grid grid-cols-1 ${!hasOnlyOneType ? 'md:grid-cols-2' : ''} gap-x-6 gap-y-4`}>
             {/* Buy Operations Column */}
             {hasBuys && (
-                <div className={`${hasOnlyOneType ? 'mx-auto w-full' : ''}`}>
+                <div className={`${hasOnlyOneType ? 'mx-auto w-full' : ''} flex flex-col h-full`}>
                     <h4 className="text-xl font-bold mb-3 text-red-600">买入操作</h4>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-gray-200 dark:bg-gray-700">
+                    <div className="overflow-x-auto flex-1">
+                        <table className="w-full text-sm text-left h-full">
+                            <thead className="bg-gray-200 dark:bg-gray-700 h-fit">
                                 <tr>
                                     <th className="p-2 whitespace-nowrap">基金名称</th>
                                     <th className="p-2 text-right whitespace-nowrap">份额变化</th>
@@ -185,7 +189,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                             </thead>
                             <tbody>
                                 {detailedBuyRecords.map((record, index) => (
-                                    <tr key={`buy-${index}`} className="border-b dark:border-gray-700">
+                                    <tr key={`buy-${index}`} className="border-b dark:border-gray-700 h-fit">
                                         <td className="p-2 font-semibold">{record.fundName}</td>
                                         <td className="p-2 text-right font-mono">
                                             <div className={getProfitColor(1)}>+{record.sharesChange.toFixed(2)}</div>
@@ -202,12 +206,22 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                                         <td className="p-2 text-right font-mono">{record.amount.toFixed(2)}</td>
                                     </tr>
                                 ))}
+                                {/* Spacer Row to push Footer down */}
+                                <tr className="border-none bg-transparent">
+                                    <td colSpan={5} className="p-0 border-none h-full"></td>
+                                </tr>
                             </tbody>
-                            <tfoot>
+                            <tfoot className="h-fit">
                                 <tr className="border-t dark:border-gray-600 font-bold">
                                     <td className="p-2 text-left" colSpan={3}>汇总</td>
                                     <td className="p-2 text-right font-mono">
                                         <div className={getProfitColor(buyTotals.floatingProfit)}>{buyTotals.floatingProfit.toFixed(2)}</div>
+                                        <div className={`${getProfitColor(buyTotals.floatingProfit)} text-xs font-normal`}>
+                                            {buyTotals.amount > 0 
+                                                ? `${((buyTotals.floatingProfit / buyTotals.amount) * 100) > 0 ? '+' : ''}${((buyTotals.floatingProfit / buyTotals.amount) * 100).toFixed(2)}%`
+                                                : '0.00%'
+                                            }
+                                        </div>
                                     </td>
                                     <td className="p-2 text-right font-mono">{buyTotals.amount.toFixed(2)}</td>
                                 </tr>
@@ -219,11 +233,11 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
             {/* Sell Operations Column */}
             {hasSells && (
-                <div className={`${hasOnlyOneType ? 'mx-auto w-full' : ''}`}>
+                <div className={`${hasOnlyOneType ? 'mx-auto w-full' : ''} flex flex-col h-full`}>
                     <h4 className="text-xl font-bold mb-3 text-blue-600">卖出操作</h4>
-                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-gray-200 dark:bg-gray-700">
+                     <div className="overflow-x-auto flex-1">
+                        <table className="w-full text-sm text-left h-full">
+                            <thead className="bg-gray-200 dark:bg-gray-700 h-fit">
                                 <tr>
                                     <th className="p-2 whitespace-nowrap">基金名称</th>
                                     <th className="p-2 text-right whitespace-nowrap">份额变化</th>
@@ -234,7 +248,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                             </thead>
                             <tbody>
                                 {detailedSellRecords.map((record, index) => (
-                                    <tr key={`sell-${index}`} className="border-b dark:border-gray-700">
+                                    <tr key={`sell-${index}`} className="border-b dark:border-gray-700 h-fit">
                                         <td className="p-2 font-semibold">{record.fundName}</td>
                                         <td className="p-2 text-right font-mono">
                                             <div className={getProfitColor(-1)}>{record.sharesChange.toFixed(2)}</div>
@@ -251,15 +265,31 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                                         <td className="p-2 text-right font-mono">{record.amount.toFixed(2)}</td>
                                     </tr>
                                 ))}
+                                {/* Spacer Row to push Footer down */}
+                                <tr className="border-none bg-transparent">
+                                    <td colSpan={5} className="p-0 border-none h-full"></td>
+                                </tr>
                             </tbody>
-                            <tfoot>
+                            <tfoot className="h-fit">
                                 <tr className="border-t dark:border-gray-600 font-bold">
                                     <td className="p-2 text-left" colSpan={2}>汇总</td>
                                     <td className="p-2 text-right font-mono">
                                         <div className={getProfitColor(sellTotals.opportunityProfit)}>{`${sellTotals.opportunityProfit > 0 ? '+' : ''}${sellTotals.opportunityProfit.toFixed(2)}`}</div>
+                                        <div className={`${getProfitColor(sellTotals.opportunityProfit)} text-xs font-normal`}>
+                                            {sellTotals.amount > 0 
+                                                ? `${((sellTotals.opportunityProfit / sellTotals.amount) * 100) > 0 ? '+' : ''}${((sellTotals.opportunityProfit / sellTotals.amount) * 100).toFixed(2)}%`
+                                                : '0.00%'
+                                            }
+                                        </div>
                                     </td>
                                     <td className="p-2 text-right font-mono">
                                         <div className={getProfitColor(sellTotals.realizedProfit)}>{sellTotals.realizedProfit.toFixed(2)}</div>
+                                        <div className={`${getProfitColor(sellTotals.realizedProfit)} text-xs font-normal`}>
+                                            {sellTotals.amount > 0 
+                                                ? `${((sellTotals.realizedProfit / sellTotals.amount) * 100) > 0 ? '+' : ''}${((sellTotals.realizedProfit / sellTotals.amount) * 100).toFixed(2)}%`
+                                                : '0.00%'
+                                            }
+                                        </div>
                                     </td>
                                     <td className="p-2 text-right font-mono">{sellTotals.amount.toFixed(2)}</td>
                                 </tr>
@@ -313,7 +343,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
             role="dialog"
         >
             <div className={`bg-gray-100 dark:bg-gray-800 rounded-lg shadow-xl w-full ${modalMaxWidthClass} m-4 transform transition-all flex flex-col max-h-[90vh]`}>
-                <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700 bg-white dark:bg-gray-900 rounded-t-lg">
+                <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700 bg-white dark:bg-gray-900 rounded-t-lg flex-shrink-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-baseline flex-wrap">
                         <span>操作明细: {snapshot.snapshotDate}</span>
                         {netAmountChange !== 0 && (
@@ -332,7 +362,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     </button>
                 </div>
 
-                <div className="p-6 overflow-y-auto">
+                <div className="p-6 overflow-y-auto flex-1">
                     {snapshot.snapshotDate === '基准持仓' ? (
                         initialHoldings.length > 0 ? renderInitialHoldingsTable() : <p className="text-center text-gray-500 dark:text-gray-400">无初始持仓记录。</p>
                     ) : (

@@ -70,9 +70,9 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
       color = value >= 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)';
     }
     
-    const background = `linear-gradient(to left, ${color} ${widthPercent}%, transparent ${widthPercent}%)`;
+    const backgroundImage = `linear-gradient(to left, ${color} ${widthPercent}%, transparent ${widthPercent}%)`;
     
-    return { background };
+    return { backgroundImage };
   };
 
   const getSortIndicator = (key: keyof TagAnalysisData) => {
@@ -90,9 +90,6 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
       const titleElement = childrenArray[0];
       const valueElement = childrenArray.length > 1 ? childrenArray[1] : null;
 
-      // FIX: Correctly handle children of React elements.
-      // The `React.isValidElement` type guard is enhanced with a generic type `PropsWithChildren`
-      // to ensure TypeScript correctly infers that `titleElement.props.children` exists and is accessible.
       let newTitleElement;
       if (React.isValidElement<React.PropsWithChildren>(titleElement)) {
           const newTitle = indicator
@@ -184,6 +181,10 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
           <tbody>
             {data.map(item => {
               const isSelected = activeTag === item.tag;
+              const recentProfitRate = item.recentProfitRate;
+              const isRecentSignificant = recentProfitRate < -4.5 || (recentProfitRate > 0 && recentProfitRate < 4.5);
+              const recentHighlightClass = isRecentSignificant ? 'bg-gray-200 dark:bg-gray-700' : '';
+
               return (
                 <tr 
                   key={item.tag} 
@@ -268,7 +269,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getEfficiencyColor(item.recentEfficiency)}`} style={getBarStyle(item.recentEfficiency, maxAbsValues.recentEfficiency, 'efficiency')}>
                       <div className="relative">{formatEfficiency(item.recentEfficiency)}</div>
                   </td>
-                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.recentProfitRate)}`} style={getBarStyle(item.recentProfitRate, maxAbsValues.recentProfitRate)}>
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.recentProfitRate)} ${recentHighlightClass}`} style={getBarStyle(item.recentProfitRate, maxAbsValues.recentProfitRate)}>
                     <div className="relative">{formatPercentage(item.recentProfitRate)}</div>
                   </td>
                 </tr>

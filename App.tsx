@@ -105,7 +105,7 @@ const App: React.FC = () => {
   const [isPrivacyModeEnabled, setIsPrivacyModeEnabled] = useState(window.innerWidth >= 768);
   const [isVeiled, setIsVeiled] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<string | null>(null);
-  const [tagSortKey, setTagSortKey] = useState<keyof TagAnalysisData>('totalDailyProfit');
+  const [tagSortKey, setTagSortKey] = useState<keyof TagAnalysisData>('dailyProfitRate');
   const [tagSortOrder, setTagSortOrder] = useState<TagSortOrder>('desc');
   const [indexData, setIndexData] = useState<IndexData | null>(null);
   const inactivityTimer = useRef<number | null>(null);
@@ -966,9 +966,9 @@ const App: React.FC = () => {
             case SYSTEM_TAGS.WATCHING:
                 return !position || position.shares === 0;
             case SYSTEM_TAGS.PROFIT:
-                return (fund as any).holdingProfit > 0;
+                return (fund.holdingProfit ?? 0) > 0;
             case SYSTEM_TAGS.LOSS:
-                return (fund as any).holdingProfit < 0;
+                return (fund.holdingProfit ?? 0) < 0;
         }
 
         if (!position?.tag) return false;

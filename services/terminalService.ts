@@ -1,4 +1,5 @@
 
+import React from 'react';
 import { ProcessedFund, FundDataPoint, TradingRecord, UserPosition, PortfolioSnapshot } from '../types';
 import { calculateZigzag } from './chartUtils';
 

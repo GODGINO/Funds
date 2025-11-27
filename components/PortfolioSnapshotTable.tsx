@@ -237,14 +237,14 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
   ];
 
   const summaryColumns: { key: keyof NonNullable<typeof summaryData>, title: string, render: (data: NonNullable<typeof summaryData>) => React.ReactNode }[] = [
-    { key: 'totalBuyAmount', title: '⬇︎买入', render: data => <div>{formatInteger(data.totalBuyAmount)}</div> },
+    { key: 'totalBuyAmount', title: '⬆︎买入', render: data => <div>{formatInteger(data.totalBuyAmount)}</div> },
     { key: 'totalBuyFloatingProfit', title: '浮盈', render: data => 
       <div className={getProfitColor(data.totalBuyFloatingProfit)}>
         {formatInteger(data.totalBuyFloatingProfit)}
         <span className="text-gray-500 dark:text-gray-400 text-[10px]">|{data.floatingProfitPercent.toFixed(2)}%</span>
       </div> 
     },
-    { key: 'totalSellAmount', title: '⬆︎卖出', render: data => <div>{formatInteger(data.totalSellAmount)}</div> },
+    { key: 'totalSellAmount', title: '⬇︎卖出', render: data => <div>{formatInteger(data.totalSellAmount)}</div> },
     { key: 'totalSellOpportunityProfit', title: '机会收益', render: data => 
       <div className={getProfitColor(data.totalSellOpportunityProfit)}>
         {formatInteger(data.totalSellOpportunityProfit)}
