@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { UserPosition, TradingRecord, Fund } from '../types';
-import { fetchGistData, updateGistData, GIST_ID, GIST_FILENAME } from '../services/gistService';
+import { Fund } from '../types';
+import { fetchGistData, updateGistData } from '../services/gistService';
 
 interface ImportModalProps {
   isOpen: boolean;
@@ -36,12 +36,10 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
   const [jsonInput, setJsonInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
-  const [shouldSaveAfterUpload, setShouldSaveAfterUpload] = useState(false);
   const [isCopiedNewFormat, setIsCopiedNewFormat] = useState(false);
   const [gistLoading, setGistLoading] = useState<'pull' | 'push' | null>(null);
   const [githubToken, setGithubToken] = useState(localStorage.getItem('GITHUB_TOKEN') || '');
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -50,7 +48,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       setJsonInput(currentData);
       setError(null);
       setIsImporting(false);
-      setShouldSaveAfterUpload(false);
       setIsCopiedNewFormat(false);
       setGistLoading(null);
 
@@ -77,13 +74,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       setIsImporting(false);
     }
   }, [jsonInput, onImport, onClose]);
-
-  useEffect(() => {
-    if (shouldSaveAfterUpload && jsonInput) {
-      handleSave();
-      setShouldSaveAfterUpload(false); // Reset trigger
-    }
-  }, [shouldSaveAfterUpload, jsonInput, handleSave]);
 
 
   useEffect(() => {
@@ -130,97 +120,11 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       setError(null);
       try {
           await updateGistData(githubToken, jsonInput);
-
-          // Success indication (optional, maybe just stop loading)
-          // Could show a temporary success message
       } catch (err) {
           setError(err instanceof Error ? `同步失败: ${err.message}` : '同步到 Gist 失败。');
       } finally {
           setGistLoading(null);
       }
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-          try {
-              const text = e.target?.result as string;
-              if (!text) {
-                  throw new Error("文件为空。");
-              }
-              const data = JSON.parse(text);
-
-              let positionsArray: any[];
-
-              if (Array.isArray(data)) {
-                  // Case 1: The file is a direct array of positions (new format)
-                  positionsArray = data;
-              } else if (data && typeof data === 'object' && Array.isArray(data.subscriptions)) {
-                  // Case 2: The file is an object with a 'subscriptions' key (old format)
-                  positionsArray = data.subscriptions;
-              } else {
-                  throw new Error("无效的 JSON 结构。文件应为持仓数组，或包含 'subscriptions' 键的对象。");
-              }
-
-              // Basic validation and transformation
-              const positions: UserPosition[] = positionsArray.map((sub: any) => {
-                  if (typeof sub.code === 'undefined' || typeof sub.shares === 'undefined' || typeof sub.cost === 'undefined' || typeof sub.realizedProfit === 'undefined') {
-                      throw new Error(`数组中的某个项目缺少必需字段 (code, shares, cost, realizedProfit)。`);
-                  }
-                  
-                  const newPosition: UserPosition = {
-                      code: String(sub.code).padStart(6, '0'),
-                      shares: Number(sub.shares),
-                      cost: Number(sub.cost),
-                      tag: sub.tag || '',
-                      realizedProfit: Number(sub.realizedProfit),
-                  };
-
-                  if (sub.tradingRecords && Array.isArray(sub.tradingRecords)) {
-                      const validatedRecords: TradingRecord[] = sub.tradingRecords.map((record: any) => {
-                          const newRecord: TradingRecord = {
-                              date: record.date,
-                              type: record.type,
-                          };
-                          // Permissively copy fields that exist, letting main app validation handle correctness.
-                          if (record.value !== undefined) newRecord.value = Number(record.value);
-                          if (record.nav !== undefined) newRecord.nav = Number(record.nav);
-                          if (record.sharesChange !== undefined) newRecord.sharesChange = Number(record.sharesChange);
-                          if (record.amount !== undefined) newRecord.amount = Number(record.amount);
-                          if (record.realizedProfitChange !== undefined) newRecord.realizedProfitChange = Number(record.realizedProfitChange);
-                          
-                          return newRecord;
-                      });
-                      newPosition.tradingRecords = validatedRecords;
-                  }
-                  
-                  return newPosition;
-              });
-              
-              setJsonInput(JSON.stringify(positions, null, 2));
-              setError(null);
-              setShouldSaveAfterUpload(true);
-
-          } catch (err) {
-              const errorMessage = err instanceof Error ? err.message : "文件处理期间发生未知错误。";
-              setError(`读取文件失败: ${errorMessage}`);
-              setJsonInput(''); // Clear input on error
-              setShouldSaveAfterUpload(false);
-          } finally {
-              // Reset file input to allow re-uploading the same file
-              if (event.target) {
-                  event.target.value = '';
-              }
-          }
-      };
-      reader.readAsText(file);
-  };
-
-  const triggerFileSelect = () => {
-      fileInputRef.current?.click();
   };
 
   const handleTextareaKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -230,25 +134,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
         handleSave();
       }
     }
-  };
-
-  const handleExport = () => {
-    const dataToExport = currentData;
-    if (!dataToExport) return;
-
-    const blob = new Blob([dataToExport], { type: 'application/json' });
-    const date = new Date().toISOString().split('T')[0];
-    const filename = `${date}.json`;
-
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   };
 
   const handleCopyNewFormat = () => {
@@ -296,13 +181,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
 
         {/* Modal Body */}
         <div className="p-6">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept=".json"
-            className="hidden"
-          />
           
           {/* Gist Controls & Textarea Container */}
           <div className="flex gap-4 mb-2 h-48">
@@ -350,22 +228,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
         <div className="flex justify-between items-center px-6 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-b-lg flex-wrap gap-4">
            <div className="flex items-center gap-4 flex-wrap">
             <button
-                onClick={triggerFileSelect}
-                type="button"
-                className="px-3 py-2 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                disabled={isImporting}
-            >
-                上传文件
-            </button>
-            <button
-                onClick={handleExport}
-                type="button"
-                className="px-3 py-2 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                disabled={isImporting || !jsonInput}
-            >
-                导出文件
-            </button>
-            <button
                 onClick={handleCopyNewFormat}
                 type="button"
                 className="px-3 py-2 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
@@ -386,7 +248,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
                     }`}
                     title="开启后，当交易发生时自动同步到 Gist"
                 >
-                    自动同步: {isAutoSyncEnabled ? '开启' : '关闭'}
+                    自动同步
                 </button>
             )}
            </div>

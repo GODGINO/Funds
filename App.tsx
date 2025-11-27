@@ -119,6 +119,10 @@ const App: React.FC = () => {
   const longPressTimer = useRef<number | null>(null);
   const appLoaded = useRef<boolean>(false);
   const fundTableContainerRef = useRef<HTMLDivElement>(null);
+  
+  // This ref acts as a safety valve. If a critical error occurs during loading (e.g. strict mode crash),
+  // we set this to true to prevent the `useEffect` from saving an empty/corrupted fund list to localStorage.
+  const blockSaveRef = useRef<boolean>(false);
 
   const getCurrentTimeString = useCallback(() => {
     const now = new Date();
@@ -232,6 +236,7 @@ const App: React.FC = () => {
   const loadFundsFromPositions = useCallback(async (positions: UserPosition[]) => {
       setIsAppLoading(true);
       setError(null);
+      blockSaveRef.current = false; // Reset to allow saving by default
       
       try {
         if (!Array.isArray(positions) || positions.length === 0) {
@@ -268,8 +273,22 @@ const App: React.FC = () => {
                 loadedFunds.push(result.value);
             } else {
                 const code = positions[index].code;
+                const originalPosition = positions[index];
                 console.error(`Failed to load data for fund ${code}`, result.reason);
                 failedCodes.push(code);
+
+                // CRITICAL FIX: Even if loading data fails, we must preserve the user's position!
+                // We create a "Stub" fund. It won't have a chart, but it keeps the record alive.
+                // This prevents local storage from being wiped on network failure.
+                loadedFunds.push({
+                  code: code,
+                  name: `加载失败 (${code})`,
+                  data: [], // No history
+                  realTimeData: undefined,
+                  latestNAV: undefined,
+                  latestChange: undefined,
+                  userPosition: originalPosition,
+                });
             }
         });
 
@@ -280,16 +299,25 @@ const App: React.FC = () => {
           }));
           setFunds(loadedFundsWithColor);
         } else {
+          // This branch should theoretically be unreachable now because we create stubs,
+          // unless positions was empty (handled at top).
           setFunds([]);
         }
 
         if (failedCodes.length > 0) {
-            setError(`部分基金加载失败: ${failedCodes.join(', ')}. 请检查基金代码是否正确或稍后再试。`);
+            if (failedCodes.length === positions.length) {
+                 setError("网络错误：所有基金数据加载失败。显示为占位符以保护数据，请检查网络并刷新。");
+            } else {
+                 setError(`部分基金加载失败: ${failedCodes.join(', ')}. 已保留持仓记录。`);
+            }
         }
 
       } catch (err) {
-        setError("加载基金时发生未知错误。");
-        setFunds([]);
+        console.error("Critical error loading funds:", err);
+        setError("加载基金时发生未知错误。为防止数据丢失，本地保存已暂停。");
+        // Enable the safety valve to prevent overwriting valid local data with a potentially empty/corrupt state.
+        blockSaveRef.current = true;
+        // Do NOT call setFunds([]) here, keep whatever state we had (likely empty if initial load, but safe).
       } finally {
         setIsAppLoading(false);
       }
@@ -321,6 +349,8 @@ const App: React.FC = () => {
 
       } catch (err) {
         setError("加载已保存的基金失败，数据可能已过期。");
+        // Only clear if JSON parsing failed or similar catastrophic error.
+        // Network errors are handled inside loadFundsFromPositions.
         localStorage.removeItem('userFundPortfolio');
         setIsAppLoading(false);
       }
@@ -330,7 +360,8 @@ const App: React.FC = () => {
   }, [loadFundsFromPositions]);
 
   useEffect(() => {
-    if (!isAppLoading) {
+    // Only save if app is fully loaded AND we haven't blocked saving due to a crash.
+    if (!isAppLoading && !blockSaveRef.current) {
       const positionsToSave = funds
         .map(f => f.userPosition)
         .filter((p): p is UserPosition => !!p);
