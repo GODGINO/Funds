@@ -1,5 +1,7 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UserPosition, TradingRecord, Fund } from '../types';
+import { fetchGistData, updateGistData, GIST_ID, GIST_FILENAME } from '../services/gistService';
 
 interface ImportModalProps {
   isOpen: boolean;
@@ -7,10 +9,9 @@ interface ImportModalProps {
   onImport: (jsonString: string) => Promise<void>;
   currentData: string;
   funds: Fund[];
+  isAutoSyncEnabled: boolean;
+  onToggleAutoSync: (enabled: boolean) => void;
 }
-
-const GIST_ID = '32c1c67e4610e63f15aa68041282cad7';
-const GIST_FILENAME = 'fund_data.json';
 
 const PullIcon = () => (
   <svg width="100%" height="100%" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-8 h-8">
@@ -31,7 +32,7 @@ const LoadingSpinner = () => (
   </svg>
 );
 
-const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, currentData, funds }) => {
+const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, currentData, funds, isAutoSyncEnabled, onToggleAutoSync }) => {
   const [jsonInput, setJsonInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -105,25 +106,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       try {
           // For pulling public gists, token is optional but helps with rate limits.
           // If the gist is private, token is required.
-          const headers: HeadersInit = {};
-          if (githubToken) {
-              headers['Authorization'] = `Bearer ${githubToken}`;
-          }
-
-          const response = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers });
-          
-          if (!response.ok) {
-              throw new Error(`GitHub API Error: ${response.status} ${response.statusText}`);
-          }
-          
-          const data = await response.json();
-          const file = data.files ? (data.files[GIST_FILENAME] || Object.values(data.files)[0]) : null;
-
-          if (file && file.content) {
-              setJsonInput(file.content);
-          } else {
-              throw new Error('Gist 中未找到有效文件内容。');
-          }
+          const content = await fetchGistData(githubToken);
+          setJsonInput(content);
 
       } catch (err) {
           setError(err instanceof Error ? `拉取失败: ${err.message}` : '拉取 Gist 失败。');
@@ -145,30 +129,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       setGistLoading('push');
       setError(null);
       try {
-          const response = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
-              method: 'PATCH',
-              headers: {
-                  'Authorization': `Bearer ${githubToken}`,
-                  'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                  files: {
-                      [GIST_FILENAME]: {
-                          content: jsonInput
-                      }
-                  }
-              })
-          });
-
-          if (!response.ok) {
-               // Try to parse error message from body
-               let errorMsg = `${response.status} ${response.statusText}`;
-               try {
-                   const errData = await response.json();
-                   if (errData.message) errorMsg += `: ${errData.message}`;
-               } catch (e) {}
-               throw new Error(errorMsg);
-          }
+          await updateGistData(githubToken, jsonInput);
 
           // Success indication (optional, maybe just stop loading)
           // Could show a temporary success message
@@ -322,7 +283,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       aria-modal="true"
       role="dialog"
     >
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl m-4 transform transition-all flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-xl m-4 transform transition-all flex flex-col">
         {/* Modal Header */}
         <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">导入/导出/同步数据</h3>
@@ -344,16 +305,30 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
           />
           
           {/* Gist Controls & Textarea Container */}
-          <div className="flex gap-4 mb-2">
+          <div className="flex gap-4 mb-2 h-48">
               {githubToken && (
-                <button 
-                    onClick={handleGistPull}
-                    disabled={gistLoading !== null}
-                    className="flex-shrink-0 w-12 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                    title="拉取数据 (Pull)"
-                >
-                    {gistLoading === 'pull' ? <LoadingSpinner /> : <PullIcon />}
-                </button>
+                <div className="flex flex-col gap-2 w-12 flex-shrink-0 h-full">
+                    {!isAutoSyncEnabled && (
+                        <button 
+                            onClick={handleGistPull}
+                            disabled={gistLoading !== null}
+                            className="flex-1 w-full flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                            title="拉取数据 (Pull)"
+                        >
+                            {gistLoading === 'pull' ? <LoadingSpinner /> : <PullIcon />}
+                        </button>
+                    )}
+                    {isAutoSyncEnabled && (
+                        <button 
+                            onClick={handleGistPush}
+                            disabled={gistLoading !== null}
+                            className="flex-1 w-full flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                            title="同步数据"
+                        >
+                            {gistLoading === 'push' ? <LoadingSpinner /> : <SyncIcon />}
+                        </button>
+                    )}
+                </div>
               )}
 
               <textarea
@@ -362,20 +337,9 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
                 onChange={(e) => setJsonInput(e.target.value)}
                 onKeyDown={handleTextareaKeyDown}
                 placeholder='e.g., [{"code":"007345","shares":1000,"cost":1.7,"realizedProfit":0,"tag":"科技"}]'
-                className="flex-1 h-48 p-2 font-mono text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                className="flex-1 h-full p-2 font-mono text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary-500 focus:border-primary-500 resize-none"
                 disabled={isImporting}
               />
-
-              {githubToken && (
-                <button 
-                    onClick={handleGistPush}
-                    disabled={gistLoading !== null}
-                    className="flex-shrink-0 w-12 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                    title="同步数据"
-                >
-                    {gistLoading === 'push' ? <LoadingSpinner /> : <SyncIcon />}
-                </button>
-              )}
           </div>
           
           {/* Error Message */}
@@ -410,6 +374,21 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
             >
                 {isCopiedNewFormat ? '复制成功' : '复制json'}
             </button>
+            
+            {githubToken && (
+                <button
+                    onClick={() => onToggleAutoSync(!isAutoSyncEnabled)}
+                    type="button"
+                    className={`px-3 py-2 border text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors ${
+                        isAutoSyncEnabled
+                            ? 'bg-green-600 hover:bg-green-700 text-white border-transparent'
+                            : 'bg-white dark:bg-gray-600 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500'
+                    }`}
+                    title="开启后，当交易发生时自动同步到 Gist"
+                >
+                    自动同步: {isAutoSyncEnabled ? '开启' : '关闭'}
+                </button>
+            )}
            </div>
           <div className="flex items-center gap-4">
             <button

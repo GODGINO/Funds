@@ -3,6 +3,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 // FIX: Import ProcessedFund for better type safety
 import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData } from './types';
 import { fetchFundData, fetchFundDetails, fetchIndexData } from './services/fundService';
+import { updateGistData } from './services/gistService';
 import FundInputForm from './components/FundInputForm';
 import FundRow from './components/FundRow';
 import FundDetailModal from './components/FundDetailModal';
@@ -109,6 +110,11 @@ const App: React.FC = () => {
   const [tagSortKey, setTagSortKey] = useState<keyof TagAnalysisData>('dailyProfitRate');
   const [tagSortOrder, setTagSortOrder] = useState<TagSortOrder>('desc');
   const [indexData, setIndexData] = useState<IndexData | null>(null);
+  
+  const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState(() => {
+    return localStorage.getItem('AUTO_SYNC_ENABLED') === 'true';
+  });
+
   const inactivityTimer = useRef<number | null>(null);
   const longPressTimer = useRef<number | null>(null);
   const appLoaded = useRef<boolean>(false);
@@ -1383,6 +1389,29 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
       .filter((p): p is UserPosition => !!p);
     return JSON.stringify(positionsToSave, null, 2);
   }, [funds]);
+  
+  const handleToggleAutoSync = useCallback((enabled: boolean) => {
+    setIsAutoSyncEnabled(enabled);
+    localStorage.setItem('AUTO_SYNC_ENABLED', String(enabled));
+  }, []);
+  
+  // Auto-Sync Effect
+  useEffect(() => {
+     if (isAppLoading || !isAutoSyncEnabled) return;
+     const token = localStorage.getItem('GITHUB_TOKEN');
+     if (!token) return;
+
+     // Debounce the sync to avoid API rate limits on rapid edits
+     const timer = setTimeout(() => {
+         console.log('Auto-syncing to Gist...');
+         updateGistData(token, currentPortfolioJSON)
+            .then(() => console.log('Auto-sync successful'))
+            .catch(e => console.error("Auto-sync failed", e));
+     }, 2000); 
+
+     return () => clearTimeout(timer);
+  }, [currentPortfolioJSON, isAutoSyncEnabled, isAppLoading]);
+
 
   const portfolioSnapshots = useMemo((): PortfolioSnapshot[] => {
     const allTransactionDates = new Set<string>();
@@ -1784,6 +1813,8 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
         onImport={handleImportData}
         currentData={currentPortfolioJSON}
         funds={funds}
+        isAutoSyncEnabled={isAutoSyncEnabled}
+        onToggleAutoSync={handleToggleAutoSync}
       />
       
       <TransactionManagerModal
