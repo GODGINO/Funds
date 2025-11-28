@@ -81,6 +81,10 @@ const shouldAutoRefresh = (): boolean => {
     return isWeekday && isTradingHours;
 };
 
+const isMobileDevice = (): boolean => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+};
+
 // FIX: Corrected component structure. A misplaced closing brace `}` was causing all subsequent hooks and the return statement to be outside the component scope, leading to multiple errors.
 const App: React.FC = () => {
   const [funds, setFunds] = useState<Fund[]>([]);
@@ -104,7 +108,8 @@ const App: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortByType>('trend');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [activeTag, setActiveTag] = useState<string | null>(null);
-  const [isPrivacyModeEnabled, setIsPrivacyModeEnabled] = useState(window.innerWidth >= 768);
+  // Default privacy mode: ON for Desktop, OFF for Mobile (UserAgent check)
+  const [isPrivacyModeEnabled, setIsPrivacyModeEnabled] = useState(() => !isMobileDevice());
   const [isVeiled, setIsVeiled] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<string | null>(null);
   const [tagSortKey, setTagSortKey] = useState<keyof TagAnalysisData>('dailyProfitRate');
@@ -232,6 +237,17 @@ const App: React.FC = () => {
       }
     };
   }, [isPrivacyModeEnabled, isVeiled]);
+
+  // Effect to redirect to Feishu when veiled (Boss Key)
+  useEffect(() => {
+    if (isVeiled) {
+        // Only attempt redirect if NOT on mobile (i.e., PC/Mac only)
+        // This prevents the app switch loop on mobile devices when users just want privacy
+        if (!isMobileDevice()) {
+            window.location.href = 'feishu://';
+        }
+    }
+  }, [isVeiled]);
 
   const loadFundsFromPositions = useCallback(async (positions: UserPosition[]) => {
       setIsAppLoading(true);
