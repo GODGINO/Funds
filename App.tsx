@@ -157,6 +157,38 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Effect to lock body scroll when any modal or privacy veil is active
+  useEffect(() => {
+    const isAnyModalOpen = 
+      isVeiled || 
+      !!selectedFundForModal || 
+      isImportModalOpen || 
+      isTransactionManagerOpen || 
+      isGeminiModalOpen || 
+      isTerminalOpen || 
+      !!buyModalState || 
+      !!sellModalState;
+
+    if (isAnyModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [
+    isVeiled, 
+    selectedFundForModal, 
+    isImportModalOpen, 
+    isTransactionManagerOpen, 
+    isGeminiModalOpen, 
+    isTerminalOpen, 
+    buyModalState, 
+    sellModalState
+  ]);
+
   // Effect for Privacy Mode
   useEffect(() => {
     if (!isPrivacyModeEnabled) {

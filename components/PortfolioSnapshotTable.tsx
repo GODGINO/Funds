@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine } from 'recharts';
 import { PortfolioSnapshot, ProcessedFund } from '../types';
 import SnapshotDetailModal from './SnapshotDetailModal';
@@ -151,6 +151,18 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
 
     return { maxes, maxAbsValues };
   }, [snapshots]);
+
+  // Effect to lock scroll when modal is open
+  useEffect(() => {
+    if (selectedSnapshot) {
+        document.body.style.overflow = 'hidden';
+    } else {
+        document.body.style.overflow = '';
+    }
+    return () => {
+        document.body.style.overflow = '';
+    };
+  }, [selectedSnapshot]);
 
   const getCellHighlightClass = (key: keyof PortfolioSnapshot, value: number | undefined | null, isBaselineRow: boolean) => {
     if (isBaselineRow || snapshots.length <= 1) return '';
