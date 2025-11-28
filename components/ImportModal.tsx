@@ -171,7 +171,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-xl m-4 transform transition-all flex flex-col">
         {/* Modal Header */}
         <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">导入/导出/同步数据</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">用户数据</h3>
            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 focus:outline-none" aria-label="Close">
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -248,7 +248,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
                     }`}
                     title="开启后，当交易发生时自动同步到 Gist"
                 >
-                    自动同步
+                    {isAutoSyncEnabled ? "同步: 主" : "同步: 从"}
                 </button>
             )}
            </div>
