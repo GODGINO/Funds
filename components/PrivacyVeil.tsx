@@ -1,6 +1,6 @@
 
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { IndexData } from '../types';
 
 const DinoIcon: React.FC = () => (
@@ -27,6 +27,50 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
     indexData,
 }) => {
   const [isHovering, setIsHovering] = useState(false);
+  const idleTimerRef = useRef<number | null>(null);
+
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  const resetIdleTimer = () => {
+    if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+    }
+    // Set an 8-second timer. If no activity occurs within this window while inside the veil,
+    // hide the data and trigger the boss key redirect.
+    idleTimerRef.current = window.setTimeout(() => {
+        setIsHovering(false);
+        if (!isMobile) {
+            window.location.href = 'feishu://';
+        }
+    }, 8000);
+  };
+
+  const handleMouseEnter = () => {
+      setIsHovering(true);
+      resetIdleTimer();
+  };
+
+  const handleMouseMove = () => {
+      // Ensure data is shown if it was hidden by timeout but user starts moving again
+      if (!isHovering) setIsHovering(true);
+      resetIdleTimer();
+  };
+
+  const handleMouseLeave = () => {
+      setIsHovering(false);
+      if (idleTimerRef.current) {
+          clearTimeout(idleTimerRef.current);
+      }
+  };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+      return () => {
+          if (idleTimerRef.current) {
+              clearTimeout(idleTimerRef.current);
+          }
+      };
+  }, []);
 
   const formattedProfit = `${totalDailyProfit >= 0 ? '+' : ''}${totalDailyProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formattedRate = `${totalDailyProfitRate >= 0 ? '+' : ''}${totalDailyProfitRate.toFixed(2)}%`;
@@ -62,8 +106,9 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       className="fixed inset-0 bg-white dark:bg-gray-900 z-[200] flex flex-col justify-center items-center text-slate-700 dark:text-gray-400 font-sans p-8 select-none"
       onContextMenu={(e) => e.preventDefault()}
       onClick={onRefresh}
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
     >
         <div className="w-full max-w-lg text-left">
             <DinoIcon />
