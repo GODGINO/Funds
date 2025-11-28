@@ -3,7 +3,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 // FIX: Import ProcessedFund for better type safety
 import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData } from './types';
 import { fetchFundData, fetchFundDetails, fetchIndexData } from './services/fundService';
-import { updateGistData } from './services/gistService';
+import { updateGistData, fetchGistData } from './services/gistService';
 import FundInputForm from './components/FundInputForm';
 import FundRow from './components/FundRow';
 import FundDetailModal from './components/FundDetailModal';
@@ -325,6 +325,24 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const loadSavedData = async () => {
+      // Logic: Pull from Gist on start if Token exists AND Auto-Sync is OFF
+      const token = localStorage.getItem('GITHUB_TOKEN');
+      const isAutoSync = localStorage.getItem('AUTO_SYNC_ENABLED') === 'true';
+
+      if (token && !isAutoSync) {
+         try {
+             // Block loading to ensure we start with the latest cloud data if available
+             const gistContent = await fetchGistData(token);
+             if (gistContent && gistContent.trim()) {
+                 localStorage.setItem('userFundPortfolio', gistContent);
+                 console.log("[Startup] Successfully pulled data from Gist (Manual Sync Mode).");
+             }
+         } catch (e) {
+             console.warn("[Startup] Failed to pull from Gist. Falling back to local data.", e);
+             // Swallowing error to allow offline usage
+         }
+      }
+
       try {
         // Start fetching index data immediately.
         const indexPromise = fetchIndexData().then(setIndexData);
@@ -1459,9 +1477,11 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
     let historicalSnapshots: PortfolioSnapshot[] = [];
 
     if (allTransactionDates.size > 0) {
-        const sortedDates = Array.from(allTransactionDates).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+        // FIX: The sorting logic above was flawed because it was creating new Date objects inside the map/sort but then converting back to strings.
+        // It's safer to just sort the date strings directly since they are YYYY-MM-DD.
+        const properlySortedDates = Array.from(allTransactionDates).sort();
 
-        const snapshots = sortedDates.map(snapshotDate => {
+        const snapshots = properlySortedDates.map(snapshotDate => {
             let snapshotTotalCostBasis = 0;
             let snapshotTotalRealizedProfit = 0;
             const snapshotHoldings: { code: string; shares: number; }[] = [];
