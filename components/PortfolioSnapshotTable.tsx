@@ -111,7 +111,9 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
   const [selectedSnapshot, setSelectedSnapshot] = useState<PortfolioSnapshot | null>(null);
   const chartData = useMemo(() => [...snapshots].reverse(), [snapshots]);
   
-  const thickBorderRightKeys = useMemo(() => new Set(['dailyProfitRate', 'totalBuyFloatingProfit', 'totalSellRealizedProfit', 'profitPerHundred']), []);
+  const thickBorderRightKeys = useMemo(() => new Set(['dailyProfitRate', 'totalBuyFloatingProfit', 'totalSellRealizedProfit', 'operationProfit']), []);
+  // Added operationProfit and profitCaused to wide columns
+  const wideColumnKeys = useMemo(() => new Set(['totalBuyFloatingProfit', 'totalSellOpportunityProfit', 'totalSellRealizedProfit', 'operationProfit', 'profitCaused']), []);
 
 
   const { maxes, maxAbsValues } = useMemo(() => {
@@ -213,6 +215,10 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
         ? (sums.totalSellOpportunityProfit / sums.totalSellAmount) * 100 
         : 0;
 
+    const realizedProfitPercent = sums.totalSellAmount > 1e-6 
+        ? (sums.totalSellRealizedProfit / sums.totalSellAmount) * 100 
+        : 0;
+
     return {
         ...sums,
         profitPerHundred,
@@ -220,6 +226,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
         operationEffect,
         floatingProfitPercent,
         opportunityProfitPercent,
+        realizedProfitPercent,
     };
 }, [snapshots]);
 
@@ -242,23 +249,36 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
     { key: 'totalBuyFloatingProfit', title: '浮盈', render: data => 
       <div className={getProfitColor(data.totalBuyFloatingProfit)}>
         {formatInteger(data.totalBuyFloatingProfit)}
-        <span className="text-gray-500 dark:text-gray-400 text-[10px]">|{data.floatingProfitPercent.toFixed(2)}%</span>
+        <span className="text-gray-500 dark:text-gray-400 text-[10px]">|{data.floatingProfitPercent.toFixed(1)}%</span>
       </div> 
     },
     { key: 'totalSellAmount', title: '⬇︎卖出', render: data => <div>{formatInteger(data.totalSellAmount)}</div> },
     { key: 'totalSellOpportunityProfit', title: '机会收益', render: data => 
       <div className={getProfitColor(data.totalSellOpportunityProfit)}>
         {formatInteger(data.totalSellOpportunityProfit)}
-        <span className="text-gray-500 dark:text-gray-400 text-[10px]">|{data.opportunityProfitPercent.toFixed(2)}%</span>
+        <span className="text-gray-500 dark:text-gray-400 text-[10px]">|{data.opportunityProfitPercent.toFixed(1)}%</span>
       </div> 
     },
-    { key: 'totalSellRealizedProfit', title: '落袋', render: data => <div className={getProfitColor(data.totalSellRealizedProfit)}>{formatInteger(data.totalSellRealizedProfit)}</div> },
+    { key: 'totalSellRealizedProfit', title: '落袋', render: data => 
+      <div className={getProfitColor(data.totalSellRealizedProfit)}>
+        {formatInteger(data.totalSellRealizedProfit)}
+        <span className="text-gray-500 dark:text-gray-400 text-[10px]">|{data.realizedProfitPercent.toFixed(1)}%</span>
+      </div>
+    },
     { key: 'netAmountChange', title: '▲金额', render: data => <div className={getProfitColor(data.netAmountChange)}>{formatInteger(data.netAmountChange)}</div> },
     { key: 'marketValueChange', title: '总值变动', render: data => <div className={getProfitColor(data.marketValueChange)}>{formatInteger(data.marketValueChange)}</div> },
-    { key: 'operationProfit', title: '操作收益', render: data => <div className={getProfitColor(data.operationProfit)}>{formatInteger(data.operationProfit)}</div> },
-    { key: 'profitPerHundred', title: '每百收益', render: data => <div className={getProfitColor(data.profitPerHundred)}>{data.profitPerHundred.toFixed(2)}</div> },
-    { key: 'profitCaused', title: '造成盈亏', render: data => <div className={getProfitColor(data.profitCaused)}>{formatInteger(data.profitCaused)}</div> },
-    { key: 'profitCausedPerHundred', title: '每百造成', render: data => <div className={getProfitColor(data.profitCausedPerHundred)}>{data.profitCausedPerHundred.toFixed(2)}</div> },
+    { key: 'operationProfit', title: '操作收益', render: data => 
+      <div className={getProfitColor(data.operationProfit)}>
+        {formatInteger(data.operationProfit)}
+        <span className="text-gray-500 dark:text-gray-400 text-[10px]">|{data.profitPerHundred.toFixed(1)}%</span>
+      </div> 
+    },
+    { key: 'profitCaused', title: '造成盈亏', render: data => 
+      <div className={getProfitColor(data.profitCaused)}>
+        {formatInteger(data.profitCaused)}
+        <span className="text-gray-500 dark:text-gray-400 text-[10px]">|{data.profitCausedPerHundred.toFixed(1)}%</span>
+      </div> 
+    },
     { key: 'operationEffect', title: '操作效果', render: data => <div className={getProfitColor(data.operationEffect)}>{formatPercentage(data.operationEffect)}</div> },
   ];
 
@@ -276,7 +296,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                    <th key={String(col.key)} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>{col.title}</th>
                 ))}
                 {summaryColumns.map(col => (
-                  <th key={String(col.key)} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 ${(col.key === 'totalBuyFloatingProfit' || col.key === 'totalSellOpportunityProfit') ? 'w-24' : ''} ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>
+                  <th key={String(col.key)} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 ${wideColumnKeys.has(col.key as string) ? 'w-20' : ''} ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>
                     <div>{col.title}</div>
                   </th>
                 ))}
@@ -289,7 +309,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                 ))}
                 {summaryData ? (
                     summaryColumns.map(col => (
-                      <th key={`${String(col.key)}-summary`} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-mono font-bold ${(col.key === 'totalBuyFloatingProfit' || col.key === 'totalSellOpportunityProfit') ? 'w-24' : ''} ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>
+                      <th key={`${String(col.key)}-summary`} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-mono font-bold ${wideColumnKeys.has(col.key as string) ? 'w-20' : ''} ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>
                         {col.render(summaryData)}
                       </th>
                     ))
@@ -307,7 +327,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                 const isBaselineRow = snapshot.snapshotDate === '基准持仓';
                 const rowClasses = isBaselineRow
                   ? 'font-semibold'
-                  : 'hover:bg-gray-50 dark:hover:bg-gray-800/50';
+                  : 'hover:bg-gray-5 dark:hover:bg-gray-800/50';
                 
                 const daysAgo = isBaselineRow ? null : getDaysAgo(snapshot.snapshotDate);
 
@@ -337,13 +357,13 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getCellHighlightClass('totalBuyAmount', snapshot.totalBuyAmount, isBaselineRow)}`} style={getBar_style(snapshot.totalBuyAmount, maxAbsValues.totalBuyAmount ?? 0)}>
                       <div className="relative">{snapshot.totalBuyAmount ? formatInteger(snapshot.totalBuyAmount) : '-'}</div>
                   </td>
-                  <td className={`w-24 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${getProfitColor(snapshot.totalBuyFloatingProfit ?? 0)} ${getCellHighlightClass('totalBuyFloatingProfit', snapshot.totalBuyFloatingProfit, isBaselineRow)}`} style={getBar_style(snapshot.totalBuyFloatingProfit, maxAbsValues.totalBuyFloatingProfit ?? 0)}>
+                  <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${getProfitColor(snapshot.totalBuyFloatingProfit ?? 0)} ${getCellHighlightClass('totalBuyFloatingProfit', snapshot.totalBuyFloatingProfit, isBaselineRow)}`} style={getBar_style(snapshot.totalBuyFloatingProfit, maxAbsValues.totalBuyFloatingProfit ?? 0)}>
                     <div className="relative">
                         {(snapshot.totalBuyAmount ?? 0) > 0 && snapshot.totalBuyFloatingProfit != null ? (
                         <span>
                             {`${snapshot.totalBuyFloatingProfit >= 0 ? '+' : ''}${formatInteger(snapshot.totalBuyFloatingProfit)}`}
                             <span className="text-gray-500 dark:text-gray-400 text-[10px]">
-                            |{((snapshot.totalBuyFloatingProfit / snapshot.totalBuyAmount) * 100).toFixed(2)}%
+                            |{((snapshot.totalBuyFloatingProfit / snapshot.totalBuyAmount) * 100).toFixed(1)}%
                             </span>
                         </span>
                         ) : (
@@ -354,13 +374,13 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getCellHighlightClass('totalSellAmount', snapshot.totalSellAmount, isBaselineRow)}`} style={getBar_style(snapshot.totalSellAmount, maxAbsValues.totalSellAmount ?? 0)}>
                       <div className="relative">{snapshot.totalSellAmount ? formatInteger(snapshot.totalSellAmount) : '-'}</div>
                   </td>
-                  <td className={`w-24 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(snapshot.totalSellOpportunityProfit ?? 0)} ${getCellHighlightClass('totalSellOpportunityProfit', snapshot.totalSellOpportunityProfit, isBaselineRow)}`} style={getBar_style(snapshot.totalSellOpportunityProfit, maxAbsValues.totalSellOpportunityProfit ?? 0)}>
+                  <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(snapshot.totalSellOpportunityProfit ?? 0)} ${getCellHighlightClass('totalSellOpportunityProfit', snapshot.totalSellOpportunityProfit, isBaselineRow)}`} style={getBar_style(snapshot.totalSellOpportunityProfit, maxAbsValues.totalSellOpportunityProfit ?? 0)}>
                     <div className="relative">
                         {(snapshot.totalSellAmount ?? 0) > 0 && snapshot.totalSellOpportunityProfit != null ? (
                             <span>
                                 {`${snapshot.totalSellOpportunityProfit >= 0 ? '+' : ''}${formatInteger(snapshot.totalSellOpportunityProfit)}`}
                                 <span className="text-gray-500 dark:text-gray-400 text-[10px]">
-                                    |{((snapshot.totalSellOpportunityProfit / snapshot.totalSellAmount) * 100).toFixed(2)}%
+                                    |{((snapshot.totalSellOpportunityProfit / snapshot.totalSellAmount) * 100).toFixed(1)}%
                                 </span>
                             </span>
                         ) : (
@@ -368,9 +388,18 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                         )}
                     </div>
                   </td>
-                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${getProfitColor(snapshot.totalSellRealizedProfit ?? 0)} ${getCellHighlightClass('totalSellRealizedProfit', snapshot.totalSellRealizedProfit, isBaselineRow)}`} style={getBar_style(snapshot.totalSellRealizedProfit, maxAbsValues.totalSellRealizedProfit ?? 0)}>
+                  <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${getProfitColor(snapshot.totalSellRealizedProfit ?? 0)} ${getCellHighlightClass('totalSellRealizedProfit', snapshot.totalSellRealizedProfit, isBaselineRow)}`} style={getBar_style(snapshot.totalSellRealizedProfit, maxAbsValues.totalSellRealizedProfit ?? 0)}>
                     <div className="relative">
-                        {(snapshot.totalSellAmount ?? 0) > 0 ? `${(snapshot.totalSellRealizedProfit ?? 0) >= 0 ? '+' : ''}${formatInteger(snapshot.totalSellRealizedProfit ?? 0)}` : '-'}
+                        {(snapshot.totalSellAmount ?? 0) > 0 ? (
+                            <span>
+                                {`${(snapshot.totalSellRealizedProfit ?? 0) >= 0 ? '+' : ''}${formatInteger(snapshot.totalSellRealizedProfit ?? 0)}`}
+                                <span className="text-gray-500 dark:text-gray-400 text-[10px]">
+                                    |{((snapshot.totalSellRealizedProfit! / snapshot.totalSellAmount!) * 100).toFixed(1)}%
+                                </span>
+                            </span>
+                        ) : (
+                            '-'
+                        )}
                     </div>
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${isBaselineRow ? '' : getProfitColor(snapshot.netAmountChange)} ${getCellHighlightClass('netAmountChange', snapshot.netAmountChange, isBaselineRow)}`} style={getBar_style(snapshot.netAmountChange, maxAbsValues.netAmountChange ?? 0)}>
@@ -391,37 +420,33 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                         )}
                     </div>
                   </td>
-                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${snapshot.operationProfit ? getProfitColor(snapshot.operationProfit) : ''} ${getCellHighlightClass('operationProfit', snapshot.operationProfit, isBaselineRow)}`} style={getBar_style(snapshot.operationProfit, maxAbsValues.operationProfit ?? 0)}>
+                  <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${snapshot.operationProfit ? getProfitColor(snapshot.operationProfit) : ''} ${getCellHighlightClass('operationProfit', snapshot.operationProfit, isBaselineRow)}`} style={getBar_style(snapshot.operationProfit, maxAbsValues.operationProfit ?? 0)}>
                     <div className="relative">
                         {snapshot.operationProfit != null ? (
-                        `${snapshot.operationProfit >= 0 ? '+' : ''}${formatInteger(snapshot.operationProfit)}`
+                            <span>
+                                {`${snapshot.operationProfit >= 0 ? '+' : ''}${formatInteger(snapshot.operationProfit)}`}
+                                {snapshot.profitPerHundred != null && (
+                                    <span className="text-gray-500 dark:text-gray-400 text-[10px]">
+                                        |{snapshot.profitPerHundred.toFixed(1)}%
+                                    </span>
+                                )}
+                            </span>
                         ) : (
                         '-'
                         )}
                     </div>
                   </td>
-                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${snapshot.profitPerHundred ? getProfitColor(snapshot.profitPerHundred) : ''} ${getCellHighlightClass('profitPerHundred', snapshot.profitPerHundred, isBaselineRow)}`} style={getBar_style(snapshot.profitPerHundred, maxAbsValues.profitPerHundred ?? 0)}>
-                    <div className="relative">
-                        {snapshot.profitPerHundred != null ? (
-                        `${snapshot.profitPerHundred >= 0 ? '+' : ''}${snapshot.profitPerHundred.toFixed(2)}`
-                        ) : (
-                        '-'
-                        )}
-                    </div>
-                  </td>
-                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${snapshot.profitCaused ? getProfitColor(snapshot.profitCaused) : ''} ${getCellHighlightClass('profitCaused', snapshot.profitCaused, isBaselineRow)}`} style={getBar_style(snapshot.profitCaused, maxAbsValues.profitCaused ?? 0)}>
+                  <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${snapshot.profitCaused ? getProfitColor(snapshot.profitCaused) : ''} ${getCellHighlightClass('profitCaused', snapshot.profitCaused, isBaselineRow)}`} style={getBar_style(snapshot.profitCaused, maxAbsValues.profitCaused ?? 0)}>
                     <div className="relative">
                         {snapshot.profitCaused != null ? (
-                            `${snapshot.profitCaused >= 0 ? '+' : ''}${formatInteger(snapshot.profitCaused)}`
-                        ) : (
-                            '-'
-                        )}
-                    </div>
-                  </td>
-                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${snapshot.profitCausedPerHundred ? getProfitColor(snapshot.profitCausedPerHundred) : ''} ${getCellHighlightClass('profitCausedPerHundred', snapshot.profitCausedPerHundred, isBaselineRow)}`} style={getBar_style(snapshot.profitCausedPerHundred, maxAbsValues.profitCausedPerHundred ?? 0)}>
-                    <div className="relative">
-                        {snapshot.profitCausedPerHundred != null ? (
-                            `${snapshot.profitCausedPerHundred >= 0 ? '+' : ''}${snapshot.profitCausedPerHundred.toFixed(2)}`
+                            <span>
+                                {`${snapshot.profitCaused >= 0 ? '+' : ''}${formatInteger(snapshot.profitCaused)}`}
+                                {snapshot.profitCausedPerHundred != null && (
+                                    <span className="text-gray-500 dark:text-gray-400 text-[10px]">
+                                        |{snapshot.profitCausedPerHundred.toFixed(1)}%
+                                    </span>
+                                )}
+                            </span>
                         ) : (
                             '-'
                         )}
