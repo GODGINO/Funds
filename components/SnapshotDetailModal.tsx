@@ -81,7 +81,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     const costBasisPerShareBeforeSell = prevShares > 0 ? prevTotalCost / prevShares : 0;
                     prevTotalCost -= costBasisPerShareBeforeSell * Math.abs(record.sharesChange ?? 0);
                     prevShares += record.sharesChange ?? 0; // sharesChange is negative for sell
-                    if (prevShares < 1e-6) {
+                    if ((prevShares as number) < 1e-6) {
                         prevShares = 0;
                         prevTotalCost = 0;
                     }
@@ -104,7 +104,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
                     const costChange = newAvgCost - prevAvgCost;
                     const costChangePercent = prevAvgCost > 0 ? (costChange / prevAvgCost) * 100 : 0;
-                    const sharesChangePercent = prevShares > 0 ? (sChange / prevShares) * 100 : 100;
+                    const sharesChangePercent = (prevShares as number) > 0 ? (sChange / (prevShares as number)) * 100 : 100;
                     const floatingProfit = latestNAV > 0 ? (latestNAV - rNav) * sChange : 0;
                     const floatingProfitPercent = rNav > 0 && rAmount > 0 ? (floatingProfit / rAmount) * 100 : 0;
 
@@ -124,7 +124,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     const rNav = record.nav ?? 0;
                     const rAmount = record.amount ?? 0;
 
-                    const sharesChangePercent = prevShares > 0 ? (sChange / prevShares) * 100 : 0;
+                    const sharesChangePercent = (prevShares as number) > 0 ? (sChange / (prevShares as number)) * 100 : 0;
                     const opportunityProfit = latestNAV > 0 ? (rNav - latestNAV) * Math.abs(sChange) : 0;
                     const opportunityProfitPercent = rNav > 0 ? ((rNav - latestNAV) / rNav) * 100 : 0;
                     const realizedProfit = record.realizedProfitChange ?? 0;

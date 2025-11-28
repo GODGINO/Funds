@@ -1659,8 +1659,8 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
           const profitCaused = snapshot.dailyProfit - previousSnapshot.dailyProfit;
           const profitCausedPerHundred = (snapshot.netAmountChange ?? 0) !== 0 ? (profitCaused / Math.abs(snapshot.netAmountChange ?? 0)) * 100 : undefined;
           
-          const operationEffect = Math.abs(previousSnapshot.dailyProfit) > 1e-6
-              ? (profitCaused / Math.abs(previousSnapshot.dailyProfit)) * 100 
+          const operationEffect = Math.abs(previousSnapshot.dailyProfit as number) > 1e-6
+              ? (profitCaused / Math.abs(previousSnapshot.dailyProfit as number)) * 100 
               : 100;
 
           return { ...snapshot, marketValueChange, operationProfit, profitPerHundred, profitCaused, profitCausedPerHundred, operationEffect };
@@ -1687,8 +1687,8 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
     const summaryProfitCaused = latestSnapshot.dailyProfit - baselineSnapshot.dailyProfit;
     
     // This logic is duplicated from PortfolioSnapshotTable, as requested for consistency.
-    const summaryOperationEffect = Math.abs(baselineSnapshot.dailyProfit) > 1e-6
-        ? (summaryProfitCaused / Math.abs(baselineSnapshot.dailyProfit)) * 100
+    const summaryOperationEffect = Math.abs(baselineSnapshot.dailyProfit as number) > 1e-6
+        ? (summaryProfitCaused / Math.abs(baselineSnapshot.dailyProfit as number)) * 100
         : 100;
 
     return { summaryProfitCaused, summaryOperationEffect };
