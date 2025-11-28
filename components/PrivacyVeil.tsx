@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef, useEffect } from 'react';
 import { IndexData } from '../types';
 
@@ -60,6 +59,10 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       setIsHovering(false);
       if (idleTimerRef.current) {
           clearTimeout(idleTimerRef.current);
+      }
+      // Redirect to Boss Key app when leaving the veil/window (on PC)
+      if (!isMobile) {
+          window.location.href = 'feishu://';
       }
   };
 
