@@ -1,5 +1,5 @@
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { PortfolioSnapshot, ProcessedFund, TradingRecord } from '../types';
 
 interface SnapshotDetailModalProps {
@@ -48,6 +48,35 @@ const TagBadge: React.FC<{ tag: string, onDoubleClick: (t: string) => void }> = 
     );
 };
 
+const FundNameDisplay: React.FC<{ name: string; code: string }> = ({ name, code }) => {
+    const [isCopied, setIsCopied] = useState(false);
+
+    const handleCopy = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(code).then(() => {
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 1000);
+        }).catch(err => {
+            console.error('Failed to copy fund code: ', err);
+        });
+    };
+
+    return (
+        <div
+            className="relative cursor-pointer group"
+            onClick={handleCopy}
+            title={`点击复制代码: ${code}`}
+        >
+            <div className={`font-semibold transition-opacity duration-200 ${isCopied ? 'opacity-0' : 'opacity-100 group-hover:text-primary-500'}`}>
+                {name}
+            </div>
+            <div className={`absolute left-0 top-0 font-semibold text-green-500 transition-opacity duration-200 ${isCopied ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                已复制代码
+            </div>
+        </div>
+    );
+};
+
 const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClose, snapshot, funds, onTagDoubleClick }) => {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -73,6 +102,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
             const holdings = funds
                 .filter(f => f.initialUserPosition)
                 .map(f => ({
+                    fundCode: f.code,
                     name: f.name,
                     tags: f.initialUserPosition?.tag ? f.initialUserPosition.tag.split(',').map(t => t.trim()).filter(Boolean) : [],
                     shares: f.initialUserPosition!.shares,
@@ -157,6 +187,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     totalBuyAmount += rAmount;
 
                     detailedBuys.push({
+                        fundCode: fund.code,
                         fundName: fund.name,
                         tags,
                         costChange, costChangePercent,
@@ -181,6 +212,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     totalSellAmount += Math.abs(rAmount);
 
                     detailedSells.push({
+                        fundCode: fund.code,
                         fundName: fund.name,
                         tags,
                         sharesChange: sChange, sharesChangePercent,
@@ -191,6 +223,17 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                 }
             });
         });
+
+        // Calculate percentages and sort by amount descending
+        detailedBuys.forEach(r => {
+            r.amountPercent = totalBuyAmount > 0 ? (r.amount / totalBuyAmount) * 100 : 0;
+        });
+        detailedBuys.sort((a, b) => b.amount - a.amount);
+
+        detailedSells.forEach(r => {
+            r.amountPercent = totalSellAmount > 0 ? (r.amount / totalSellAmount) * 100 : 0;
+        });
+        detailedSells.sort((a, b) => b.amount - a.amount);
 
         return { 
             detailedBuyRecords: detailedBuys,
@@ -227,170 +270,217 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
     const modalMaxWidthClass = hasOnlyOneType ? 'max-w-xl' : 'max-w-6xl';
 
 
-    if (!isOpen) return null;
-
-    const renderTransactionTables = () => (
-        <div className={`grid grid-cols-1 ${!hasOnlyOneType ? 'md:grid-cols-2' : ''} gap-x-6 gap-y-4`}>
-            {/* Buy Operations Column */}
-            {hasBuys && (
-                <div className={`${hasOnlyOneType ? 'mx-auto w-full' : ''} flex flex-col h-full`}>
-                    <h4 className="text-xl font-bold mb-1 text-red-600">买入操作</h4>
-                    {uniqueBuyTags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-3">
-                            {uniqueBuyTags.map(tag => (
-                                <TagBadge key={tag} tag={tag} onDoubleClick={handleTagAction} />
-                            ))}
-                        </div>
-                    )}
-                    <div className="overflow-x-auto flex-1">
-                        <table className="w-full text-sm text-left h-full">
-                            <thead className="bg-gray-200 dark:bg-gray-700 h-fit">
-                                <tr>
-                                    <th className="p-2 whitespace-nowrap">基金名称</th>
-                                    <th className="p-2 text-right whitespace-nowrap">份额变化</th>
-                                    <th className="p-2 text-right whitespace-nowrap">成本变化</th>
-                                    <th className="p-2 text-right whitespace-nowrap">浮盈</th>
-                                    <th className="p-2 text-right whitespace-nowrap">买入</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {detailedBuyRecords.map((record, index) => (
-                                    <tr key={`buy-${index}`} className="border-b dark:border-gray-700 h-fit">
-                                        <td className="p-2">
-                                            <div className="font-semibold">{record.fundName}</div>
-                                            {record.tags && record.tags.length > 0 && (
-                                                <div className="flex flex-wrap gap-1 mt-0.5">
-                                                    {record.tags.map((tag: string) => (
-                                                        <TagBadge key={tag} tag={tag} onDoubleClick={handleTagAction} />
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td className="p-2 text-right font-mono">
-                                            <div className={getProfitColor(1)}>+{record.sharesChange.toFixed(2)}</div>
-                                            <div className={`${getProfitColor(1)} text-xs`}>+{record.sharesChangePercent.toFixed(2)}%</div>
-                                        </td>
-                                        <td className="p-2 text-right font-mono">
-                                            <div className={getProfitColor(record.costChange * -1)}>{record.costChange.toFixed(4)}</div>
-                                            <div className={`${getProfitColor(record.costChange * -1)} text-xs`}>{`${record.costChangePercent > 0 ? '+' : ''}${record.costChangePercent.toFixed(2)}%`}</div>
-                                        </td>
-                                        <td className="p-2 text-right font-mono">
-                                            <div className={getProfitColor(record.floatingProfit)}>{record.floatingProfit.toFixed(2)}</div>
-                                            <div className={`${getProfitColor(record.floatingProfit)} text-xs`}>{`${record.floatingProfitPercent > 0 ? '+' : ''}${record.floatingProfitPercent.toFixed(2)}%`}</div>
-                                        </td>
-                                        <td className="p-2 text-right font-mono">{record.amount.toFixed(2)}</td>
-                                    </tr>
-                                ))}
-                                {/* Spacer Row to push Footer down */}
-                                <tr className="border-none bg-transparent">
-                                    <td colSpan={5} className="p-0 border-none h-full"></td>
-                                </tr>
-                            </tbody>
-                            <tfoot className="h-fit">
-                                <tr className="border-t dark:border-gray-600 font-bold">
-                                    <td className="p-2 text-left" colSpan={3}>汇总</td>
-                                    <td className="p-2 text-right font-mono">
-                                        <div className={getProfitColor(buyTotals.floatingProfit)}>{buyTotals.floatingProfit.toFixed(2)}</div>
-                                        <div className={`${getProfitColor(buyTotals.floatingProfit)} text-xs font-normal`}>
-                                            {buyTotals.amount > 0 
-                                                ? `${((buyTotals.floatingProfit / buyTotals.amount) * 100) > 0 ? '+' : ''}${((buyTotals.floatingProfit / buyTotals.amount) * 100).toFixed(2)}%`
-                                                : '0.00%'
-                                            }
-                                        </div>
-                                    </td>
-                                    <td className="p-2 text-right font-mono">{buyTotals.amount.toFixed(2)}</td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
+    const renderBuyHeader = () => (
+        <div className="flex flex-col">
+            <h4 className="text-xl font-bold mb-1 text-red-600">买入操作</h4>
+            {uniqueBuyTags.length > 0 ? (
+                <div className="flex flex-wrap gap-1 mb-3">
+                    {uniqueBuyTags.map(tag => (
+                        <TagBadge key={tag} tag={tag} onDoubleClick={handleTagAction} />
+                    ))}
                 </div>
-            )}
-
-            {/* Sell Operations Column */}
-            {hasSells && (
-                <div className={`${hasOnlyOneType ? 'mx-auto w-full' : ''} flex flex-col h-full`}>
-                    <h4 className="text-xl font-bold mb-1 text-blue-600">卖出操作</h4>
-                    {uniqueSellTags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-3">
-                            {uniqueSellTags.map(tag => (
-                                <TagBadge key={tag} tag={tag} onDoubleClick={handleTagAction} />
-                            ))}
-                        </div>
-                    )}
-                     <div className="overflow-x-auto flex-1">
-                        <table className="w-full text-sm text-left h-full">
-                            <thead className="bg-gray-200 dark:bg-gray-700 h-fit">
-                                <tr>
-                                    <th className="p-2 whitespace-nowrap">基金名称</th>
-                                    <th className="p-2 text-right whitespace-nowrap">份额变化</th>
-                                    <th className="p-2 text-right whitespace-nowrap">机会收益</th>
-                                    <th className="p-2 text-right whitespace-nowrap">落袋</th>
-                                    <th className="p-2 text-right whitespace-nowrap">到账</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {detailedSellRecords.map((record, index) => (
-                                    <tr key={`sell-${index}`} className="border-b dark:border-gray-700 h-fit">
-                                        <td className="p-2">
-                                            <div className="font-semibold">{record.fundName}</div>
-                                            {record.tags && record.tags.length > 0 && (
-                                                <div className="flex flex-wrap gap-1 mt-0.5">
-                                                    {record.tags.map((tag: string) => (
-                                                        <TagBadge key={tag} tag={tag} onDoubleClick={handleTagAction} />
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td className="p-2 text-right font-mono">
-                                            <div className={getProfitColor(-1)}>{record.sharesChange.toFixed(2)}</div>
-                                            <div className={`${getProfitColor(-1)} text-xs`}>{record.sharesChangePercent.toFixed(2)}%</div>
-                                        </td>
-                                        <td className="p-2 text-right font-mono">
-                                            <div className={getProfitColor(record.opportunityProfit)}>{`${record.opportunityProfit > 0 ? '+' : ''}${record.opportunityProfit.toFixed(2)}`}</div>
-                                            <div className={`${getProfitColor(record.opportunityProfit)} text-xs`}>{`${record.opportunityProfitPercent > 0 ? '+' : ''}${record.opportunityProfitPercent.toFixed(2)}%`}</div>
-                                        </td>
-                                        <td className="p-2 text-right font-mono">
-                                            <div className={getProfitColor(record.realizedProfit)}>{record.realizedProfit.toFixed(2)}</div>
-                                            <div className={`${getProfitColor(record.realizedProfit)} text-xs`}>{`${record.realizedProfitPercent > 0 ? '+' : ''}${record.realizedProfitPercent.toFixed(2)}%`}</div>
-                                        </td>
-                                        <td className="p-2 text-right font-mono">{record.amount.toFixed(2)}</td>
-                                    </tr>
-                                ))}
-                                {/* Spacer Row to push Footer down */}
-                                <tr className="border-none bg-transparent">
-                                    <td colSpan={5} className="p-0 border-none h-full"></td>
-                                </tr>
-                            </tbody>
-                            <tfoot className="h-fit">
-                                <tr className="border-t dark:border-gray-600 font-bold">
-                                    <td className="p-2 text-left" colSpan={2}>汇总</td>
-                                    <td className="p-2 text-right font-mono">
-                                        <div className={getProfitColor(sellTotals.opportunityProfit)}>{`${sellTotals.opportunityProfit > 0 ? '+' : ''}${sellTotals.opportunityProfit.toFixed(2)}`}</div>
-                                        <div className={`${getProfitColor(sellTotals.opportunityProfit)} text-xs font-normal`}>
-                                            {sellTotals.amount > 0 
-                                                ? `${((sellTotals.opportunityProfit / sellTotals.amount) * 100) > 0 ? '+' : ''}${((sellTotals.opportunityProfit / sellTotals.amount) * 100).toFixed(2)}%`
-                                                : '0.00%'
-                                            }
-                                        </div>
-                                    </td>
-                                    <td className="p-2 text-right font-mono">
-                                        <div className={getProfitColor(sellTotals.realizedProfit)}>{sellTotals.realizedProfit.toFixed(2)}</div>
-                                        <div className={`${getProfitColor(sellTotals.realizedProfit)} text-xs font-normal`}>
-                                            {sellTotals.amount > 0 
-                                                ? `${((sellTotals.realizedProfit / sellTotals.amount) * 100) > 0 ? '+' : ''}${((sellTotals.realizedProfit / sellTotals.amount) * 100).toFixed(2)}%`
-                                                : '0.00%'
-                                            }
-                                        </div>
-                                    </td>
-                                    <td className="p-2 text-right font-mono">{sellTotals.amount.toFixed(2)}</td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </div>
+            ) : (
+                <div className="mb-3"></div>
             )}
         </div>
     );
+
+    const renderSellHeader = () => (
+        <div className="flex flex-col">
+            <h4 className="text-xl font-bold mb-1 text-blue-600">卖出操作</h4>
+            {uniqueSellTags.length > 0 ? (
+                <div className="flex flex-wrap gap-1 mb-3">
+                    {uniqueSellTags.map(tag => (
+                        <TagBadge key={tag} tag={tag} onDoubleClick={handleTagAction} />
+                    ))}
+                </div>
+            ) : (
+                <div className="mb-3"></div>
+            )}
+        </div>
+    );
+
+    const renderBuyTable = () => (
+        <div className="overflow-x-auto h-full">
+            <table className="w-full text-sm text-left h-full">
+                <thead className="bg-gray-200 dark:bg-gray-700 h-fit">
+                    <tr>
+                        <th className="p-2 whitespace-nowrap">基金名称</th>
+                        <th className="p-2 text-right whitespace-nowrap">份额变化</th>
+                        <th className="p-2 text-right whitespace-nowrap">成本变化</th>
+                        <th className="p-2 text-right whitespace-nowrap">浮盈</th>
+                        <th className="p-2 text-right whitespace-nowrap">买入</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {detailedBuyRecords.map((record, index) => (
+                        <tr key={`buy-${index}`} className="border-b dark:border-gray-700 h-fit">
+                            <td className="p-2">
+                                <FundNameDisplay name={record.fundName} code={record.fundCode} />
+                                {record.tags && record.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-0.5">
+                                        {record.tags.map((tag: string) => (
+                                            <TagBadge key={tag} tag={tag} onDoubleClick={handleTagAction} />
+                                        ))}
+                                    </div>
+                                )}
+                            </td>
+                            <td className="p-2 text-right font-mono">
+                                <div className={getProfitColor(1)}>+{record.sharesChange.toFixed(2)}</div>
+                                <div className={`${getProfitColor(1)} text-xs`}>+{record.sharesChangePercent.toFixed(2)}%</div>
+                            </td>
+                            <td className="p-2 text-right font-mono">
+                                <div className={getProfitColor(record.costChange * -1)}>{record.costChange.toFixed(4)}</div>
+                                <div className={`${getProfitColor(record.costChange * -1)} text-xs`}>{`${record.costChangePercent > 0 ? '+' : ''}${record.costChangePercent.toFixed(2)}%`}</div>
+                            </td>
+                            <td className="p-2 text-right font-mono">
+                                <div className={getProfitColor(record.floatingProfit)}>{record.floatingProfit.toFixed(2)}</div>
+                                <div className={`${getProfitColor(record.floatingProfit)} text-xs`}>{`${record.floatingProfitPercent > 0 ? '+' : ''}${record.floatingProfitPercent.toFixed(2)}%`}</div>
+                            </td>
+                            <td className="p-2 text-right font-mono">
+                                <div>{record.amount.toFixed(2)}</div>
+                                <div className="text-gray-500 dark:text-gray-400 text-xs">{record.amountPercent.toFixed(1)}%</div>
+                            </td>
+                        </tr>
+                    ))}
+                    {/* Spacer Row to push Footer down */}
+                    <tr className="border-none bg-transparent">
+                        <td colSpan={5} className="p-0 border-none h-full"></td>
+                    </tr>
+                </tbody>
+                <tfoot className="h-fit">
+                    <tr className="border-t dark:border-gray-600 font-bold">
+                        <td className="p-2 text-left" colSpan={3}>汇总</td>
+                        <td className="p-2 text-right font-mono">
+                            <div className={getProfitColor(buyTotals.floatingProfit)}>{buyTotals.floatingProfit.toFixed(2)}</div>
+                            <div className={`${getProfitColor(buyTotals.floatingProfit)} text-xs font-normal`}>
+                                {buyTotals.amount > 0 
+                                    ? `${((buyTotals.floatingProfit / buyTotals.amount) * 100) > 0 ? '+' : ''}${((buyTotals.floatingProfit / buyTotals.amount) * 100).toFixed(2)}%`
+                                    : '0.00%'
+                                }
+                            </div>
+                        </td>
+                        <td className="p-2 text-right font-mono">{buyTotals.amount.toFixed(2)}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    );
+
+    const renderSellTable = () => (
+        <div className="overflow-x-auto h-full">
+            <table className="w-full text-sm text-left h-full">
+                <thead className="bg-gray-200 dark:bg-gray-700 h-fit">
+                    <tr>
+                        <th className="p-2 whitespace-nowrap">基金名称</th>
+                        <th className="p-2 text-right whitespace-nowrap">份额变化</th>
+                        <th className="p-2 text-right whitespace-nowrap">机会收益</th>
+                        <th className="p-2 text-right whitespace-nowrap">落袋</th>
+                        <th className="p-2 text-right whitespace-nowrap">到账</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {detailedSellRecords.map((record, index) => (
+                        <tr key={`sell-${index}`} className="border-b dark:border-gray-700 h-fit">
+                            <td className="p-2">
+                                <FundNameDisplay name={record.fundName} code={record.fundCode} />
+                                {record.tags && record.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-0.5">
+                                        {record.tags.map((tag: string) => (
+                                            <TagBadge key={tag} tag={tag} onDoubleClick={handleTagAction} />
+                                        ))}
+                                    </div>
+                                )}
+                            </td>
+                            <td className="p-2 text-right font-mono">
+                                <div className={getProfitColor(-1)}>{record.sharesChange.toFixed(2)}</div>
+                                <div className={`${getProfitColor(-1)} text-xs`}>{record.sharesChangePercent.toFixed(2)}%</div>
+                            </td>
+                            <td className="p-2 text-right font-mono">
+                                <div className={getProfitColor(record.opportunityProfit)}>{`${record.opportunityProfit > 0 ? '+' : ''}${record.opportunityProfit.toFixed(2)}`}</div>
+                                <div className={`${getProfitColor(record.opportunityProfit)} text-xs`}>{`${record.opportunityProfitPercent > 0 ? '+' : ''}${record.opportunityProfitPercent.toFixed(2)}%`}</div>
+                            </td>
+                            <td className="p-2 text-right font-mono">
+                                <div className={getProfitColor(record.realizedProfit)}>{record.realizedProfit.toFixed(2)}</div>
+                                <div className={`${getProfitColor(record.realizedProfit)} text-xs`}>{`${record.realizedProfitPercent > 0 ? '+' : ''}${record.realizedProfitPercent.toFixed(2)}%`}</div>
+                            </td>
+                            <td className="p-2 text-right font-mono">
+                                <div>{record.amount.toFixed(2)}</div>
+                                <div className="text-gray-500 dark:text-gray-400 text-xs">{record.amountPercent.toFixed(1)}%</div>
+                            </td>
+                        </tr>
+                    ))}
+                    {/* Spacer Row to push Footer down */}
+                    <tr className="border-none bg-transparent">
+                        <td colSpan={5} className="p-0 border-none h-full"></td>
+                    </tr>
+                </tbody>
+                <tfoot className="h-fit">
+                    <tr className="border-t dark:border-gray-600 font-bold">
+                        <td className="p-2 text-left" colSpan={2}>汇总</td>
+                        <td className="p-2 text-right font-mono">
+                            <div className={getProfitColor(sellTotals.opportunityProfit)}>{`${sellTotals.opportunityProfit > 0 ? '+' : ''}${sellTotals.opportunityProfit.toFixed(2)}`}</div>
+                            <div className={`${getProfitColor(sellTotals.opportunityProfit)} text-xs font-normal`}>
+                                {sellTotals.amount > 0 
+                                    ? `${((sellTotals.opportunityProfit / sellTotals.amount) * 100) > 0 ? '+' : ''}${((sellTotals.opportunityProfit / sellTotals.amount) * 100).toFixed(2)}%`
+                                    : '0.00%'
+                                }
+                            </div>
+                        </td>
+                        <td className="p-2 text-right font-mono">
+                            <div className={getProfitColor(sellTotals.realizedProfit)}>{sellTotals.realizedProfit.toFixed(2)}</div>
+                            <div className={`${getProfitColor(sellTotals.realizedProfit)} text-xs font-normal`}>
+                                {sellTotals.amount > 0 
+                                    ? `${((sellTotals.realizedProfit / sellTotals.amount) * 100) > 0 ? '+' : ''}${((sellTotals.realizedProfit / sellTotals.amount) * 100).toFixed(2)}%`
+                                    : '0.00%'
+                                }
+                            </div>
+                        </td>
+                        <td className="p-2 text-right font-mono">{sellTotals.amount.toFixed(2)}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    );
+
+    const renderTransactionTables = () => {
+        if (hasOnlyOneType) {
+             return (
+                 <div className="mx-auto w-full max-w-xl flex flex-col h-full">
+                     {hasBuys ? renderBuyHeader() : renderSellHeader()}
+                     <div className="flex-1 mt-0">
+                         {hasBuys ? renderBuyTable() : renderSellTable()}
+                     </div>
+                 </div>
+             )
+        }
+
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-[auto_1fr] gap-x-6 gap-y-0 h-full">
+                {/* Buy Header - Order 1 on mobile, Col 1 Row 1 on desktop */}
+                <div className="order-1 md:order-none md:col-start-1 md:row-start-1">
+                    {renderBuyHeader()}
+                </div>
+                
+                {/* Buy Table - Order 2 on mobile, Col 1 Row 2 on desktop */}
+                <div className="order-2 md:order-none md:col-start-1 md:row-start-2 overflow-x-auto h-full mb-6 md:mb-0">
+                     {renderBuyTable()}
+                </div>
+
+                {/* Sell Header - Order 3 on mobile, Col 2 Row 1 on desktop */}
+                <div className="order-3 md:order-none md:col-start-2 md:row-start-1">
+                    {renderSellHeader()}
+                </div>
+
+                {/* Sell Table - Order 4 on mobile, Col 2 Row 2 on desktop */}
+                <div className="order-4 md:order-none md:col-start-2 md:row-start-2 overflow-x-auto h-full">
+                    {renderSellTable()}
+                </div>
+            </div>
+        );
+    };
+
+    if (!isOpen) return null;
 
     const renderInitialHoldingsTable = () => (
         <div className="flex justify-center">
@@ -413,7 +503,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                             {initialHoldings.map((h, index) => (
                                 <tr key={`${h.name}-${index}`} className="border-b dark:border-gray-700">
                                     <td className="p-2">
-                                        <div className="font-semibold">{h.name}</div>
+                                        <FundNameDisplay name={h.name} code={h.fundCode} />
                                         {h.tags && h.tags.length > 0 && (
                                             <div className="flex flex-wrap gap-1 mt-0.5">
                                                 {h.tags.map((tag: string) => (
