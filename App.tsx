@@ -1826,7 +1826,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
               </table>
             </div>
           </div>
-          {portfolioSnapshots.length > 1 && <PortfolioSnapshotTable snapshots={portfolioSnapshots} funds={processedFunds} />}
+          {portfolioSnapshots.length > 1 && <PortfolioSnapshotTable snapshots={portfolioSnapshots} funds={processedFunds} onTagDoubleClick={handleTagDoubleClick} />}
         </>
       ) : (
         <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg shadow-md">

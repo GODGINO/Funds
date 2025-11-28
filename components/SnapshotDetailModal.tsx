@@ -7,11 +7,48 @@ interface SnapshotDetailModalProps {
     onClose: () => void;
     snapshot: PortfolioSnapshot;
     funds: ProcessedFund[];
+    onTagDoubleClick: (tag: string) => void;
 }
 
 const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-green-600';
 
-const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClose, snapshot, funds }) => {
+const COLORS = [
+  { bg: 'bg-blue-100 dark:bg-blue-900/50', text: 'text-blue-800 dark:text-blue-300' },
+  { bg: 'bg-green-100 dark:bg-green-900/50', text: 'text-green-800 dark:text-green-300' },
+  { bg: 'bg-red-100 dark:bg-red-900/50', text: 'text-red-800 dark:text-red-300' },
+  { bg: 'bg-yellow-100 dark:bg-yellow-900/50', text: 'text-yellow-800 dark:text-yellow-300' },
+  { bg: 'bg-purple-100 dark:bg-purple-900/50', text: 'text-purple-800 dark:text-purple-300' },
+  { bg: 'bg-pink-100 dark:bg-pink-900/50', text: 'text-pink-800 dark:text-pink-300' },
+  { bg: 'bg-gray-200 dark:bg-gray-700/50', text: 'text-gray-800 dark:text-gray-300' },
+];
+
+const getTagColor = (tag: string) => {
+  let hash = 0;
+  if (tag.length === 0) return COLORS[6];
+  for (let i = 0; i < tag.length; i++) {
+    hash = tag.charCodeAt(i) + ((hash << 5) - hash);
+    hash = hash & hash;
+  }
+  const index = Math.abs(hash % COLORS.length);
+  return COLORS[index];
+};
+
+const TagBadge: React.FC<{ tag: string, onDoubleClick: (t: string) => void }> = ({ tag, onDoubleClick }) => {
+    const { bg, text } = getTagColor(tag);
+    return (
+        <span
+            className={`inline-block px-1.5 py-0.5 text-[10px] leading-none font-medium rounded ${bg} ${text} cursor-pointer hover:opacity-80`}
+            onDoubleClick={(e) => {
+                e.stopPropagation();
+                onDoubleClick(tag);
+            }}
+        >
+            {tag}
+        </span>
+    );
+};
+
+const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClose, snapshot, funds, onTagDoubleClick }) => {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
@@ -26,12 +63,18 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
         };
     }, [isOpen, onClose]);
 
+    const handleTagAction = (tag: string) => {
+        onClose();
+        onTagDoubleClick(tag);
+    };
+
     const { detailedBuyRecords, buyTotals, detailedSellRecords, sellTotals, initialHoldings } = useMemo(() => {
         if (snapshot.snapshotDate === '基准持仓') {
             const holdings = funds
                 .filter(f => f.initialUserPosition)
                 .map(f => ({
                     name: f.name,
+                    tags: f.initialUserPosition?.tag ? f.initialUserPosition.tag.split(',').map(t => t.trim()).filter(Boolean) : [],
                     shares: f.initialUserPosition!.shares,
                     cost: f.initialUserPosition!.cost,
                     totalCost: f.initialUserPosition!.shares * f.initialUserPosition!.cost,
@@ -64,6 +107,8 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
             const recordsOnDate = position.tradingRecords.filter(r => r.date === snapshotDate);
             if (recordsOnDate.length === 0) return;
+
+            const tags = position.tag ? position.tag.split(',').map(t => t.trim()).filter(Boolean) : [];
 
             let prevShares: number = fund.initialUserPosition?.shares ?? 0;
             let prevTotalCost: number = (fund.initialUserPosition?.shares ?? 0) * (fund.initialUserPosition?.cost ?? 0);
@@ -113,6 +158,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
                     detailedBuys.push({
                         fundName: fund.name,
+                        tags,
                         costChange, costChangePercent,
                         sharesChange: sChange, sharesChangePercent,
                         floatingProfit, floatingProfitPercent,
@@ -136,6 +182,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
                     detailedSells.push({
                         fundName: fund.name,
+                        tags,
                         sharesChange: sChange, sharesChangePercent,
                         opportunityProfit, opportunityProfitPercent,
                         realizedProfit, realizedProfitPercent,
@@ -155,6 +202,18 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
     }, [snapshot, funds]);
     
+    const uniqueBuyTags = useMemo(() => {
+        const tagSet = new Set<string>();
+        detailedBuyRecords.forEach(r => r.tags?.forEach((t: string) => tagSet.add(t)));
+        return Array.from(tagSet).sort();
+    }, [detailedBuyRecords]);
+
+    const uniqueSellTags = useMemo(() => {
+        const tagSet = new Set<string>();
+        detailedSellRecords.forEach(r => r.tags?.forEach((t: string) => tagSet.add(t)));
+        return Array.from(tagSet).sort();
+    }, [detailedSellRecords]);
+
     const netAmountChange = useMemo(() => {
         if (snapshot.snapshotDate === '基准持仓') {
             return 0;
@@ -175,7 +234,14 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
             {/* Buy Operations Column */}
             {hasBuys && (
                 <div className={`${hasOnlyOneType ? 'mx-auto w-full' : ''} flex flex-col h-full`}>
-                    <h4 className="text-xl font-bold mb-3 text-red-600">买入操作</h4>
+                    <h4 className="text-xl font-bold mb-1 text-red-600">买入操作</h4>
+                    {uniqueBuyTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-3">
+                            {uniqueBuyTags.map(tag => (
+                                <TagBadge key={tag} tag={tag} onDoubleClick={handleTagAction} />
+                            ))}
+                        </div>
+                    )}
                     <div className="overflow-x-auto flex-1">
                         <table className="w-full text-sm text-left h-full">
                             <thead className="bg-gray-200 dark:bg-gray-700 h-fit">
@@ -190,7 +256,16 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                             <tbody>
                                 {detailedBuyRecords.map((record, index) => (
                                     <tr key={`buy-${index}`} className="border-b dark:border-gray-700 h-fit">
-                                        <td className="p-2 font-semibold">{record.fundName}</td>
+                                        <td className="p-2">
+                                            <div className="font-semibold">{record.fundName}</div>
+                                            {record.tags && record.tags.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                                    {record.tags.map((tag: string) => (
+                                                        <TagBadge key={tag} tag={tag} onDoubleClick={handleTagAction} />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </td>
                                         <td className="p-2 text-right font-mono">
                                             <div className={getProfitColor(1)}>+{record.sharesChange.toFixed(2)}</div>
                                             <div className={`${getProfitColor(1)} text-xs`}>+{record.sharesChangePercent.toFixed(2)}%</div>
@@ -234,7 +309,14 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
             {/* Sell Operations Column */}
             {hasSells && (
                 <div className={`${hasOnlyOneType ? 'mx-auto w-full' : ''} flex flex-col h-full`}>
-                    <h4 className="text-xl font-bold mb-3 text-blue-600">卖出操作</h4>
+                    <h4 className="text-xl font-bold mb-1 text-blue-600">卖出操作</h4>
+                    {uniqueSellTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-3">
+                            {uniqueSellTags.map(tag => (
+                                <TagBadge key={tag} tag={tag} onDoubleClick={handleTagAction} />
+                            ))}
+                        </div>
+                    )}
                      <div className="overflow-x-auto flex-1">
                         <table className="w-full text-sm text-left h-full">
                             <thead className="bg-gray-200 dark:bg-gray-700 h-fit">
@@ -249,7 +331,16 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                             <tbody>
                                 {detailedSellRecords.map((record, index) => (
                                     <tr key={`sell-${index}`} className="border-b dark:border-gray-700 h-fit">
-                                        <td className="p-2 font-semibold">{record.fundName}</td>
+                                        <td className="p-2">
+                                            <div className="font-semibold">{record.fundName}</div>
+                                            {record.tags && record.tags.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                                    {record.tags.map((tag: string) => (
+                                                        <TagBadge key={tag} tag={tag} onDoubleClick={handleTagAction} />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </td>
                                         <td className="p-2 text-right font-mono">
                                             <div className={getProfitColor(-1)}>{record.sharesChange.toFixed(2)}</div>
                                             <div className={`${getProfitColor(-1)} text-xs`}>{record.sharesChangePercent.toFixed(2)}%</div>
@@ -321,7 +412,16 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                         <tbody>
                             {initialHoldings.map((h, index) => (
                                 <tr key={`${h.name}-${index}`} className="border-b dark:border-gray-700">
-                                    <td className="p-2">{h.name}</td>
+                                    <td className="p-2">
+                                        <div className="font-semibold">{h.name}</div>
+                                        {h.tags && h.tags.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mt-0.5">
+                                                {h.tags.map((tag: string) => (
+                                                    <TagBadge key={tag} tag={tag} onDoubleClick={handleTagAction} />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </td>
                                     <td className="p-2 text-right font-mono">{h.shares.toFixed(2)}</td>
                                     <td className="p-2 text-right font-mono">{h.cost.toFixed(4)}</td>
                                     <td className="p-2 text-right font-mono">{h.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>

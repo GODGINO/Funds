@@ -7,6 +7,7 @@ import SnapshotDetailModal from './SnapshotDetailModal';
 interface PortfolioSnapshotTableProps {
   snapshots: PortfolioSnapshot[];
   funds: ProcessedFund[];
+  onTagDoubleClick: (tag: string) => void;
 }
 
 const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-green-600';
@@ -106,7 +107,7 @@ const HeaderSparkline: React.FC<{ data: any[]; dataKey: string; stroke: string; 
 };
 
 
-const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapshots, funds }) => {
+const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapshots, funds, onTagDoubleClick }) => {
   const [selectedSnapshot, setSelectedSnapshot] = useState<PortfolioSnapshot | null>(null);
   const chartData = useMemo(() => [...snapshots].reverse(), [snapshots]);
   
@@ -447,6 +448,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
           onClose={() => setSelectedSnapshot(null)}
           snapshot={selectedSnapshot}
           funds={funds}
+          onTagDoubleClick={onTagDoubleClick}
         />
       )}
     </>
