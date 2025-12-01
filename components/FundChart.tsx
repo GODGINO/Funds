@@ -104,7 +104,7 @@ const CustomTooltip: React.FC<any> = ({ active, payload }) => {
                                <span className="font-mono font-semibold">
                                    {tradeRecord.type === 'buy' ? `${tradeRecord.amount!.toFixed(2)} 元` : 
                                     tradeRecord.type === 'sell' ? `${Math.abs(tradeRecord.sharesChange!).toFixed(2)} 份` :
-                                    tradeRecord.type === 'dividend-cash' ? `+${tradeRecord.dividendAmount!.toFixed(2)} 元` :
+                                    tradeRecord.type === 'dividend-cash' ? `+${tradeRecord.realizedProfitChange!.toFixed(2)} 元` :
                                     `+${tradeRecord.sharesChange!.toFixed(2)} 份`}
                                </span>
                            </div>

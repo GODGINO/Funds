@@ -30,7 +30,7 @@ export interface TradingRecord {
   nav?: number;              // 确认成交的单位净值 (对于现金分红为除权日净值)
   sharesChange?: number;     // 确认的份额变化 (买入/再投为正, 卖出为负, 现金分红为0)
   amount?: number;           // 确认的本金变动 (买入为正, 卖出为负, 分红/再投为0)
-  dividendAmount?: number;   // 现金分红金额 (仅 dividend-cash 有效, 计入落袋收益)
+  // dividendAmount has been removed. Use realizedProfitChange for cash dividends.
   realizedProfitChange?: number; // 落袋收益变化 (卖出或现金分红时产生)
 }
 

@@ -220,10 +220,10 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     
                     // Determine amount for display (Cash Flow)
                     // For Sell: record.amount is negative (outflow of value from market).
-                    // For Dividend: record.amount is 0, but we want to show dividendAmount as cash received.
+                    // For Dividend: record.amount is 0, but we want to show realizedProfitChange as cash received.
                     let rAmount = record.amount ?? 0; 
                     if (record.type === 'dividend-cash') {
-                        rAmount = -(record.dividendAmount ?? 0); // Make it negative to match Sell's convention (outflow from market/inflow to wallet)
+                        rAmount = -(record.realizedProfitChange ?? 0); // Make it negative to match Sell's convention (outflow from market/inflow to wallet)
                     }
 
                     const sharesChangePercent = (prevShares as number) > 0 ? (sChange / (prevShares as number)) * 100 : 0;
@@ -235,7 +235,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     const opportunityProfitPercent = (record.type === 'sell' && rNav > 0) ? ((rNav - latestNAV) / rNav) * 100 : 0;
                     
                     const realizedProfit = record.type === 'dividend-cash' 
-                        ? (record.dividendAmount ?? 0) 
+                        ? (record.realizedProfitChange ?? 0) 
                         : (record.realizedProfitChange ?? 0);
                         
                     const realizedProfitPercent = (record.type === 'sell' && prevAvgCost > 0) 

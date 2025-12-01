@@ -726,7 +726,7 @@ const App: React.FC = () => {
                 } else if (record.type === 'dividend-cash') {
                     // Cash dividend: Shares and Total Cost remain the same.
                     // Realized Profit increases by the dividend amount.
-                    currentRealizedProfit = parseFloat((currentRealizedProfit + (record.dividendAmount || 0)).toFixed(2));
+                    currentRealizedProfit = parseFloat((currentRealizedProfit + (record.realizedProfitChange || 0)).toFixed(2));
                 } else if (record.type === 'dividend-reinvest') {
                     // Dividend reinvest: Shares increase. Total Cost remains the same (effectively lowering unit cost).
                     // Realized Profit remains the same.
@@ -1372,9 +1372,8 @@ const App: React.FC = () => {
             // Cash Dividend: value is the dividend amount
             newRecord = {
                 date: date, type: 'dividend-cash', nav: nav,
-                sharesChange: 0,
-                amount: 0, // No capital flow affecting cost basis
-                dividendAmount: value
+                // sharesChange and amount removed
+                realizedProfitChange: value
             };
         } else if (type === 'dividend-reinvest') {
             // Dividend Reinvest: value is the allocated shares
@@ -1476,9 +1475,8 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
                 } else if (record.type === 'dividend-cash') {
                     return {
                         date: record.date, type: 'dividend-cash', nav: confirmedNAV,
-                        sharesChange: 0,
-                        amount: 0,
-                        dividendAmount: pendingValue
+                        // sharesChange and amount removed
+                        realizedProfitChange: pendingValue
                     };
                 } else if (record.type === 'dividend-reinvest') {
                     return {
@@ -1608,14 +1606,14 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
                             totalSellAmountOnDate += Math.abs(record.amount!);
                         } else if (record.type === 'dividend-cash') {
                             // Fix: Cash dividend reduces net amount change (money out)
-                            // record.amount is 0, so subtract dividendAmount
-                            netAmountChangeOnDate -= (record.dividendAmount || 0);
+                            // record.amount is 0/undefined, subtract realizedProfitChange which is dividend amount
+                            netAmountChangeOnDate -= (record.realizedProfitChange || 0);
                             
                             // Fix: Cash dividend counts as realized profit for that day's snapshot
-                            totalSellRealizedProfitOnDate += (record.dividendAmount || 0);
+                            totalSellRealizedProfitOnDate += (record.realizedProfitChange || 0);
                             
                             // Fix: Treat as cash outflow (Sell Amount) for summary stats
-                            totalSellAmountOnDate += (record.dividendAmount || 0);
+                            totalSellAmountOnDate += (record.realizedProfitChange || 0);
                         }
                     }
 
@@ -1632,7 +1630,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
                             totalCostForFund = 0;
                         }
                     } else if (record.type === 'dividend-cash') {
-                        realizedProfitForFund += (record.dividendAmount || 0);
+                        realizedProfitForFund += (record.realizedProfitChange || 0);
                     } else if (record.type === 'dividend-reinvest') {
                         sharesForFund += record.sharesChange!;
                         // Cost stays same

@@ -189,7 +189,8 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
             if (isEditing) {
                 let initialValue: number | undefined;
                 if (editingRecord.type === 'buy') initialValue = isPending ? editingRecord.value : editingRecord.amount;
-                else if (editingRecord.type === 'dividend-cash') initialValue = isPending ? editingRecord.value : editingRecord.dividendAmount;
+                // For cash dividend, map realizedProfitChange to the input value
+                else if (editingRecord.type === 'dividend-cash') initialValue = isPending ? editingRecord.value : editingRecord.realizedProfitChange;
                 else if (editingRecord.type === 'dividend-reinvest') initialValue = isPending ? editingRecord.value : editingRecord.sharesChange;
                 
                 setAmount(String(initialValue ?? ''));
@@ -284,21 +285,21 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                             className={`flex-1 py-3 text-sm font-medium focus:outline-none ${activeTab === 'buy' ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
                             onClick={() => { setActiveTab('buy'); setAmount('500'); }}
                         >
-                            💰 普通买入
+                            买入
                         </button>
                         <button
                             type="button"
                             className={`flex-1 py-3 text-sm font-medium focus:outline-none ${activeTab === 'dividend-cash' ? 'text-yellow-600 border-b-2 border-yellow-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
                             onClick={() => { setActiveTab('dividend-cash'); setAmount(''); }}
                         >
-                            🎁 现金分红
+                            现金分红
                         </button>
                         <button
                             type="button"
                             className={`flex-1 py-3 text-sm font-medium focus:outline-none ${activeTab === 'dividend-reinvest' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
                             onClick={() => { setActiveTab('dividend-reinvest'); setAmount(''); }}
                         >
-                            🔄 红利再投
+                            红利再投
                         </button>
                     </div>
                 )}
