@@ -1613,6 +1613,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
             });
 
             const cumulativeValue = currentMarketValue + snapshotTotalRealizedProfit;
+            const holdingProfit = currentMarketValue - snapshotTotalCostBasis;
             const totalProfit = cumulativeValue - snapshotTotalCostBasis;
             const profitRate = snapshotTotalCostBasis > 0 ? (totalProfit / snapshotTotalCostBasis) * 100 : 0;
             const dailyProfitRate = yesterdayMarketValue > 0 ? (dailyProfit / yesterdayMarketValue) * 100 : 0;
@@ -1622,6 +1623,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
                 totalCostBasis: snapshotTotalCostBasis,
                 currentMarketValue,
                 cumulativeValue,
+                holdingProfit,
                 totalProfit,
                 profitRate,
                 dailyProfit,
@@ -1680,6 +1682,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
     });
     
     const baselineCumulativeValue = baselineCurrentMarketValue + baselineTotalRealizedProfit;
+    const baselineHoldingProfit = baselineCurrentMarketValue - baselineTotalCostBasis;
     const baselineTotalProfit = baselineCumulativeValue - baselineTotalCostBasis;
     const baselineProfitRate = baselineTotalCostBasis > 0 ? (baselineTotalProfit / baselineTotalCostBasis) * 100 : 0;
     const baselineDailyProfitRate = baselineYesterdayMarketValue > 0 ? (baselineDailyProfit / baselineYesterdayMarketValue) * 100 : 0;
@@ -1689,6 +1692,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
         totalCostBasis: baselineTotalCostBasis,
         currentMarketValue: baselineCurrentMarketValue,
         cumulativeValue: baselineCumulativeValue,
+        holdingProfit: baselineHoldingProfit,
         totalProfit: baselineTotalProfit,
         profitRate: baselineProfitRate,
         dailyProfit: baselineDailyProfit,

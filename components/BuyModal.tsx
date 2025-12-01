@@ -190,7 +190,7 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                     <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                         {isEditing ? '修改买入记录' : '买入'} {fund.name}
                         <span 
-                            className={`ml-2 text-base font-normal transition-colors duration-200 cursor-pointer hover:text-primary-500 ${isCopied ? 'text-green-500 font-semibold' : 'text-gray-500 dark:text-gray-400'}`}
+                            className={`ml-2 text-base font-normal transition-colors duration-200 hover:text-primary-500 ${isCopied ? 'text-green-500 font-semibold' : 'text-gray-500 dark:text-gray-400'}`}
                             onClick={handleCopyCode}
                             title="点击复制基金代码"
                         >

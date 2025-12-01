@@ -120,6 +120,7 @@ export interface PortfolioSnapshot {
   totalCostBasis: number;
   currentMarketValue: number;
   cumulativeValue: number;
+  holdingProfit: number;
   totalProfit: number;
   profitRate: number;
   dailyProfit: number;

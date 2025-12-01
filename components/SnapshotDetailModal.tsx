@@ -37,7 +37,7 @@ const TagBadge: React.FC<{ tag: string, onDoubleClick: (t: string) => void }> = 
     const { bg, text } = getTagColor(tag);
     return (
         <span
-            className={`inline-block px-1.5 py-0.5 text-[10px] leading-none font-medium rounded ${bg} ${text} cursor-pointer hover:opacity-80`}
+            className={`inline-block px-1.5 py-0.5 text-[10px] leading-none font-medium rounded ${bg} ${text} hover:opacity-80`}
             onDoubleClick={(e) => {
                 e.stopPropagation();
                 onDoubleClick(tag);
@@ -63,7 +63,7 @@ const FundNameDisplay: React.FC<{ name: string; code: string }> = ({ name, code 
 
     return (
         <div
-            className="relative cursor-pointer group"
+            className="relative group"
             onClick={handleCopy}
             title={`点击复制代码: ${code}`}
         >

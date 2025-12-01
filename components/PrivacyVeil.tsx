@@ -108,7 +108,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
     <div
       className="fixed inset-0 bg-white dark:bg-gray-900 z-[200] flex flex-col justify-center items-center text-slate-700 dark:text-gray-400 font-sans p-8 select-none"
       onContextMenu={(e) => e.preventDefault()}
-      onClick={onRefresh}
+      onDoubleClick={onRefresh}
       onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}

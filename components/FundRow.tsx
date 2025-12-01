@@ -234,7 +234,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
             <div className="truncate">
               <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{fund.name}</span>
               <span 
-                className={`ml-2 text-xs transition-colors duration-200 ${isCopied ? 'text-green-500 font-semibold' : 'text-gray-500 dark:text-gray-400 cursor-pointer hover:text-primary-500'}`}
+                className={`ml-2 text-xs transition-colors duration-200 ${isCopied ? 'text-green-500 font-semibold' : 'text-gray-500 dark:text-gray-400 hover:text-primary-500'}`}
                 onClick={handleCopyCode}
                 title="点击复制基金代码"
               >
@@ -275,7 +275,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
                   return (
                     <span 
                       key={tag} 
-                      className={`inline-block px-1.5 py-0.5 text-[10px] leading-none font-medium rounded ${bg} ${text} cursor-pointer`}
+                      className={`inline-block px-1.5 py-0.5 text-[10px] leading-none font-medium rounded ${bg} ${text}`}
                       onDoubleClick={(e) => {
                         e.stopPropagation();
                         onTagDoubleClick(tag);
@@ -290,7 +290,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
                   return (
                     <span 
                       key={tag} 
-                      className={`inline-block px-1.5 py-0.5 text-[10px] leading-none font-medium rounded ${bg} ${text} cursor-pointer`}
+                      className={`inline-block px-1.5 py-0.5 text-[10px] leading-none font-medium rounded ${bg} ${text}`}
                       onDoubleClick={(e) => {
                         e.stopPropagation();
                         onTagDoubleClick(tag);
