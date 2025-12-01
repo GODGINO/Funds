@@ -1,26 +1,35 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { TradeModalState } from '../types';
+import { TradeModalState, TransactionType } from '../types';
 import FundChart from './FundChart';
 
 interface BuyModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (fund: TradeModalState['fund'], date: string, type: 'buy' | 'sell', value: number, isConfirmed: boolean, nav: number, isEditing: boolean) => void;
+    onSubmit: (fund: TradeModalState['fund'], date: string, type: TransactionType, value: number, isConfirmed: boolean, nav: number, isEditing: boolean) => void;
     onDelete: (fundCode: string, recordDate: string) => void;
     tradeState: TradeModalState;
 }
 
 const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-green-600';
 
-
 const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete, tradeState }) => {
-    const [amount, setAmount] = useState('');
-    const [isCopied, setIsCopied] = useState(false);
-    const amountInputRef = useRef<HTMLInputElement>(null);
     const { fund, date, nav, isConfirmed, editingRecord } = tradeState;
     const isEditing = !!editingRecord;
     const isPending = isEditing && editingRecord.nav === undefined;
+
+    // Determine initial tab based on editing record type, default to 'buy'
+    const [activeTab, setActiveTab] = useState<TransactionType>(() => {
+        if (editingRecord) {
+            if (editingRecord.type === 'dividend-cash') return 'dividend-cash';
+            if (editingRecord.type === 'dividend-reinvest') return 'dividend-reinvest';
+        }
+        return 'buy';
+    });
+
+    const [amount, setAmount] = useState('');
+    const [isCopied, setIsCopied] = useState(false);
+    const amountInputRef = useRef<HTMLInputElement>(null);
 
     const {
         dailyProfit,
@@ -33,19 +42,33 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
         totalShares,
         marketValue,
         cost,
-        costChangeAmount,
-        costChangePercent,
-        estimatedShares,
-        percentileColor,
+        realizedProfit,
+        
+        // Dynamic Preview Values
+        newTotalShares,
         newMarketValue,
         marketValueChangePercent,
+        sharesChangeAmount,
+        
+        newCost,
+        costChangeAmount,
+        costChangePercent,
+        
+        newRealizedProfit,
+        realizedProfitChangeAmount,
+
+        percentileColor,
         dailyLabel,
+        inputLabel,
+        submitLabel,
+        stepValue
     } = useMemo(() => {
         const pos = fund.userPosition;
         const totalShares = pos?.shares || 0;
         const marketValue = fund.marketValue || 0;
         const holdingProfit = fund.holdingProfit || 0;
         const cost = pos?.cost || 0;
+        const realizedProfit = pos?.realizedProfit || 0;
 
         // Daily
         const latestDateInChart = fund.baseChartData.length > 0 ? fund.baseChartData[fund.baseChartData.length - 1]?.date?.split(' ')[0] : null;
@@ -85,19 +108,47 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
             else percentileColor = 'text-yellow-600 dark:text-yellow-400';
         }
 
-        // Buy dynamics
-        const buyAmount = parseFloat(amount) || 0;
-        const estimatedShares = nav > 0 ? buyAmount / nav : 0;
+        // Dynamic Calculations based on Tab
+        const inputValue = parseFloat(amount) || 0;
         
-        const newMarketValue = marketValue + buyAmount;
-        const marketValueChangePercent = marketValue > 0 ? (buyAmount / marketValue) * 100 : 0;
+        let newTotalShares = totalShares;
+        let newTotalCost = totalShares * cost;
+        let newRealizedProfit = realizedProfit;
+        
+        let inputLabel = '买入金额';
+        let submitLabel = '买入';
+        let stepValue = 100;
 
-        const newTotalShares = totalShares + estimatedShares;
-        const newTotalCost = (totalShares * cost) + buyAmount;
-        const newAverageCost = newTotalShares > 0 ? newTotalCost / newTotalShares : 0;
+        if (activeTab === 'buy') {
+            const estimatedShares = nav > 0 ? inputValue / nav : 0;
+            newTotalShares = totalShares + estimatedShares;
+            newTotalCost = (totalShares * cost) + inputValue;
+            inputLabel = '买入金额';
+            submitLabel = '买入';
+            stepValue = 100;
+        } else if (activeTab === 'dividend-cash') {
+            newRealizedProfit = realizedProfit + inputValue;
+            // Shares and Cost Basis do not change for Cash Dividend
+            inputLabel = '分红金额';
+            submitLabel = '确认分红';
+            stepValue = 10;
+        } else if (activeTab === 'dividend-reinvest') {
+            newTotalShares = totalShares + inputValue; // inputValue is shares
+            // Total Cost Basis does not change (money stays in), but Unit Cost will decrease
+            inputLabel = '获配份额';
+            submitLabel = '确认再投';
+            stepValue = 10;
+        }
+
+        const newCost = newTotalShares > 0 ? newTotalCost / newTotalShares : 0;
+        const newMarketValue = newTotalShares * nav; // Approximation using transaction NAV
+        const marketValueChangePercent = marketValue > 0 ? ((newMarketValue - marketValue) / marketValue) * 100 : 0;
         
-        const costChangeAmount = newAverageCost - cost;
+        const costChangeAmount = newCost - cost;
         const costChangePercent = cost > 0 ? (costChangeAmount / cost) * 100 : 0;
+        
+        const sharesChangeAmount = newTotalShares - totalShares;
+        const realizedProfitChangeAmount = newRealizedProfit - realizedProfit;
 
         return {
             dailyProfit,
@@ -110,31 +161,52 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
             totalShares,
             marketValue,
             cost,
-            costChangeAmount,
-            costChangePercent,
-            estimatedShares,
-            percentileColor,
+            realizedProfit,
+            
+            newTotalShares,
             newMarketValue,
             marketValueChangePercent,
+            sharesChangeAmount,
+            
+            newCost,
+            costChangeAmount,
+            costChangePercent,
+            
+            newRealizedProfit,
+            realizedProfitChangeAmount,
+
+            percentileColor,
             dailyLabel,
+            inputLabel,
+            submitLabel,
+            stepValue
         };
-    }, [fund, amount, nav, date]);
+    }, [fund, amount, nav, date, activeTab]);
 
 
     useEffect(() => {
         if (isOpen) {
             if (isEditing) {
-                const initialValue = isPending ? editingRecord.value : editingRecord.amount;
+                let initialValue: number | undefined;
+                if (editingRecord.type === 'buy') initialValue = isPending ? editingRecord.value : editingRecord.amount;
+                else if (editingRecord.type === 'dividend-cash') initialValue = isPending ? editingRecord.value : editingRecord.dividendAmount;
+                else if (editingRecord.type === 'dividend-reinvest') initialValue = isPending ? editingRecord.value : editingRecord.sharesChange;
+                
                 setAmount(String(initialValue ?? ''));
             } else {
-                setAmount('500');
+                // Set default value for 'buy' tab only
+                if (activeTab === 'buy') {
+                    setAmount('500');
+                } else {
+                    setAmount('');
+                }
             }
             setIsCopied(false);
             setTimeout(() => {
                 amountInputRef.current?.select();
-            }, 50); // A small delay to ensure focus is set
+            }, 50); 
         }
-    }, [isOpen, isEditing, isPending, editingRecord]);
+    }, [isOpen, isEditing, isPending, editingRecord, activeTab]);
     
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -149,7 +221,7 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
      const handleStep = (step: number) => {
         const currentValue = parseFloat(amount) || 0;
         const newValue = Math.max(0, currentValue + step);
-        setAmount(String(newValue));
+        setAmount(String(newValue.toFixed(2))); // Formatting for decimal steps
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -157,7 +229,7 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
         const numericAmount = parseFloat((parseFloat(amount) || 0).toFixed(2));
         if (!numericAmount || numericAmount <= 0) return;
 
-        onSubmit(fund, date, 'buy', numericAmount, isConfirmed, nav, isEditing);
+        onSubmit(fund, date, activeTab, numericAmount, isConfirmed, nav, isEditing);
     };
 
     const handleDeleteOrCancel = () => {
@@ -188,7 +260,7 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                 {/* Modal Header */}
                 <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700 flex-shrink-0">
                     <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                        {isEditing ? '修改买入记录' : '买入'} {fund.name}
+                        {isEditing ? '修改记录' : '新增记录'} - {fund.name}
                         <span 
                             className={`ml-2 text-base font-normal transition-colors duration-200 hover:text-primary-500 ${isCopied ? 'text-green-500 font-semibold' : 'text-gray-500 dark:text-gray-400'}`}
                             onClick={handleCopyCode}
@@ -203,6 +275,33 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                         </svg>
                     </button>
                 </div>
+
+                {/* Tabs */}
+                {!isEditing && (
+                    <div className="flex border-b dark:border-gray-700">
+                        <button
+                            type="button"
+                            className={`flex-1 py-3 text-sm font-medium focus:outline-none ${activeTab === 'buy' ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+                            onClick={() => { setActiveTab('buy'); setAmount('500'); }}
+                        >
+                            💰 普通买入
+                        </button>
+                        <button
+                            type="button"
+                            className={`flex-1 py-3 text-sm font-medium focus:outline-none ${activeTab === 'dividend-cash' ? 'text-yellow-600 border-b-2 border-yellow-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+                            onClick={() => { setActiveTab('dividend-cash'); setAmount(''); }}
+                        >
+                            🎁 现金分红
+                        </button>
+                        <button
+                            type="button"
+                            className={`flex-1 py-3 text-sm font-medium focus:outline-none ${activeTab === 'dividend-reinvest' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+                            onClick={() => { setActiveTab('dividend-reinvest'); setAmount(''); }}
+                        >
+                            🔄 红利再投
+                        </button>
+                    </div>
+                )}
 
                 {/* Modal Body */}
                 <div className="p-6 overflow-y-auto">
@@ -256,47 +355,48 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                             <div className={`text-xl font-semibold ${percentileColor}`}>{navPercentile ? `${navPercentile.toFixed(0)}%` : '-'}</div>
                             <div className="text-sm text-gray-500 dark:text-gray-400">&nbsp;</div> {/* Placeholder for alignment */}
                         </div>
-                        {/* 份额 */}
+                        
+                        {/* 份额 (Dynamic) */}
                         <div>
                             <div className="text-sm text-gray-500 dark:text-gray-400">份额</div>
                             <div className="text-xl font-semibold text-gray-900 dark:text-white">{totalShares.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                              <div className={`text-sm ${getProfitColor(1)}`}>
-                                {estimatedShares > 0 ? `+${estimatedShares.toFixed(2)}` : <>&nbsp;</>}
+                                {sharesChangeAmount > 0 ? `+${sharesChangeAmount.toFixed(2)}` : <>&nbsp;</>}
                             </div>
                         </div>
-                        {/* 估算总值 */}
+                        
+                        {/* 估算总值 (Buy/Reinvest Only, mostly) */}
                         <div>
                             <div className="text-sm text-gray-500 dark:text-gray-400">估算总值</div>
                             <div className="text-xl font-semibold text-gray-900 dark:text-white">
                                 {marketValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                             </div>
                              <div className={`text-sm ${getProfitColor(1)}`}>
-                                {parseFloat(amount) > 0
-                                    ? `→${newMarketValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (+${marketValueChangePercent.toFixed(2)}%)`
+                                {marketValueChangePercent > 0
+                                    ? `(+${marketValueChangePercent.toFixed(2)}%)`
                                     : <>&nbsp;</>
                                 }
                             </div>
                         </div>
                         
-                         {/* 买入金额 */}
+                         {/* Dynamic Input */}
                         <div>
-                            <label htmlFor="buy-amount" className="block text-sm text-gray-700 dark:text-gray-300">买入金额</label>
+                            <label htmlFor="amount-input" className="block text-sm text-gray-700 dark:text-gray-300">{inputLabel}</label>
                             <div className="flex items-center mt-1 h-[42px]">
                                 <button
                                     type="button"
-                                    onClick={() => handleStep(-100)}
+                                    onClick={() => handleStep(-stepValue)}
                                     disabled={!amount || parseFloat(amount) <= 0}
                                     className="px-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 h-full border border-r-0 border-gray-300 dark:border-gray-600 rounded-l-md focus:outline-none disabled:opacity-50"
-                                    aria-label="减少100元"
                                 >
                                     <span className="text-xl font-bold">-</span>
                                 </button>
                                 <input
                                     type="number"
-                                    id="buy-amount"
+                                    id="amount-input"
                                     value={amount}
                                     onChange={(e) => setAmount(e.target.value)}
-                                    placeholder="500"
+                                    placeholder={activeTab === 'buy' ? "500" : ""}
                                     required
                                     autoFocus
                                     ref={amountInputRef}
@@ -305,33 +405,45 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                                 />
                                 <button
                                     type="button"
-                                    onClick={() => handleStep(100)}
+                                    onClick={() => handleStep(stepValue)}
                                     className="px-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 h-full border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-md focus:outline-none"
-                                    aria-label="增加100元"
                                 >
                                     <span className="text-xl font-bold">+</span>
                                 </button>
                             </div>
                         </div>
 
-                        {/* 成本 */}
-                        <div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">成本</div>
-                            <div className="text-xl font-semibold text-gray-900 dark:text-white">{cost.toFixed(4)}</div>
-                            <div className={`text-sm ${getProfitColor(costChangeAmount)}`}>
-                                {costChangeAmount !== 0 && !isNaN(costChangeAmount)
-                                    ? `${costChangeAmount > 0 ? '+' : ''}${costChangeAmount.toFixed(4)} (${costChangePercent > 0 ? '+' : ''}${costChangePercent.toFixed(2)}%)`
-                                    : <>&nbsp;</>
-                                }
+                        {/* Cost / Realized Profit Display (Dynamic) */}
+                        {activeTab === 'dividend-cash' ? (
+                            <div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">落袋收益</div>
+                                <div className="text-xl font-semibold text-gray-900 dark:text-white">{realizedProfit.toFixed(2)}</div>
+                                <div className={`text-sm ${getProfitColor(realizedProfitChangeAmount)}`}>
+                                    {realizedProfitChangeAmount > 0 
+                                        ? `+${realizedProfitChangeAmount.toFixed(2)}`
+                                        : <>&nbsp;</>
+                                    }
+                                </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">成本</div>
+                                <div className="text-xl font-semibold text-gray-900 dark:text-white">{cost.toFixed(4)}</div>
+                                <div className={`text-sm ${getProfitColor(costChangeAmount)}`}>
+                                    {costChangeAmount !== 0 && !isNaN(costChangeAmount)
+                                        ? `${costChangeAmount > 0 ? '+' : ''}${costChangeAmount.toFixed(4)} (${costChangePercent > 0 ? '+' : ''}${costChangePercent.toFixed(2)}%)`
+                                        : <>&nbsp;</>
+                                    }
+                                </div>
+                            </div>
+                        )}
 
-                        {/* 买入按钮 */}
+                        {/* Submit Button */}
                         <div>
-                           <button type="submit" className="flex items-center justify-center w-full h-[42px] bg-red-500 text-white font-semibold px-4 rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-gray-900 disabled:bg-gray-300 disabled:text-gray-500"
+                           <button type="submit" className={`flex items-center justify-center w-full h-[42px] text-white font-semibold px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:bg-gray-300 disabled:text-gray-500 ${activeTab === 'buy' ? 'bg-red-500 hover:bg-red-600 focus:ring-red-500' : activeTab === 'dividend-cash' ? 'bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-600' : 'bg-purple-600 hover:bg-purple-700 focus:ring-purple-600'}`}
                             disabled={!amount || parseFloat(amount) <= 0}
                            >
-                               {isEditing ? '更新记录' : '买入'}
+                               {isEditing ? '更新记录' : submitLabel}
                            </button>
                         </div>
                     </div>

@@ -1,3 +1,4 @@
+
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { Fund, UserPosition } from '../types';
 import FundChart from './FundChart';
@@ -155,7 +156,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
         <>
             <div 
                 className="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex justify-center items-center transition-opacity" 
-                onClick={(e) => { if (e.target === e.currentTarget && !isConfirmModalOpen) onClose(); }}
+                onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
                 aria-modal="true"
                 role="dialog"
             >
@@ -257,27 +258,56 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                                 <th className="p-2">类型</th>
                                                 <th className="p-2 text-right">成交净值</th>
                                                 <th className="p-2 text-right">份额变化</th>
-                                                <th className="p-2 text-right">金额</th>
+                                                <th className="p-2 text-right">金额/分红</th>
                                                 <th className="p-2 text-right">落袋收益</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {[...fund.userPosition.tradingRecords]
                                                 .filter(record => record.nav !== undefined)
-                                                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(record => (
+                                                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(record => {
+                                                    
+                                                let typeLabel = '';
+                                                let typeClass = '';
+                                                
+                                                if (record.type === 'buy') {
+                                                    typeLabel = '买入';
+                                                    typeClass = 'text-red-500';
+                                                } else if (record.type === 'sell') {
+                                                    typeLabel = '卖出';
+                                                    typeClass = 'text-blue-500';
+                                                } else if (record.type === 'dividend-cash') {
+                                                    typeLabel = '🎁 分红';
+                                                    typeClass = 'text-yellow-600';
+                                                } else if (record.type === 'dividend-reinvest') {
+                                                    typeLabel = '🔄 再投';
+                                                    typeClass = 'text-purple-600';
+                                                }
+
+                                                return (
                                                 <tr key={record.date} className="border-t dark:border-gray-700">
                                                     <td className="p-2 font-mono">{record.date}</td>
-                                                    <td className={`p-2 font-semibold ${record.type === 'buy' ? 'text-red-500' : 'text-blue-500'}`}>{record.type === 'buy' ? '买入' : '卖出'}</td>
+                                                    <td className={`p-2 font-semibold ${typeClass}`}>{typeLabel}</td>
                                                     <td className="p-2 text-right font-mono">{record.nav!.toFixed(4)}</td>
-                                                    <td className={`p-2 text-right font-mono ${record.sharesChange! > 0 ? 'text-red-500' : 'text-green-600'}`}>
-                                                        {record.sharesChange! > 0 ? '+' : ''}{record.sharesChange!.toFixed(2)}
+                                                    <td className={`p-2 text-right font-mono ${record.sharesChange! > 0 ? 'text-red-500' : (record.sharesChange! < 0 ? 'text-green-600' : 'text-gray-400')}`}>
+                                                        {record.sharesChange! > 0 ? '+' : ''}{record.sharesChange !== 0 ? record.sharesChange!.toFixed(2) : '-'}
                                                     </td>
-                                                    <td className="p-2 text-right font-mono">{record.amount!.toFixed(2)}</td>
+                                                    <td className="p-2 text-right font-mono">
+                                                        {record.type === 'dividend-cash' ? (
+                                                            <span className="text-yellow-600">+{record.dividendAmount?.toFixed(2)}</span>
+                                                        ) : (
+                                                            record.amount ? record.amount.toFixed(2) : '-'
+                                                        )}
+                                                    </td>
                                                     <td className={`p-2 text-right font-mono ${record.realizedProfitChange && record.realizedProfitChange !== 0 ? getProfitColor(record.realizedProfitChange) : ''}`}>
-                                                        {record.realizedProfitChange != null ? record.realizedProfitChange.toFixed(2) : '-'}
+                                                        {record.type === 'dividend-cash' ? (
+                                                            <span className="text-yellow-600">+{record.dividendAmount?.toFixed(2)}</span>
+                                                        ) : (
+                                                            record.realizedProfitChange != null ? record.realizedProfitChange.toFixed(2) : '-'
+                                                        )}
                                                     </td>
                                                 </tr>
-                                            ))}
+                                            )})}
                                         </tbody>
                                     </table>
                                 </div>

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
-import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData } from './types';
+import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData, TransactionType } from './types';
 import { fetchFundData, fetchFundDetails, fetchIndexData } from './services/fundService';
 import { updateGistData, fetchGistData } from './services/gistService';
 import FundInputForm from './components/FundInputForm';
@@ -54,13 +54,14 @@ const validatePositions = (data: any): data is UserPosition[] => {
                 if (
                     typeof record !== 'object' || record === null ||
                     typeof record.date !== 'string' ||
-                    (record.type !== 'buy' && record.type !== 'sell')
+                    !['buy', 'sell', 'dividend-cash', 'dividend-reinvest'].includes(record.type)
                 ) {
                     return false;
                 }
-                // A record is either pending (has 'value') or confirmed (has 'nav', 'sharesChange', 'amount').
+                // A record is either pending (has 'value') or confirmed (has 'nav').
+                // For dividends, nav is technically optional for math but we enforce it for consistency if confirmed.
                 const isPending = typeof record.value === 'number';
-                const isConfirmed = typeof record.nav === 'number' && typeof record.sharesChange === 'number' && typeof record.amount === 'number';
+                const isConfirmed = typeof record.nav === 'number';
                 if (!isPending && !isConfirmed) {
                     return false; // It must be one or the other to be valid.
                 }
@@ -713,7 +714,7 @@ const App: React.FC = () => {
                 if (record.type === 'buy') {
                     currentShares = parseFloat((currentShares + record.sharesChange!).toFixed(2));
                     currentTotalCost = parseFloat((currentTotalCost + record.amount!).toFixed(2));
-                } else { // sell
+                } else if (record.type === 'sell') { 
                     const costBasisBeforeSell = currentShares > 0 ? currentTotalCost / currentShares : 0;
                     currentTotalCost = parseFloat((currentTotalCost - costBasisBeforeSell * Math.abs(record.sharesChange!)).toFixed(2));
                     currentShares = parseFloat((currentShares + record.sharesChange!).toFixed(2));
@@ -722,6 +723,14 @@ const App: React.FC = () => {
                         currentShares = 0;
                         currentTotalCost = 0;
                     }
+                } else if (record.type === 'dividend-cash') {
+                    // Cash dividend: Shares and Total Cost remain the same.
+                    // Realized Profit increases by the dividend amount.
+                    currentRealizedProfit = parseFloat((currentRealizedProfit + (record.dividendAmount || 0)).toFixed(2));
+                } else if (record.type === 'dividend-reinvest') {
+                    // Dividend reinvest: Shares increase. Total Cost remains the same (effectively lowering unit cost).
+                    // Realized Profit remains the same.
+                    currentShares = parseFloat((currentShares + record.sharesChange!).toFixed(2));
                 }
             }
 
@@ -1315,20 +1324,21 @@ const App: React.FC = () => {
     return weekdays[date.getDay()];
   }
 
-  const handleOpenTradeModal = useCallback((fund: ProcessedFund, date: string, type: 'buy' | 'sell', nav: number, isConfirmed: boolean, editingRecord?: TradingRecord) => {
+  const handleOpenTradeModal = useCallback((fund: ProcessedFund, date: string, type: TransactionType, nav: number, isConfirmed: boolean, editingRecord?: TradingRecord) => {
     const modalState: TradeModalState = { fund, date, nav, isConfirmed, editingRecord };
-    if (type === 'buy') {
-      setBuyModalState(modalState);
-    } else {
+    // Open BuyModal for buy and dividends, SellModal for sell
+    if (type === 'sell') {
       setSellModalState(modalState);
+    } else {
+      setBuyModalState(modalState);
     }
   }, []);
 
  const handleTradeSubmit = useCallback((
     fund: ProcessedFund,
     date: string,
-    type: 'buy' | 'sell',
-    value: number, // amount for buy, shares for sell
+    type: TransactionType,
+    value: number, // amount for buy/dividend-cash, shares for sell/dividend-reinvest
     isConfirmed: boolean,
     nav: number,
     isEditing: boolean
@@ -1343,14 +1353,14 @@ const App: React.FC = () => {
         // Create a new PENDING record for unconfirmed trades
         newRecord = { date, type, value };
     } else {
-        // Process confirmed trades immediately, creating a CONFIRMED record
+        // Process confirmed trades immediately
         if (type === 'buy') {
             newRecord = {
                 date: date, type: 'buy', nav: nav,
                 sharesChange: parseFloat((value / nav).toFixed(2)),
                 amount: value,
             };
-        } else { // sell
+        } else if (type === 'sell') {
             const costBasisForSale = fund.userPosition?.cost ?? 0;
             newRecord = {
                 date: date, type: 'sell', nav: nav,
@@ -1358,6 +1368,24 @@ const App: React.FC = () => {
                 amount: parseFloat((-(value * nav)).toFixed(2)),
                 realizedProfitChange: parseFloat(((nav - costBasisForSale) * value).toFixed(2))
             };
+        } else if (type === 'dividend-cash') {
+            // Cash Dividend: value is the dividend amount
+            newRecord = {
+                date: date, type: 'dividend-cash', nav: nav,
+                sharesChange: 0,
+                amount: 0, // No capital flow affecting cost basis
+                dividendAmount: value
+            };
+        } else if (type === 'dividend-reinvest') {
+            // Dividend Reinvest: value is the allocated shares
+            newRecord = {
+                date: date, type: 'dividend-reinvest', nav: nav,
+                sharesChange: value,
+                amount: 0 // No capital flow affecting cost basis
+            };
+        } else {
+            // Should not happen, but safe fallback
+             newRecord = { date, type, value };
         }
     }
     
@@ -1427,24 +1455,36 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
             if (confirmedDataPoint) {
                 recordsChanged = true;
                 const confirmedNAV = confirmedDataPoint.unitNAV;
+                const pendingValue = record.value!;
                 
                 if (record.type === 'buy') {
-                    const buyAmount = record.value!;
                     return {
                         date: record.date, type: 'buy', nav: confirmedNAV,
-                        sharesChange: parseFloat((buyAmount / confirmedNAV).toFixed(2)),
-                        amount: buyAmount,
+                        sharesChange: parseFloat((pendingValue / confirmedNAV).toFixed(2)),
+                        amount: pendingValue,
                     };
-                } else { // sell
+                } else if (record.type === 'sell') {
                     // Find processed fund to get cost basis at the time of the trade
                     const processedFund = processedFunds.find(f => f.code === fund.code);
                     const costBasisForSale = processedFund?.userPosition?.cost ?? 0;
-                    const sellShares = record.value!;
                     return {
                         date: record.date, type: 'sell', nav: confirmedNAV,
-                        sharesChange: -sellShares,
-                        amount: parseFloat((-(sellShares * confirmedNAV)).toFixed(2)),
-                        realizedProfitChange: parseFloat(((confirmedNAV - costBasisForSale) * sellShares).toFixed(2)),
+                        sharesChange: -pendingValue,
+                        amount: parseFloat((-(pendingValue * confirmedNAV)).toFixed(2)),
+                        realizedProfitChange: parseFloat(((confirmedNAV - costBasisForSale) * pendingValue).toFixed(2)),
+                    };
+                } else if (record.type === 'dividend-cash') {
+                    return {
+                        date: record.date, type: 'dividend-cash', nav: confirmedNAV,
+                        sharesChange: 0,
+                        amount: 0,
+                        dividendAmount: pendingValue
+                    };
+                } else if (record.type === 'dividend-reinvest') {
+                    return {
+                        date: record.date, type: 'dividend-reinvest', nav: confirmedNAV,
+                        sharesChange: pendingValue,
+                        amount: 0
                     };
                 }
             }
@@ -1554,25 +1594,35 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
                 
                 for (const record of relevantRecords) {
                     if (record.date === snapshotDate) {
-                        netAmountChangeOnDate += record.amount!;
+                        netAmountChangeOnDate += (record.amount || 0); // Dividend has amount 0
                         
                         const latestNAV = latestNavMap.get(fund.code) ?? 0;
                         if (record.type === 'buy') {
                             const floatingProfit = latestNAV > 0 ? (latestNAV - record.nav!) * record.sharesChange! : 0;
                             totalBuyFloatingProfitOnDate += floatingProfit;
                             totalBuyAmountOnDate += record.amount!;
-                        } else { // sell
+                        } else if (record.type === 'sell') {
                             const opportunityProfit = latestNAV > 0 ? (record.nav! - latestNAV) * Math.abs(record.sharesChange!) : 0;
                             totalSellOpportunityProfitOnDate += opportunityProfit;
                             totalSellRealizedProfitOnDate += record.realizedProfitChange ?? 0;
                             totalSellAmountOnDate += Math.abs(record.amount!);
+                        } else if (record.type === 'dividend-cash') {
+                            // Fix: Cash dividend reduces net amount change (money out)
+                            // record.amount is 0, so subtract dividendAmount
+                            netAmountChangeOnDate -= (record.dividendAmount || 0);
+                            
+                            // Fix: Cash dividend counts as realized profit for that day's snapshot
+                            totalSellRealizedProfitOnDate += (record.dividendAmount || 0);
+                            
+                            // Fix: Treat as cash outflow (Sell Amount) for summary stats
+                            totalSellAmountOnDate += (record.dividendAmount || 0);
                         }
                     }
 
                     if (record.type === 'buy') {
                         sharesForFund += record.sharesChange!;
                         totalCostForFund += record.amount!;
-                    } else { // sell
+                    } else if (record.type === 'sell') {
                         const costBasisPerShareBeforeSell = sharesForFund > 0 ? totalCostForFund / sharesForFund : 0;
                         totalCostForFund -= costBasisPerShareBeforeSell * Math.abs(record.sharesChange!);
                         sharesForFund += record.sharesChange!; // sharesChange is negative for sell
@@ -1581,6 +1631,11 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
                             sharesForFund = 0;
                             totalCostForFund = 0;
                         }
+                    } else if (record.type === 'dividend-cash') {
+                        realizedProfitForFund += (record.dividendAmount || 0);
+                    } else if (record.type === 'dividend-reinvest') {
+                        sharesForFund += record.sharesChange!;
+                        // Cost stays same
                     }
                 }
                 

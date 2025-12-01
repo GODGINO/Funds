@@ -1,6 +1,6 @@
 
 import React, { useMemo, useEffect, useState } from 'react';
-import { PortfolioSnapshot, ProcessedFund, TradingRecord } from '../types';
+import { PortfolioSnapshot, ProcessedFund, TradingRecord, TransactionType } from '../types';
 
 interface SnapshotDetailModalProps {
     isOpen: boolean;
@@ -48,6 +48,16 @@ const TagBadge: React.FC<{ tag: string, onDoubleClick: (t: string) => void }> = 
     );
 };
 
+const TypeBadge: React.FC<{ type: TransactionType }> = ({ type }) => {
+    if (type === 'dividend-reinvest') {
+        return <span className="inline-block px-1.5 py-0.5 text-[10px] leading-none font-medium rounded bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 ml-1">红利再投</span>;
+    }
+    if (type === 'dividend-cash') {
+        return <span className="inline-block px-1.5 py-0.5 text-[10px] leading-none font-medium rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 ml-1">现金分红</span>;
+    }
+    return null;
+};
+
 const FundNameDisplay: React.FC<{ name: string; code: string }> = ({ name, code }) => {
     const [isCopied, setIsCopied] = useState(false);
 
@@ -63,7 +73,7 @@ const FundNameDisplay: React.FC<{ name: string; code: string }> = ({ name, code 
 
     return (
         <div
-            className="relative group"
+            className="relative group inline-block"
             onClick={handleCopy}
             title={`点击复制代码: ${code}`}
         >
@@ -149,10 +159,10 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                 .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
             for (const record of recordsBeforeDate) {
-                if (record.type === 'buy') {
+                if (record.type === 'buy' || record.type === 'dividend-reinvest') {
                     prevShares += record.sharesChange ?? 0;
                     prevTotalCost += record.amount ?? 0;
-                } else { // sell
+                } else if (record.type === 'sell') { 
                     const costBasisPerShareBeforeSell = prevShares > 0 ? prevTotalCost / prevShares : 0;
                     prevTotalCost -= costBasisPerShareBeforeSell * Math.abs(record.sharesChange ?? 0);
                     prevShares += record.sharesChange ?? 0; // sharesChange is negative for sell
@@ -161,6 +171,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                         prevTotalCost = 0;
                     }
                 }
+                // dividend-cash does not change shares or cost basis (it only changes realized profit)
             }
             
             const prevAvgCost = prevShares > 0 ? prevTotalCost / prevShares : 0;
@@ -168,7 +179,8 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
             recordsOnDate.forEach(record => {
                 const latestNAV = latestNavMap.get(fund.code) ?? 0;
                 
-                if (record.type === 'buy') {
+                // Group 'dividend-reinvest' with 'buy' (Inflow/Share Increase)
+                if (record.type === 'buy' || record.type === 'dividend-reinvest') {
                     const sChange = record.sharesChange ?? 0;
                     const rAmount = record.amount ?? 0;
                     const rNav = record.nav ?? 0;
@@ -181,7 +193,11 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     const costChangePercent = prevAvgCost > 0 ? (costChange / prevAvgCost) * 100 : 0;
                     const sharesChangePercent = (prevShares as number) > 0 ? (sChange / (prevShares as number)) * 100 : 100;
                     const floatingProfit = latestNAV > 0 ? (latestNAV - rNav) * sChange : 0;
-                    const floatingProfitPercent = rNav > 0 && rAmount > 0 ? (floatingProfit / rAmount) * 100 : 0;
+                    
+                    // For Reinvest, amount is 0, so floatingProfitPercent would be Infinity/NaN if we divide by amount.
+                    // Instead, calculate profit percent based on the value of shares obtained (rNav * sChange).
+                    const tradeValue = rAmount > 0 ? rAmount : (rNav * sChange);
+                    const floatingProfitPercent = tradeValue > 0 ? (floatingProfit / tradeValue) * 100 : 0;
 
                     totalBuyFloatingProfit += floatingProfit;
                     totalBuyAmount += rAmount;
@@ -189,6 +205,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     detailedBuys.push({
                         fundCode: fund.code,
                         fundName: fund.name,
+                        type: record.type,
                         tags,
                         costChange, costChangePercent,
                         sharesChange: sChange, sharesChangePercent,
@@ -196,16 +213,34 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                         amount: rAmount
                     });
 
-                } else { // sell
+                } else if (record.type === 'sell' || record.type === 'dividend-cash') { 
+                    // Group 'dividend-cash' with 'sell' (Outflow/Payout)
                     const sChange = record.sharesChange ?? 0;
                     const rNav = record.nav ?? 0;
-                    const rAmount = record.amount ?? 0;
+                    
+                    // Determine amount for display (Cash Flow)
+                    // For Sell: record.amount is negative (outflow of value from market).
+                    // For Dividend: record.amount is 0, but we want to show dividendAmount as cash received.
+                    let rAmount = record.amount ?? 0; 
+                    if (record.type === 'dividend-cash') {
+                        rAmount = -(record.dividendAmount ?? 0); // Make it negative to match Sell's convention (outflow from market/inflow to wallet)
+                    }
 
                     const sharesChangePercent = (prevShares as number) > 0 ? (sChange / (prevShares as number)) * 100 : 0;
                     const opportunityProfit = latestNAV > 0 ? (rNav - latestNAV) * Math.abs(sChange) : 0;
-                    const opportunityProfitPercent = rNav > 0 ? ((rNav - latestNAV) / rNav) * 100 : 0;
-                    const realizedProfit = record.realizedProfitChange ?? 0;
-                    const realizedProfitPercent = prevAvgCost > 0 ? ((rNav - prevAvgCost) / prevAvgCost) * 100 : 0;
+                    
+                    // For opportunity profit percent: 
+                    // Sell: based on price difference vs trade nav.
+                    // Cash Div: sChange is 0, so opportunity profit is 0.
+                    const opportunityProfitPercent = (record.type === 'sell' && rNav > 0) ? ((rNav - latestNAV) / rNav) * 100 : 0;
+                    
+                    const realizedProfit = record.type === 'dividend-cash' 
+                        ? (record.dividendAmount ?? 0) 
+                        : (record.realizedProfitChange ?? 0);
+                        
+                    const realizedProfitPercent = (record.type === 'sell' && prevAvgCost > 0) 
+                        ? ((rNav - prevAvgCost) / prevAvgCost) * 100 
+                        : 0; // For cash dividend, calculating a "yield" percent against cost basis is complex here, keeping it simple 0 for now.
 
                     totalSellOpportunityProfit += opportunityProfit;
                     totalSellRealizedProfit += realizedProfit;
@@ -214,6 +249,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     detailedSells.push({
                         fundCode: fund.code,
                         fundName: fund.name,
+                        type: record.type,
                         tags,
                         sharesChange: sChange, sharesChangePercent,
                         opportunityProfit, opportunityProfitPercent,
@@ -225,6 +261,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
         });
 
         // Calculate percentages and sort by amount descending
+        // For Reinvest/CashDiv where amount might be 0, this sort might push them to bottom, which is fine.
         detailedBuys.forEach(r => {
             r.amountPercent = totalBuyAmount > 0 ? (r.amount / totalBuyAmount) * 100 : 0;
         });
@@ -272,7 +309,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
     const renderBuyHeader = () => (
         <div className="flex flex-col">
-            <h4 className="text-xl font-bold mb-1 text-red-600">买入操作</h4>
+            <h4 className="text-xl font-bold mb-1 text-red-600">买入 / 增持</h4>
             {uniqueBuyTags.length > 0 ? (
                 <div className="flex flex-wrap gap-1 mb-3">
                     {uniqueBuyTags.map(tag => (
@@ -287,7 +324,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
     const renderSellHeader = () => (
         <div className="flex flex-col">
-            <h4 className="text-xl font-bold mb-1 text-blue-600">卖出操作</h4>
+            <h4 className="text-xl font-bold mb-1 text-blue-600">卖出 / 分红</h4>
             {uniqueSellTags.length > 0 ? (
                 <div className="flex flex-wrap gap-1 mb-3">
                     {uniqueSellTags.map(tag => (
@@ -317,6 +354,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                         <tr key={`buy-${index}`} className="border-b dark:border-gray-700 h-fit">
                             <td className="p-2">
                                 <FundNameDisplay name={record.fundName} code={record.fundCode} />
+                                <TypeBadge type={record.type} />
                                 {record.tags && record.tags.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mt-0.5">
                                         {record.tags.map((tag: string) => (
@@ -384,6 +422,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                         <tr key={`sell-${index}`} className="border-b dark:border-gray-700 h-fit">
                             <td className="p-2">
                                 <FundNameDisplay name={record.fundName} code={record.fundCode} />
+                                <TypeBadge type={record.type} />
                                 {record.tags && record.tags.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mt-0.5">
                                         {record.tags.map((tag: string) => (

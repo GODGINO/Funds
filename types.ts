@@ -15,19 +15,23 @@ export interface RealTimeData {
   estimationTime: string;
 }
 
+export type TransactionType = 'buy' | 'sell' | 'dividend-cash' | 'dividend-reinvest';
+
 export interface TradingRecord {
   date: string;              // 交易确认/申请日期
-  type: 'buy' | 'sell';      // 交易类型
+  type: TransactionType;     // 交易类型
 
   // Fields for PENDING trades
-  // For 'buy', this is the amount. For 'sell', this is the shares.
+  // For 'buy' / 'dividend-cash', this is the amount (money).
+  // For 'sell' / 'dividend-reinvest', this is the shares.
   value?: number;
 
   // Fields for CONFIRMED trades
-  nav?: number;              // 确认成交的单位净值
-  sharesChange?: number;     // 确认的份额变化 (买入为正, 卖出为负)
-  amount?: number;           // 确认的交易金额 (买入时为正, 卖出时为负)
-  realizedProfitChange?: number; // 落袋收益变化 (仅卖出时有)
+  nav?: number;              // 确认成交的单位净值 (对于现金分红为除权日净值)
+  sharesChange?: number;     // 确认的份额变化 (买入/再投为正, 卖出为负, 现金分红为0)
+  amount?: number;           // 确认的本金变动 (买入为正, 卖出为负, 分红/再投为0)
+  dividendAmount?: number;   // 现金分红金额 (仅 dividend-cash 有效, 计入落袋收益)
+  realizedProfitChange?: number; // 落袋收益变化 (卖出或现金分红时产生)
 }
 
 

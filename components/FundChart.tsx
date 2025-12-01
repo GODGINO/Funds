@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, XAxis, ReferenceArea, Tooltip, ReferenceDot } from 'recharts';
-import { FundDataPoint, TradingRecord } from '../types';
+import { FundDataPoint, TradingRecord, TransactionType } from '../types';
 
 // FIX: Redefined ChartDataPoint to explicitly list properties from FundDataPoint.
 // This resolves an issue where properties from the extended Partial<FundDataPoint> type were not being recognized.
@@ -32,6 +32,36 @@ interface FundChartProps {
 
 const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-green-600';
 
+const getTransactionColor = (type: TransactionType) => {
+    switch (type) {
+        case 'buy': return '#ef4444'; // red-500
+        case 'sell': return '#3b82f6'; // blue-500
+        case 'dividend-cash': return '#d97706'; // amber-600 (gold-ish)
+        case 'dividend-reinvest': return '#8b5cf6'; // violet-500 (purple)
+        default: return '#9ca3af';
+    }
+}
+
+const getTransactionLabel = (type: TransactionType) => {
+    switch (type) {
+        case 'buy': return '买入记录';
+        case 'sell': return '卖出记录';
+        case 'dividend-cash': return '现金分红';
+        case 'dividend-reinvest': return '红利再投';
+        default: return '交易记录';
+    }
+}
+
+const getTransactionLabelColorClass = (type: TransactionType) => {
+    switch (type) {
+        case 'buy': return 'text-red-500';
+        case 'sell': return 'text-blue-500';
+        case 'dividend-cash': return 'text-yellow-600';
+        case 'dividend-reinvest': return 'text-purple-500';
+        default: return 'text-gray-500';
+    }
+}
+
 const CustomTooltip: React.FC<any> = ({ active, payload }) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload as ChartDataPoint;
@@ -58,17 +88,24 @@ const CustomTooltip: React.FC<any> = ({ active, payload }) => {
                     </div>
                     {tradeRecord ? (
                         <>
-                           <div className={`font-bold text-center py-1 ${tradeRecord.type === 'buy' ? 'text-red-500' : 'text-blue-500'}`}>
-                                {tradeRecord.type === 'buy' ? '买入记录' : '卖出记录'}
+                           <div className={`font-bold text-center py-1 ${getTransactionLabelColorClass(tradeRecord.type)}`}>
+                                {getTransactionLabel(tradeRecord.type)}
                            </div>
                            <div className="flex justify-between items-baseline gap-4">
-                               <span className="font-medium text-gray-700 dark:text-gray-300">成交净值:</span>
+                               <span className="font-medium text-gray-700 dark:text-gray-300">成交/除权:</span>
                                <span className="font-mono font-semibold">{tradeRecord.nav!.toFixed(4)}</span>
                            </div>
                            <div className="flex justify-between items-baseline gap-4">
-                               <span className="font-medium text-gray-700 dark:text-gray-300">{tradeRecord.type === 'buy' ? '金额:' : '份额:'}</span>
+                               <span className="font-medium text-gray-700 dark:text-gray-300">
+                                   {tradeRecord.type === 'buy' ? '金额:' : 
+                                    tradeRecord.type === 'sell' ? '份额:' :
+                                    tradeRecord.type === 'dividend-cash' ? '分红:' : '获配:'}
+                               </span>
                                <span className="font-mono font-semibold">
-                                   {tradeRecord.type === 'buy' ? `${tradeRecord.amount!.toFixed(2)} 元` : `${Math.abs(tradeRecord.sharesChange!).toFixed(2)} 份`}
+                                   {tradeRecord.type === 'buy' ? `${tradeRecord.amount!.toFixed(2)} 元` : 
+                                    tradeRecord.type === 'sell' ? `${Math.abs(tradeRecord.sharesChange!).toFixed(2)} 份` :
+                                    tradeRecord.type === 'dividend-cash' ? `+${tradeRecord.dividendAmount!.toFixed(2)} 元` :
+                                    `+${tradeRecord.sharesChange!.toFixed(2)} 份`}
                                </span>
                            </div>
                         </>
@@ -245,7 +282,7 @@ const FundChart: React.FC<FundChartProps> = ({
               x={record.date} 
               y={record.nav!} 
               r={4}
-              fill={record.type === 'buy' ? '#ef4444' : '#3b82f6'} // red-500 for buy, blue-500 for sell
+              fill={getTransactionColor(record.type)}
               stroke="#ffffff"
               strokeWidth={1}
             />

@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useCallback } from 'react';
 // FIX: Import the shared ProcessedFund interface.
-import { Fund, FundDataPoint, ProcessedFund, TradingRecord } from '../types';
+import { Fund, FundDataPoint, ProcessedFund, TradingRecord, TransactionType } from '../types';
 import FundChart from './FundChart';
 
 interface FundRowProps {
@@ -9,7 +9,7 @@ interface FundRowProps {
   dateHeaders: string[];
   onShowDetails: (fund: Fund) => void;
   onTagDoubleClick: (tag: string) => void;
-  onTrade: (fund: ProcessedFund, date: string, type: 'buy' | 'sell', nav: number, isConfirmed: boolean, editingRecord?: TradingRecord) => void;
+  onTrade: (fund: ProcessedFund, date: string, type: TransactionType, nav: number, isConfirmed: boolean, editingRecord?: TradingRecord) => void;
 }
 
 const SYSTEM_TAG_COLORS: { [key: string]: { bg: string; text: string; } } = {
@@ -200,7 +200,11 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
     const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
     const timeAgo = `${diffDays} 天前`;
 
-    const tradeType = lastRecord.type === 'buy' ? '买入' : '卖出';
+    let tradeType = '';
+    if (lastRecord.type === 'buy') tradeType = '买入';
+    else if (lastRecord.type === 'sell') tradeType = '卖出';
+    else if (lastRecord.type === 'dividend-cash') tradeType = '分红';
+    else if (lastRecord.type === 'dividend-reinvest') tradeType = '再投';
 
     const change = ((latestNAV - lastRecord.nav) / lastRecord.nav) * 100;
     const isPositive = change >= 0;
@@ -208,7 +212,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
     const colorClass = isPositive ? 'text-red-500' : 'text-green-600';
 
     let emoji = '';
-    if (lastRecord.type === 'buy') {
+    if (lastRecord.type === 'buy' || lastRecord.type === 'dividend-reinvest') {
         emoji = isPositive ? '👍' : '👎';
     } else { // sell
         emoji = isPositive ? '👎' : '👍';
@@ -261,7 +265,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
             {lastTransactionInfo && (
                 <div className="text-xs mt-0.5">
                     <span className="text-gray-600 dark:text-gray-400">{lastTransactionInfo.timeAgo}</span>
-                    <span className={`font-semibold mx-1 ${lastTransactionInfo.tradeType === '买入' ? 'text-red-500' : 'text-blue-500'}`}>{lastTransactionInfo.tradeType}</span>
+                    <span className={`font-semibold mx-1 ${lastTransactionInfo.tradeType === '买入' || lastTransactionInfo.tradeType === '再投' ? 'text-red-500' : lastTransactionInfo.tradeType === '分红' ? 'text-yellow-600' : 'text-blue-500'}`}>{lastTransactionInfo.tradeType}</span>
                     <span className={`font-semibold ${lastTransactionInfo.colorClass}`}>{lastTransactionInfo.changeSinceTradeText}</span>
                     <span className="ml-1">{lastTransactionInfo.emoji}</span>
                 </div>
@@ -320,7 +324,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
           />
         </div>
       </td>
-      <td className={`p-0 border-r border-gray-300 dark:border-gray-600 w-[60px] min-w-[60px] ${todayTransaction ? (todayTransaction.type === 'buy' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-blue-50 dark:bg-blue-900/20') : 'bg-white dark:bg-gray-900'}`}>
+      <td className={`p-0 border-r border-gray-300 dark:border-gray-600 w-[60px] min-w-[60px] ${todayTransaction ? (todayTransaction.type === 'buy' || todayTransaction.type === 'dividend-reinvest' ? 'bg-red-50 dark:bg-red-900/20' : todayTransaction.type === 'dividend-cash' ? 'bg-yellow-50 dark:bg-yellow-900/20' : 'bg-blue-50 dark:bg-blue-900/20') : 'bg-white dark:bg-gray-900'}`}>
         <div className="p-0">
             {historicalDataForToday ? (
               <>
@@ -383,8 +387,10 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
         let cellBgClass = '';
         const transaction = record || pendingRecord;
         if (transaction) {
-            if (transaction.type === 'buy') {
+            if (transaction.type === 'buy' || transaction.type === 'dividend-reinvest') {
                 cellBgClass = isPivotDate ? 'bg-red-200 dark:bg-red-900/60' : 'bg-red-50 dark:bg-red-900/20';
+            } else if (transaction.type === 'dividend-cash') {
+                cellBgClass = isPivotDate ? 'bg-yellow-200 dark:bg-yellow-900/60' : 'bg-yellow-50 dark:bg-yellow-900/20';
             } else {
                 cellBgClass = isPivotDate ? 'bg-blue-200 dark:bg-blue-900/60' : 'bg-blue-50 dark:bg-blue-900/20';
             }

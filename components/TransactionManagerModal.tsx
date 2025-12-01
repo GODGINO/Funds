@@ -1,3 +1,4 @@
+
 import React, { useMemo, useEffect } from 'react';
 import { ProcessedFund, TradingRecord } from '../types';
 
@@ -43,6 +44,26 @@ const TransactionManagerModal: React.FC<TransactionManagerModalProps> = ({ isOpe
     return null;
   }
 
+  const getTypeLabel = (type: string) => {
+      switch (type) {
+          case 'buy': return '买入';
+          case 'sell': return '卖出';
+          case 'dividend-cash': return '现金分红';
+          case 'dividend-reinvest': return '红利再投';
+          default: return type;
+      }
+  };
+
+  const getTypeColor = (type: string) => {
+      switch (type) {
+          case 'buy': return 'text-red-500';
+          case 'sell': return 'text-blue-500';
+          case 'dividend-cash': return 'text-yellow-600';
+          case 'dividend-reinvest': return 'text-purple-500';
+          default: return 'text-gray-500';
+      }
+  };
+
   return (
     <div
       className="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex justify-center items-center transition-opacity"
@@ -80,11 +101,14 @@ const TransactionManagerModal: React.FC<TransactionManagerModalProps> = ({ isOpe
                     <tr key={`${fund.code}-${record.date}`} className="border-t dark:border-gray-700">
                       <td className="p-2 font-medium">{fund.name} <span className="text-gray-500">{fund.code}</span></td>
                       <td className="p-2 font-mono">{record.date}</td>
-                      <td className={`p-2 font-semibold ${record.type === 'buy' ? 'text-red-500' : 'text-blue-500'}`}>
-                        {record.type === 'buy' ? '买入' : '卖出'}
+                      <td className={`p-2 font-semibold ${getTypeColor(record.type)}`}>
+                        {getTypeLabel(record.type)}
                       </td>
                       <td className="p-2 text-right font-mono">
                         {record.value?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <span className="text-xs text-gray-400 ml-1">
+                            {record.type === 'sell' || record.type === 'dividend-reinvest' ? '份' : '元'}
+                        </span>
                       </td>
                       <td className="p-2 text-center space-x-2">
                         <button
