@@ -78,9 +78,13 @@ export interface ProcessedFund extends Fund {
     recentProfit?: number;
     initialMarketValueForTrend?: number;
     initialUserPosition?: UserPosition;
+    recommendationScoreLeft?: number;
+    recommendationScoreRight?: number;
 }
 
 export type TagSortOrder = 'asc' | 'desc' | 'abs_asc' | 'abs_desc';
+
+export type SortByType = 'trend' | 'dailyChange' | 'navPercentile' | 'amount' | 'holdingProfitRate' | 'totalProfitRate' | 'scoreLeft' | 'scoreRight';
 
 export interface TagAnalysisData {
   tag: string;

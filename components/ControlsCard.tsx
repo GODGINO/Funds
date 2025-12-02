@@ -1,7 +1,6 @@
 
 import React, { useRef } from 'react';
-
-type SortByType = 'trend' | 'dailyChange' | 'navPercentile' | 'amount' | 'holdingProfitRate' | 'totalProfitRate';
+import { SortByType } from '../types';
 
 const recordCountOptions = [10, 50, 100, 150, 200, 300];
 
@@ -111,6 +110,8 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
                 disabled={isDisabled}
                 className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-1.5 px-2 text-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
               >
+                <option value="scoreLeft">左侧 (抄底)</option>
+                <option value="scoreRight">右侧 (追涨)</option>
                 <option value="trend">近期趋势</option>
                 <option value="dailyChange">今日涨幅</option>
                 <option value="navPercentile">分位点</option>

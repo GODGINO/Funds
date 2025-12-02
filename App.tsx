@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
-import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData, TransactionType } from './types';
+import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData, TransactionType, SortByType } from './types';
 import { fetchFundData, fetchFundDetails, fetchIndexData } from './services/fundService';
 import { updateGistData, fetchGistData } from './services/gistService';
 import FundInputForm from './components/FundInputForm';
@@ -22,8 +22,6 @@ import TerminalModal from './components/TerminalModal';
 import { processTerminalCommand } from './services/terminalService';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042'];
-
-type SortByType = 'trend' | 'dailyChange' | 'navPercentile' | 'amount' | 'holdingProfitRate' | 'totalProfitRate';
 
 const SYSTEM_TAGS = {
   HOLDING: '持有',
@@ -824,6 +822,37 @@ const App: React.FC = () => {
                 }
             }
         }
+
+        // --- Recommendation Score Calculation ---
+        // Inputs
+        const percentile = navPercentile ?? 50; // Default to 50 if missing
+        const recentChange = trendInfo ? trendInfo.change : 0;
+        
+        let dailyChange = 0;
+        if (fund.realTimeData?.estimatedChange) {
+            dailyChange = parseFloat(fund.realTimeData.estimatedChange);
+        } else if (fund.latestChange) {
+            dailyChange = parseFloat(fund.latestChange.replace('%', ''));
+        }
+        if (isNaN(dailyChange)) dailyChange = 0;
+
+        // Helper clamp function
+        const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
+
+        // Score Components
+        const scorePercentile = 100 - percentile; // Lower percentile = Higher score (0->100, 100->0)
+
+        // Left Strategy (Dip Buying): Drop is Good
+        const scoreRecentLeft = clamp(50 - (recentChange * 2), 0, 100); // -10% -> 70, +10% -> 30
+        const scoreDailyLeft = clamp(50 - (dailyChange * 5), 0, 100);   // -2% -> 60, +2% -> 40
+
+        // Right Strategy (Momentum): Rise is Good
+        const scoreRecentRight = clamp(50 + (recentChange * 2), 0, 100); // +10% -> 70, -10% -> 30
+        const scoreDailyRight = clamp(50 + (dailyChange * 5), 0, 100);   // +2% -> 60, -2% -> 40
+
+        // Weights: Valuation 50%, Trend 30%, Daily 20%
+        const recommendationScoreLeft = (0.5 * scorePercentile) + (0.3 * scoreRecentLeft) + (0.2 * scoreDailyLeft);
+        const recommendationScoreRight = (0.5 * scorePercentile) + (0.3 * scoreRecentRight) + (0.2 * scoreDailyRight); // Note: Valuation still anchor
         
         return {
             ...fund,
@@ -836,6 +865,8 @@ const App: React.FC = () => {
             navPercentile,
             recentProfit,
             initialMarketValueForTrend,
+            recommendationScoreLeft,
+            recommendationScoreRight
         };
     });
   }, [funds, zigzagThreshold]);
@@ -1154,6 +1185,16 @@ const App: React.FC = () => {
           const totalRateA = a.totalProfitRate ?? -Infinity;
           const totalRateB = b.totalProfitRate ?? -Infinity;
           comparison = totalRateA - totalRateB;
+          break;
+        case 'scoreLeft':
+          const scoreLA = a.recommendationScoreLeft ?? -Infinity;
+          const scoreLB = b.recommendationScoreLeft ?? -Infinity;
+          comparison = scoreLA - scoreLB;
+          break;
+        case 'scoreRight':
+          const scoreRA = a.recommendationScoreRight ?? -Infinity;
+          const scoreRB = b.recommendationScoreRight ?? -Infinity;
+          comparison = scoreRA - scoreRB;
           break;
         default:
           comparison = 0;
@@ -1925,6 +1966,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
                       onShowDetails={handleShowFundDetails}
                       onTagDoubleClick={handleTagDoubleClick}
                       onTrade={handleOpenTradeModal}
+                      activeSort={sortBy}
                     />
                   ))}
                 </tbody>

@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useCallback } from 'react';
 // FIX: Import the shared ProcessedFund interface.
-import { Fund, FundDataPoint, ProcessedFund, TradingRecord, TransactionType } from '../types';
+import { Fund, FundDataPoint, ProcessedFund, TradingRecord, TransactionType, SortByType } from '../types';
 import FundChart from './FundChart';
 
 interface FundRowProps {
@@ -10,6 +10,7 @@ interface FundRowProps {
   onShowDetails: (fund: Fund) => void;
   onTagDoubleClick: (tag: string) => void;
   onTrade: (fund: ProcessedFund, date: string, type: TransactionType, nav: number, isConfirmed: boolean, editingRecord?: TradingRecord) => void;
+  activeSort: SortByType;
 }
 
 const SYSTEM_TAG_COLORS: { [key: string]: { bg: string; text: string; } } = {
@@ -54,7 +55,7 @@ const RecordLink: React.FC<{ onClick: () => void }> = ({ onClick }) => (
     </div>
 );
 
-const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onTagDoubleClick, onTrade }) => {
+const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onTagDoubleClick, onTrade, activeSort }) => {
   const [isCopied, setIsCopied] = useState(false);
   const { trendInfo, baseChartData, zigzagPoints, lastPivotDate, navPercentile } = fund;
 
@@ -227,6 +228,36 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
     };
   }, [fund.userPosition?.tradingRecords, latestNAVForComparison]);
 
+  const renderRecommendation = () => {
+      // Only show recommendation if the sort type is explicitly one of the recommendation strategies
+      if (activeSort !== 'scoreLeft' && activeSort !== 'scoreRight') return null;
+
+      const isLeft = activeSort === 'scoreLeft';
+      const score = isLeft ? fund.recommendationScoreLeft : fund.recommendationScoreRight;
+      
+      if (score === undefined) return null;
+      
+      let label = '';
+      let colorClass = '';
+
+      if (score >= 70) {
+          label = '强力买入';
+          colorClass = 'text-red-600 dark:text-red-400 font-bold';
+      } else if (score >= 40) {
+          label = '持有';
+          colorClass = 'text-gray-500 dark:text-gray-400 font-medium';
+      } else {
+          label = '减仓';
+          colorClass = 'text-green-600 dark:text-green-400 font-medium';
+      }
+
+      return (
+          <div className={`text-xs mt-1.5 font-mono ${colorClass}`}>
+              {isLeft ? '左侧' : '右侧'}评分: {score.toFixed(0)} {label}
+          </div>
+      );
+  };
+
   return (
     <tr className="border-b border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50">
       <td 
@@ -306,6 +337,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
                 })}
               </div>
             )}
+            {renderRecommendation()}
           </div>
         </div>
       </td>
