@@ -184,10 +184,17 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
           <tbody>
             {data.map(item => {
               const isSelected = activeTag === item.tag;
+              
               const recentProfitRate = item.recentProfitRate;
               const isRecentSignificant = recentProfitRate < -4.5 || (recentProfitRate > 0 && recentProfitRate < 4.5);
               const recentHighlightClass = (isRecentSignificant && !isSelected) 
                   ? 'bg-gray-200 dark:bg-gray-700 group-hover:bg-gray-300 dark:group-hover:bg-gray-600' 
+                  : '';
+
+              const dailyProfitRate = item.dailyProfitRate;
+              const isDailySignificant = Math.abs(dailyProfitRate) > 2;
+              const dailyHighlightClass = (isDailySignificant && !isSelected)
+                  ? 'bg-gray-200 dark:bg-gray-700 group-hover:bg-gray-300 dark:group-hover:bg-gray-600'
                   : '';
 
               return (
@@ -260,7 +267,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getEfficiencyColor(item.dailyEfficiency)}`} style={getBarStyle(item.dailyEfficiency, maxAbsValues.dailyEfficiency, 'efficiency')}>
                       <div className="relative">{formatEfficiency(item.dailyEfficiency)}</div>
                   </td>
-                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.dailyProfitRate)}`} style={getBarStyle(item.dailyProfitRate, maxAbsValues.dailyProfitRate)}>
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.dailyProfitRate)} ${dailyHighlightClass}`} style={getBarStyle(item.dailyProfitRate, maxAbsValues.dailyProfitRate)}>
                     <div className="relative">{formatPercentage(item.dailyProfitRate)}</div>
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalRecentProfit)}`} style={getBarStyle(item.totalRecentProfit, maxAbsValues.totalRecentProfit)}>
