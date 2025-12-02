@@ -185,7 +185,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
     if (isBaselineRow || snapshots.length <= 1) return '';
 
     if (value != null && maxes[key] != null && value === maxes[key]) {
-        return 'bg-gray-200 dark:bg-gray-700/60';
+        return 'bg-gray-200 dark:bg-gray-700/60 group-hover:bg-gray-300 dark:group-hover:bg-gray-600';
     }
     return '';
   };
@@ -356,7 +356,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                 const isBaselineRow = snapshot.snapshotDate === '基准持仓';
                 const rowClasses = isBaselineRow
                   ? 'font-semibold'
-                  : 'hover:bg-gray-5 dark:hover:bg-gray-800/50';
+                  : 'hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors duration-150 group';
                 
                 const daysAgo = isBaselineRow ? null : getDaysAgo(snapshot.snapshotDate);
 
