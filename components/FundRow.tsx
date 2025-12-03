@@ -18,6 +18,7 @@ const SYSTEM_TAG_COLORS: { [key: string]: { bg: string; text: string; } } = {
   '自选': { bg: 'bg-gray-200 dark:bg-gray-700/50', text: 'text-gray-800 dark:text-gray-300' },
   '盈利': { bg: 'bg-red-100 dark:bg-red-900/50', text: 'text-red-800 dark:text-red-300' },
   '亏损': { bg: 'bg-green-100 dark:bg-green-900/50', text: 'text-green-800 dark:text-green-300' },
+  '推荐操作': { bg: 'bg-purple-100 dark:bg-purple-900/50', text: 'text-purple-800 dark:text-purple-300' },
 };
 
 const COLORS = [
@@ -229,31 +230,45 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
   }, [fund.userPosition?.tradingRecords, latestNAVForComparison]);
 
   const renderRecommendation = () => {
-      // Only show recommendation if the sort type is explicitly one of the recommendation strategies
-      if (activeSort !== 'scoreLeft' && activeSort !== 'scoreRight') return null;
+      // Evaluate both strategies
+      const strategies = [
+          { name: '左侧', score: fund.recommendationScoreLeft, key: 'left' },
+          { name: '右侧', score: fund.recommendationScoreRight, key: 'right' }
+      ];
 
-      const isLeft = activeSort === 'scoreLeft';
-      const score = isLeft ? fund.recommendationScoreLeft : fund.recommendationScoreRight;
-      
-      if (score === undefined) return null;
-      
-      let label = '';
-      let colorClass = '';
+      const signals = strategies.map(strat => {
+          if (strat.score === undefined) return null;
 
-      if (score >= 70) {
-          label = '强力买入';
-          colorClass = 'text-red-600 dark:text-red-400 font-bold';
-      } else if (score >= 40) {
-          label = '持有';
-          colorClass = 'text-gray-500 dark:text-gray-400 font-medium';
-      } else {
-          label = '减仓';
-          colorClass = 'text-green-600 dark:text-green-400 font-medium';
-      }
+          let label = '';
+          let colorClass = '';
+
+          // High score = Buy signal
+          if (strat.score >= 70) {
+              label = '强力买入';
+              colorClass = 'text-red-600 dark:text-red-400 font-bold';
+          } 
+          // Low score = Sell signal
+          else if (strat.score < 40) {
+              label = '减仓';
+              colorClass = 'text-green-600 dark:text-green-400 font-bold';
+          } 
+          // Middle score = Hold (Filter out)
+          else {
+              return null; 
+          }
+
+          return (
+              <span key={strat.key} className={`text-xs font-mono mr-2 ${colorClass}`}>
+                  {strat.name}:{strat.score.toFixed(0)} {label}
+              </span>
+          );
+      }).filter(Boolean); // Remove nulls (Hold signals)
+
+      if (signals.length === 0) return null;
 
       return (
-          <div className={`text-xs mt-1.5 font-mono ${colorClass}`}>
-              {isLeft ? '左侧' : '右侧'}评分: {score.toFixed(0)} {label}
+          <div className="mt-1 flex flex-wrap gap-y-1">
+              {signals}
           </div>
       );
   };
@@ -306,7 +321,9 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
             {(systemTags.length > 0 || fund.userPosition?.tag) && (
               <div className="mt-1 flex flex-wrap gap-1 items-center">
                 {systemTags.map(tag => {
-                  const { bg, text } = SYSTEM_TAG_COLORS[tag];
+                  // Fallback for custom recommended tag if not in SYSTEM_TAG_COLORS yet (though added in App.tsx)
+                  const tagConfig = SYSTEM_TAG_COLORS[tag] || getTagColor(tag);
+                  const { bg, text } = tagConfig;
                   return (
                     <span 
                       key={tag} 

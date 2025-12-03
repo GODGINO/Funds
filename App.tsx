@@ -29,8 +29,9 @@ const SYSTEM_TAGS = {
   PROFIT: '盈利',
   LOSS: '亏损',
   RECENT_TRANSACTION: '近期有交易',
+  RECOMMENDED_ACTION: '推荐操作',
 };
-const ORDERED_SYSTEM_TAGS = [SYSTEM_TAGS.HOLDING, SYSTEM_TAGS.WATCHING, SYSTEM_TAGS.PROFIT, SYSTEM_TAGS.LOSS, SYSTEM_TAGS.RECENT_TRANSACTION];
+const ORDERED_SYSTEM_TAGS = [SYSTEM_TAGS.HOLDING, SYSTEM_TAGS.WATCHING, SYSTEM_TAGS.PROFIT, SYSTEM_TAGS.LOSS, SYSTEM_TAGS.RECENT_TRANSACTION, SYSTEM_TAGS.RECOMMENDED_ACTION];
 
 
 const validatePositions = (data: any): data is UserPosition[] => {
@@ -904,6 +905,13 @@ const App: React.FC = () => {
              });
              if (hasRecentTx) systemTagSet.add(SYSTEM_TAGS.RECENT_TRANSACTION);
         }
+
+        // Add 'Recommended Action' tag if any actionable signal exists
+        const scoreL = fund.recommendationScoreLeft;
+        const scoreR = fund.recommendationScoreRight;
+        if ((scoreL !== undefined && (scoreL >= 70 || scoreL < 40)) || (scoreR !== undefined && (scoreR >= 70 || scoreR < 40))) {
+            systemTagSet.add(SYSTEM_TAGS.RECOMMENDED_ACTION);
+        }
     });
     
     const sortedSystemTags = ORDERED_SYSTEM_TAGS.filter(tag => systemTagSet.has(tag));
@@ -1146,6 +1154,10 @@ const App: React.FC = () => {
                  return position.tradingRecords.some(r => {
                      return new Date(r.date).getTime() >= new Date(fund.lastPivotDate!).getTime();
                  });
+            case SYSTEM_TAGS.RECOMMENDED_ACTION:
+                const scoreL = fund.recommendationScoreLeft;
+                const scoreR = fund.recommendationScoreRight;
+                return (scoreL !== undefined && (scoreL >= 70 || scoreL < 40)) || (scoreR !== undefined && (scoreR >= 70 || scoreR < 40));
         }
 
         if (!position?.tag) return false;
@@ -1185,16 +1197,6 @@ const App: React.FC = () => {
           const totalRateA = a.totalProfitRate ?? -Infinity;
           const totalRateB = b.totalProfitRate ?? -Infinity;
           comparison = totalRateA - totalRateB;
-          break;
-        case 'scoreLeft':
-          const scoreLA = a.recommendationScoreLeft ?? -Infinity;
-          const scoreLB = b.recommendationScoreLeft ?? -Infinity;
-          comparison = scoreLA - scoreLB;
-          break;
-        case 'scoreRight':
-          const scoreRA = a.recommendationScoreRight ?? -Infinity;
-          const scoreRB = b.recommendationScoreRight ?? -Infinity;
-          comparison = scoreRA - scoreRB;
           break;
         default:
           comparison = 0;

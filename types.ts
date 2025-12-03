@@ -84,7 +84,7 @@ export interface ProcessedFund extends Fund {
 
 export type TagSortOrder = 'asc' | 'desc' | 'abs_asc' | 'abs_desc';
 
-export type SortByType = 'trend' | 'dailyChange' | 'navPercentile' | 'amount' | 'holdingProfitRate' | 'totalProfitRate' | 'scoreLeft' | 'scoreRight';
+export type SortByType = 'trend' | 'dailyChange' | 'navPercentile' | 'amount' | 'holdingProfitRate' | 'totalProfitRate';
 
 export interface TagAnalysisData {
   tag: string;
