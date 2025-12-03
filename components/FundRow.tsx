@@ -230,45 +230,42 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
   }, [fund.userPosition?.tradingRecords, latestNAVForComparison]);
 
   const renderRecommendation = () => {
-      // Evaluate both strategies
-      const strategies = [
-          { name: '左侧', score: fund.recommendationScoreLeft, key: 'left' },
-          { name: '右侧', score: fund.recommendationScoreRight, key: 'right' }
-      ];
+      const smartScore = fund.smartRecommendation;
+      
+      if (smartScore === undefined) return null;
 
-      const signals = strategies.map(strat => {
-          if (strat.score === undefined) return null;
-
-          let label = '';
-          let colorClass = '';
-
-          // High score = Buy signal
-          if (strat.score >= 70) {
-              label = '强力买入';
-              colorClass = 'text-red-600 dark:text-red-400 font-bold';
-          } 
-          // Low score = Sell signal
-          else if (strat.score < 40) {
-              label = '减仓';
-              colorClass = 'text-green-600 dark:text-green-400 font-bold';
-          } 
-          // Middle score = Hold (Filter out)
-          else {
-              return null; 
-          }
-
-          return (
-              <span key={strat.key} className={`text-xs font-mono mr-2 ${colorClass}`}>
-                  {strat.name}:{strat.score.toFixed(0)} {label}
-              </span>
-          );
-      }).filter(Boolean); // Remove nulls (Hold signals)
-
-      if (signals.length === 0) return null;
-
+      let smartLabel = '';
+      let smartColorClass = '';
+      let icon = '';
+      
+      if (smartScore >= 75) {
+          smartLabel = '强力买入';
+          smartColorClass = 'text-red-600 dark:text-red-400 font-bold';
+          icon = '🔴';
+      } else if (smartScore >= 60) {
+          smartLabel = '建议买入';
+          smartColorClass = 'text-orange-600 dark:text-orange-400 font-semibold';
+          icon = '🟠';
+      } else if (smartScore >= 40) {
+          smartLabel = '持有/观望';
+          smartColorClass = 'text-gray-400 dark:text-gray-500';
+          icon = '⚪️';
+      } else if (smartScore >= 25) {
+          smartLabel = '建议减仓';
+          smartColorClass = 'text-blue-500 dark:text-blue-400 font-semibold';
+          icon = '🔵';
+      } else {
+          smartLabel = '强力卖出';
+          smartColorClass = 'text-green-600 dark:text-green-400 font-bold';
+          icon = '🟢';
+      }
+      
       return (
-          <div className="mt-1 flex flex-wrap gap-y-1">
-              {signals}
+          <div className="mt-1 flex items-center gap-1">
+              <span className="text-[10px]">{icon}</span>
+              <span className={`text-xs font-mono ${smartColorClass}`}>
+                  评分: {smartScore.toFixed(0)} {smartLabel} {fund.smartSignalLabel ? `(${fund.smartSignalLabel})` : ''}
+              </span>
           </div>
       );
   };

@@ -29,9 +29,26 @@ const SYSTEM_TAGS = {
   PROFIT: '盈利',
   LOSS: '亏损',
   RECENT_TRANSACTION: '近期有交易',
-  RECOMMENDED_ACTION: '推荐操作',
+  // 5-Tier Smart Rating Tags
+  STRONG_BUY: '🔴 强力买入',
+  BUY: '🟠 建议买入',
+  HOLD: '⚪️ 持有/观望',
+  SELL: '🔵 建议减仓',
+  STRONG_SELL: '🟢 强力卖出',
 };
-const ORDERED_SYSTEM_TAGS = [SYSTEM_TAGS.HOLDING, SYSTEM_TAGS.WATCHING, SYSTEM_TAGS.PROFIT, SYSTEM_TAGS.LOSS, SYSTEM_TAGS.RECENT_TRANSACTION, SYSTEM_TAGS.RECOMMENDED_ACTION];
+
+const ORDERED_SYSTEM_TAGS = [
+  SYSTEM_TAGS.HOLDING, 
+  SYSTEM_TAGS.WATCHING, 
+  SYSTEM_TAGS.PROFIT, 
+  SYSTEM_TAGS.LOSS, 
+  SYSTEM_TAGS.RECENT_TRANSACTION,
+  SYSTEM_TAGS.STRONG_BUY,
+  SYSTEM_TAGS.BUY,
+  SYSTEM_TAGS.HOLD,
+  SYSTEM_TAGS.SELL,
+  SYSTEM_TAGS.STRONG_SELL,
+];
 
 
 const validatePositions = (data: any): data is UserPosition[] => {
@@ -824,9 +841,8 @@ const App: React.FC = () => {
             }
         }
 
-        // --- Recommendation Score Calculation ---
-        // Inputs
-        const percentile = navPercentile ?? 50; // Default to 50 if missing
+        // --- Smart Recommendation Score (Unified M-Shape) ---
+        const percentile = navPercentile ?? 50;
         const recentChange = trendInfo ? trendInfo.change : 0;
         
         let dailyChange = 0;
@@ -837,24 +853,51 @@ const App: React.FC = () => {
         }
         if (isNaN(dailyChange)) dailyChange = 0;
 
-        // Helper clamp function
         const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
+        const scorePercentile = 100 - percentile; // Valuation Score
 
-        // Score Components
-        const scorePercentile = 100 - percentile; // Lower percentile = Higher score (0->100, 100->0)
+        let smartTrendScore = 50;
+        let smartSignalLabel = '';
 
-        // Left Strategy (Dip Buying): Drop is Good
-        const scoreRecentLeft = clamp(50 - (recentChange * 2), 0, 100); // -10% -> 70, +10% -> 30
-        const scoreDailyLeft = clamp(50 - (dailyChange * 5), 0, 100);   // -2% -> 60, +2% -> 40
+        if (recentChange < -3) {
+            // Deep Dip Zone: Score increases as drop gets deeper
+            // -3% -> 56, -10% -> 70, -25% -> 100
+            smartTrendScore = clamp(50 + Math.abs(recentChange) * 2, 0, 100);
+            smartSignalLabel = '超跌';
+        } else if (recentChange >= -3 && recentChange < 0) {
+            // Boring Zone (Bottom bouncing?)
+            smartTrendScore = 50;
+            smartSignalLabel = '磨底';
+        } else if (recentChange >= 0 && recentChange < 4.5) {
+            // Early Rise Zone: Linear climb from 50 to 80
+            smartTrendScore = 50 + (recentChange / 4.5) * 30; 
+            smartSignalLabel = '爬坡';
+        } else if (recentChange >= 4.5 && recentChange <= 9) {
+            // Sweet Spot Zone: Max Score
+            smartTrendScore = 100;
+            smartSignalLabel = '主升';
+        } else { // > 9
+            // Overheat Zone: Rapid penalty with steeper coefficient (25) to ensure "Overheated" means Sell/Trim.
+            // 9% -> 100
+            // 10% -> 100 - (1 * 25) = 75
+            // 11% -> 100 - (2 * 25) = 50
+            // 13% -> 100 - (4 * 25) = 0
+            smartTrendScore = clamp(100 - (recentChange - 9) * 25, 0, 100);
+            smartSignalLabel = '过热';
+        }
 
-        // Right Strategy (Momentum): Rise is Good
-        const scoreRecentRight = clamp(50 + (recentChange * 2), 0, 100); // +10% -> 70, -10% -> 30
-        const scoreDailyRight = clamp(50 + (dailyChange * 5), 0, 100);   // +2% -> 60, -2% -> 40
+        let smartDailyScore = 50;
+        // Context-aware Daily Score
+        if (recentChange < 0) {
+             // In a downtrend/dip, we prefer a drop today to buy cheaper (Left side logic)
+             smartDailyScore = clamp(50 - (dailyChange * 5), 0, 100);
+        } else {
+             // In an uptrend, we prefer a rise today to confirm momentum (Right side logic)
+             smartDailyScore = clamp(50 + (dailyChange * 5), 0, 100);
+        }
 
-        // Weights: Valuation 50%, Trend 30%, Daily 20%
-        const recommendationScoreLeft = (0.5 * scorePercentile) + (0.3 * scoreRecentLeft) + (0.2 * scoreDailyLeft);
-        const recommendationScoreRight = (0.5 * scorePercentile) + (0.3 * scoreRecentRight) + (0.2 * scoreDailyRight); // Note: Valuation still anchor
-        
+        const smartRecommendation = (0.5 * scorePercentile) + (0.3 * smartTrendScore) + (0.2 * smartDailyScore);
+
         return {
             ...fund,
             ...portfolioMetrics,
@@ -866,8 +909,8 @@ const App: React.FC = () => {
             navPercentile,
             recentProfit,
             initialMarketValueForTrend,
-            recommendationScoreLeft,
-            recommendationScoreRight
+            smartRecommendation,
+            smartSignalLabel
         };
     });
   }, [funds, zigzagThreshold]);
@@ -906,11 +949,14 @@ const App: React.FC = () => {
              if (hasRecentTx) systemTagSet.add(SYSTEM_TAGS.RECENT_TRANSACTION);
         }
 
-        // Add 'Recommended Action' tag if any actionable signal exists
-        const scoreL = fund.recommendationScoreLeft;
-        const scoreR = fund.recommendationScoreRight;
-        if ((scoreL !== undefined && (scoreL >= 70 || scoreL < 40)) || (scoreR !== undefined && (scoreR >= 70 || scoreR < 40))) {
-            systemTagSet.add(SYSTEM_TAGS.RECOMMENDED_ACTION);
+        // Add Smart Rating Tags based on score (5-tier)
+        const smartS = fund.smartRecommendation;
+        if (smartS !== undefined) {
+            if (smartS >= 75) systemTagSet.add(SYSTEM_TAGS.STRONG_BUY);
+            else if (smartS >= 60) systemTagSet.add(SYSTEM_TAGS.BUY);
+            else if (smartS >= 40) systemTagSet.add(SYSTEM_TAGS.HOLD);
+            else if (smartS >= 25) systemTagSet.add(SYSTEM_TAGS.SELL);
+            else systemTagSet.add(SYSTEM_TAGS.STRONG_SELL);
         }
     });
     
@@ -1154,10 +1200,21 @@ const App: React.FC = () => {
                  return position.tradingRecords.some(r => {
                      return new Date(r.date).getTime() >= new Date(fund.lastPivotDate!).getTime();
                  });
-            case SYSTEM_TAGS.RECOMMENDED_ACTION:
-                const scoreL = fund.recommendationScoreLeft;
-                const scoreR = fund.recommendationScoreRight;
-                return (scoreL !== undefined && (scoreL >= 70 || scoreL < 40)) || (scoreR !== undefined && (scoreR >= 70 || scoreR < 40));
+            // 5-Tier Smart Rating Filters
+            case SYSTEM_TAGS.STRONG_BUY:
+                 return (fund.smartRecommendation ?? 0) >= 75;
+            case SYSTEM_TAGS.BUY:
+                 const s = fund.smartRecommendation ?? 0;
+                 return s >= 60 && s < 75;
+            case SYSTEM_TAGS.HOLD:
+                 const h = fund.smartRecommendation ?? 0;
+                 return h >= 40 && h < 60;
+            case SYSTEM_TAGS.SELL:
+                 const sl = fund.smartRecommendation ?? 0;
+                 return sl >= 25 && sl < 40;
+            case SYSTEM_TAGS.STRONG_SELL:
+                 const ss = fund.smartRecommendation ?? 0;
+                 return ss < 25;
         }
 
         if (!position?.tag) return false;
@@ -1197,6 +1254,11 @@ const App: React.FC = () => {
           const totalRateA = a.totalProfitRate ?? -Infinity;
           const totalRateB = b.totalProfitRate ?? -Infinity;
           comparison = totalRateA - totalRateB;
+          break;
+        case 'smartScore':
+          const scoreA = a.smartRecommendation ?? -1;
+          const scoreB = b.smartRecommendation ?? -1;
+          comparison = scoreA - scoreB;
           break;
         default:
           comparison = 0;
