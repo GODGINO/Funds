@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine } from 'recharts';
 import { PortfolioSnapshot, ProcessedFund } from '../types';
 import SnapshotDetailModal from './SnapshotDetailModal';
@@ -8,6 +8,7 @@ interface PortfolioSnapshotTableProps {
   snapshots: PortfolioSnapshot[];
   funds: ProcessedFund[];
   onTagDoubleClick: (tag: string) => void;
+  onSnapshotFilter: (date: string) => void;
 }
 
 const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-green-600';
@@ -119,13 +120,16 @@ const HeaderSparkline: React.FC<{ data: any[]; dataKey: string; stroke: string; 
 };
 
 
-const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapshots, funds, onTagDoubleClick }) => {
+const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapshots, funds, onTagDoubleClick, onSnapshotFilter }) => {
   const [selectedSnapshot, setSelectedSnapshot] = useState<PortfolioSnapshot | null>(null);
   const chartData = useMemo(() => [...snapshots].reverse(), [snapshots]);
   
   const thickBorderRightKeys = useMemo(() => new Set(['dailyProfitRate', 'totalBuyFloatingProfit', 'totalSellRealizedProfit', 'operationProfit']), []);
   // Added operationProfit and profitCaused to wide columns
   const wideColumnKeys = useMemo(() => new Set(['totalBuyFloatingProfit', 'totalSellOpportunityProfit', 'totalSellRealizedProfit', 'operationProfit', 'profitCaused']), []);
+  
+  // Ref for long press
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
   const { maxes, maxAbsValues, minAbsValues } = useMemo(() => {
@@ -311,6 +315,30 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
     { key: 'operationEffect', title: '操作效果', render: data => <div className={getProfitColor(data.operationEffect)}>{formatPercentage(data.operationEffect)}</div> },
   ];
 
+  const handleLongPressStart = (date: string) => {
+      if (date === '基准持仓') return;
+      longPressTimerRef.current = setTimeout(() => {
+          onSnapshotFilter(date);
+      }, 1000); // 1 second long press
+  };
+
+  const handleLongPressEnd = () => {
+      if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+      }
+  };
+
+  const handleRowClick = (e: React.MouseEvent, snapshot: PortfolioSnapshot) => {
+      // Ignore click if it's the baseline row (no transaction date logic)
+      if (snapshot.snapshotDate === '基准持仓') return;
+
+      if (e.detail === 2) {
+          // Standard Double Click -> Open Modal
+          setSelectedSnapshot(snapshot);
+      }
+  };
+
   return (
     <>
       <div className="mt-6 bg-white dark:bg-gray-900 rounded-lg shadow-md p-4 select-none">
@@ -361,7 +389,16 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                 const daysAgo = isBaselineRow ? null : getDaysAgo(snapshot.snapshotDate);
 
                 return (
-                <tr key={snapshot.snapshotDate} onDoubleClick={() => setSelectedSnapshot(snapshot)} className={`border-b dark:border-gray-800 ${rowClasses}`}>
+                <tr 
+                    key={snapshot.snapshotDate} 
+                    onClick={(e) => handleRowClick(e, snapshot)}
+                    onMouseDown={() => handleLongPressStart(snapshot.snapshotDate)}
+                    onMouseUp={handleLongPressEnd}
+                    onMouseLeave={handleLongPressEnd}
+                    onTouchStart={() => handleLongPressStart(snapshot.snapshotDate)}
+                    onTouchEnd={handleLongPressEnd}
+                    className={`border-b dark:border-gray-800 ${rowClasses}`}
+                >
                   <td className="w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-left">
                     <span>{isBaselineRow ? snapshot.snapshotDate : snapshot.snapshotDate.substring(2).replace(/-/g, '/')}</span>
                     {daysAgo !== null && (

@@ -1185,6 +1185,12 @@ const App: React.FC = () => {
     const filteredFunds = processedFunds.filter(fund => {
         if (!activeTag) return true;
         
+        // Handle special TX_DATE filter logic
+        if (activeTag.startsWith('TX_DATE:')) {
+            const filterDate = activeTag.substring(8);
+            return fund.userPosition?.tradingRecords?.some(r => r.date === filterDate) ?? false;
+        }
+
         const position = fund.userPosition;
         switch (activeTag) {
             case SYSTEM_TAGS.HOLDING:
@@ -1348,6 +1354,16 @@ const App: React.FC = () => {
       
       return tag;
     });
+  }, []);
+
+  const handleSnapshotFilter = useCallback((date: string) => {
+    const tag = `TX_DATE:${date}`;
+    // Simple set active tag to trigger the filter. No complex toggling needed as user can clear via dropdown.
+    // Or we can toggle it off if already active.
+    setActiveTag(prev => prev === tag ? null : tag);
+    setTimeout(() => {
+        fundTableContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   }, []);
 
   const handleTagSortChange = useCallback((newKey: keyof TagAnalysisData) => {
@@ -2037,7 +2053,14 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
               </table>
             </div>
           </div>
-          {portfolioSnapshots.length > 1 && <PortfolioSnapshotTable snapshots={portfolioSnapshots} funds={processedFunds} onTagDoubleClick={handleTagDoubleClick} />}
+          {portfolioSnapshots.length > 1 && (
+            <PortfolioSnapshotTable 
+              snapshots={portfolioSnapshots} 
+              funds={processedFunds} 
+              onTagDoubleClick={handleTagDoubleClick} 
+              onSnapshotFilter={handleSnapshotFilter} // Add this
+            />
+          )}
         </>
       ) : (
         <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg shadow-md">
