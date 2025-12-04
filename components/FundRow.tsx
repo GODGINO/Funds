@@ -282,7 +282,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
               {/* Left Group: Progress + Rank */}
               <div className="flex items-center gap-2">
                   {/* Fixed width progress bar container (w-40) */}
-                  <div className="w-40 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden shrink-0">
+                  <div className="w-40 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden shrink-0">
                       <div 
                           className="h-full bg-blue-400 dark:bg-blue-500 rounded-full" 
                           style={{ width: `${Math.min(percent, 100)}%` }}
