@@ -1275,6 +1275,24 @@ const App: React.FC = () => {
     return filteredFunds;
   }, [processedFunds, sortBy, sortOrder, activeTag]);
   
+  // Calculate Market Value Stats for the visible list (Filtered & Sorted)
+  const filteredMarketStats = useMemo(() => {
+      const total = processedAndSortedFunds.reduce((sum, f) => sum + (f.marketValue || 0), 0);
+      
+      // Calculate ranks based on market value descending
+      // We clone and sort just to find the rank index
+      const sortedByValue = [...processedAndSortedFunds].sort((a, b) => (b.marketValue || 0) - (a.marketValue || 0));
+      const rankMap = new Map<string, number>();
+      
+      sortedByValue.forEach((f, i) => {
+          if ((f.marketValue || 0) > 0) {
+              rankMap.set(f.code, i + 1);
+          }
+      });
+      
+      return { total, rankMap };
+  }, [processedAndSortedFunds]);
+
 
   const handleDeleteFund = useCallback((codeToDelete: string) => {
     setFunds(prevFunds => prevFunds.filter(fund => fund.code !== codeToDelete));
@@ -2047,6 +2065,8 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
                       onTagDoubleClick={handleTagDoubleClick}
                       onTrade={handleOpenTradeModal}
                       activeSort={sortBy}
+                      totalPortfolioValue={filteredMarketStats.total}
+                      marketValueRank={filteredMarketStats.rankMap.get(fund.code) || 0}
                     />
                   ))}
                 </tbody>

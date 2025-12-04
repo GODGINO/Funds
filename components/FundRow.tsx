@@ -11,6 +11,8 @@ interface FundRowProps {
   onTagDoubleClick: (tag: string) => void;
   onTrade: (fund: ProcessedFund, date: string, type: TransactionType, nav: number, isConfirmed: boolean, editingRecord?: TradingRecord) => void;
   activeSort: SortByType;
+  totalPortfolioValue?: number;
+  marketValueRank?: number;
 }
 
 const SYSTEM_TAG_COLORS: { [key: string]: { bg: string; text: string; } } = {
@@ -56,7 +58,7 @@ const RecordLink: React.FC<{ onClick: () => void }> = ({ onClick }) => (
     </div>
 );
 
-const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onTagDoubleClick, onTrade, activeSort }) => {
+const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onTagDoubleClick, onTrade, activeSort, totalPortfolioValue = 0, marketValueRank = 0 }) => {
   const [isCopied, setIsCopied] = useState(false);
   const { trendInfo, baseChartData, zigzagPoints, lastPivotDate, navPercentile } = fund;
 
@@ -270,6 +272,36 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
       );
   };
 
+  const marketValueDisplay = useMemo(() => {
+      if (!fund.marketValue || fund.marketValue <= 0) return null;
+      
+      const percent = (totalPortfolioValue > 0) ? (fund.marketValue / totalPortfolioValue) * 100 : 0;
+      
+      return (
+          <div className="flex items-center mt-1 w-full justify-between">
+              {/* Left Group: Progress + Rank */}
+              <div className="flex items-center gap-2">
+                  {/* Fixed width progress bar container (w-40) */}
+                  <div className="w-40 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden shrink-0">
+                      <div 
+                          className="h-full bg-blue-400 dark:bg-blue-500 rounded-full" 
+                          style={{ width: `${Math.min(percent, 100)}%` }}
+                      />
+                  </div>
+                  {/* Rank & Percent */}
+                  <div className="text-[10px] text-gray-500 dark:text-gray-400 whitespace-nowrap font-mono">
+                      #{marketValueRank} {percent.toFixed(0)}%
+                  </div>
+              </div>
+              
+              {/* Right Group: Amount (Integer) */}
+              <div className="text-xs font-bold text-gray-700 dark:text-gray-300 font-mono">
+                  {Math.round(fund.marketValue).toLocaleString()}
+              </div>
+          </div>
+      );
+  }, [fund.marketValue, totalPortfolioValue, marketValueRank]);
+
   return (
     <tr className="border-b border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50">
       <td 
@@ -288,6 +320,9 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
                 {isCopied ? '复制成功' : fund.code}
               </span>
             </div>
+            
+            {marketValueDisplay}
+
             {(dailyChangeDisplay || trendInfo) && (
                 <div className="text-xs mt-0.5 font-semibold">
                     {dailyChangeDisplay && (
