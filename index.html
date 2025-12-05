@@ -51,6 +51,17 @@
         }
       }
     </script>
+    <style>
+      /* 隐藏主页面竖向滚动条但保留滚动功能 */
+      html {
+        scrollbar-width: none; /* Firefox */
+        -ms-overflow-style: none; /* IE 10+ */
+      }
+      html::-webkit-scrollbar {
+        width: 0px; /* Chrome/Safari/Webkit Vertical Scrollbar */
+        background: transparent;
+      }
+    </style>
   <script type="importmap">
 {
   "imports": {
