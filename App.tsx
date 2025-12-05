@@ -141,7 +141,6 @@ const App: React.FC = () => {
   const longPressTimer = useRef<number | null>(null);
   const appLoaded = useRef<boolean>(false);
   const fundTableContainerRef = useRef<HTMLDivElement>(null);
-  const lastRightClickTime = useRef<number>(0);
   
   // This ref acts as a safety valve. If a critical error occurs during loading (e.g. strict mode crash),
   // we set this to true to prevent the `useEffect` from saving an empty/corrupted fund list to localStorage.
@@ -173,27 +172,6 @@ const App: React.FC = () => {
       const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
       window.history.replaceState({}, document.title, newUrl);
     }
-  }, []);
-
-  // Effect for Global Double Right Click to toggle Privacy Mode
-  useEffect(() => {
-    const handleGlobalContextMenu = (e: MouseEvent) => {
-      const now = Date.now();
-      // 300ms threshold for double click
-      if (lastRightClickTime.current && (now - lastRightClickTime.current < 300)) {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsPrivacyModeEnabled(prev => !prev);
-        lastRightClickTime.current = 0;
-      } else {
-        lastRightClickTime.current = now;
-      }
-    };
-
-    window.addEventListener('contextmenu', handleGlobalContextMenu, true); // Use capture phase to ensure this runs first
-    return () => {
-      window.removeEventListener('contextmenu', handleGlobalContextMenu, true);
-    };
   }, []);
 
   // Effect to lock body scroll when any modal or privacy veil is active
