@@ -14,6 +14,7 @@ interface PrivacyVeilProps {
   summaryProfitCaused?: number;
   summaryOperationEffect?: number;
   indexData: IndexData | null;
+  marketTurnover: string | null;
 }
 
 const PrivacyVeil: React.FC<PrivacyVeilProps> = ({ 
@@ -24,6 +25,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
     summaryProfitCaused,
     summaryOperationEffect,
     indexData,
+    marketTurnover,
 }) => {
   const [isHovering, setIsHovering] = useState(false);
   const idleTimerRef = useRef<number | null>(null);
@@ -102,6 +104,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
     formattedProfitCaused,
     formattedOperationEffect,
     formattedIndex,
+    marketTurnover,
   ].filter(Boolean).join(' ');
 
   return (

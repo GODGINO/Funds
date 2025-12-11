@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
 import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData, TransactionType, SortByType } from './types';
-import { fetchFundData, fetchFundDetails, fetchIndexData } from './services/fundService';
+import { fetchFundData, fetchFundDetails, fetchIndexData, fetchTotalTurnover } from './services/fundService';
 import { updateGistData, fetchGistData } from './services/gistService';
 import FundInputForm from './components/FundInputForm';
 import FundRow from './components/FundRow';
@@ -132,6 +132,7 @@ const App: React.FC = () => {
   const [tagSortKey, setTagSortKey] = useState<keyof TagAnalysisData>('dailyProfitRate');
   const [tagSortOrder, setTagSortOrder] = useState<TagSortOrder>('desc');
   const [indexData, setIndexData] = useState<IndexData | null>(null);
+  const [marketTurnover, setMarketTurnover] = useState<string | null>(null);
   
   const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState(() => {
     return localStorage.getItem('AUTO_SYNC_ENABLED') === 'true';
@@ -409,8 +410,9 @@ const App: React.FC = () => {
       }
 
       try {
-        // Start fetching index data immediately.
+        // Start fetching index data and turnover immediately.
         const indexPromise = fetchIndexData().then(setIndexData);
+        const turnoverPromise = fetchTotalTurnover().then(setMarketTurnover);
 
         const savedPositionsJSON = localStorage.getItem('userFundPortfolio');
         if (savedPositionsJSON) {
@@ -428,7 +430,7 @@ const App: React.FC = () => {
         
         // Wait for index data too before considering the app fully loaded,
         // though it doesn't block fund display.
-        await indexPromise;
+        await Promise.all([indexPromise, turnoverPromise]);
 
       } catch (err) {
         setError("加载已保存的基金失败，数据可能已过期。");
@@ -512,6 +514,7 @@ const App: React.FC = () => {
     setError(null);
 
     const indexPromise = fetchIndexData();
+    const turnoverPromise = fetchTotalTurnover();
 
     // Step 1: Initial fetch for all funds using Promise.allSettled
     const initialFetchResults = await Promise.allSettled(
@@ -561,6 +564,9 @@ const App: React.FC = () => {
     try {
         const newIndexData = await indexPromise;
         setIndexData(newIndexData);
+        
+        const newTurnover = await turnoverPromise;
+        setMarketTurnover(newTurnover);
     } catch (err) {
         // Log index error but don't show a blocking UI error
         console.error("Failed to refresh index data:", err);
@@ -1992,6 +1998,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
           summaryProfitCaused={snapshotSummary.summaryProfitCaused}
           summaryOperationEffect={snapshotSummary.summaryOperationEffect}
           indexData={indexData}
+          marketTurnover={marketTurnover}
         />
       )}
       {isAppLoading ? (

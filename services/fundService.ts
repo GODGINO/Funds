@@ -365,3 +365,156 @@ export async function fetchIndexData(): Promise<IndexData | null> {
         return null;
     }
 }
+
+// --- Total Turnover (Both Markets) with LocalStorage Caching ---
+// Strategy:
+// 1. Fetch Today's real-time minute data.
+// 2. Since historical APIs are flaky, we implement a "Self-Recording" mechanism.
+//    If today's market is closed (time >= 15:00), we save today's full curve to localStorage.
+// 3. To compare, we try to load the "Most Recent Previous Day" from localStorage.
+//    If found, we sum its turnover up to the current time and calculate the diff.
+
+const MARKET_HISTORY_KEY = 'ginos_market_history_v1';
+
+function getLocalMarketHistory(): Record<string, { t: string, val: number }[]> {
+    try {
+        return JSON.parse(localStorage.getItem(MARKET_HISTORY_KEY) || '{}');
+    } catch {
+        return {};
+    }
+}
+
+function saveLocalMarketHistory(date: string, data: { t: string, val: number }[]) {
+    const history = getLocalMarketHistory();
+    // Only update if data count is significantly better or not exists, 
+    // but here we trust the closed market data (after 15:00) is best.
+    history[date] = data;
+    
+    // Prune: Keep only last 5 days to safe space
+    const dates = Object.keys(history).sort();
+    if (dates.length > 5) {
+        const newHistory: any = {};
+        dates.slice(-5).forEach(d => newHistory[d] = history[d]);
+        localStorage.setItem(MARKET_HISTORY_KEY, JSON.stringify(newHistory));
+    } else {
+        localStorage.setItem(MARKET_HISTORY_KEY, JSON.stringify(history));
+    }
+}
+
+export async function fetchTotalTurnover(): Promise<string | null> {
+    try {
+        const EXPIRY_MS = 60 * 1000; // 1 minute cache
+        const now = Date.now();
+        const cache = (window as any)._sseTurnoverCache || null;
+
+        if (cache && (now - cache.timestamp) < EXPIRY_MS) {
+            return cache.data;
+        }
+
+        // Fetch Today's Trends (Real-time minute data)
+        // using trends2 which returns array of "Date Time,Price,..." strings
+        // fields2=f51,f57 returns "Date Time, TurnoverAmount"
+        const fetchTrends = async (secid: string) => {
+            const url = `https://push2.eastmoney.com/api/qt/stock/trends2/get?secid=${secid}&fields1=f1&fields2=f51,f57&ndays=1&iscr=0&_=${now}`;
+            const res = await fetch(url, { cache: 'no-store' });
+            return res.json();
+        };
+
+        const [shData, szData] = await Promise.all([fetchTrends('1.000001'), fetchTrends('0.399001')]);
+
+        // Helper: Parse "YYYY-MM-DD HH:MM,12345.00"
+        const parseTrends = (data: any) => {
+            const trends = data?.data?.trends;
+            if (!Array.isArray(trends)) return [];
+            return trends.map((item: string) => {
+                const parts = item.split(',');
+                if (parts.length < 2) return null;
+                const [dt, valStr] = parts;
+                const [d, t] = dt.split(' ');
+                const val = parseFloat(valStr);
+                if (!d || !t || isNaN(val)) return null;
+                return { d, t, val };
+            }).filter((x): x is { d: string, t: string, val: number } => x !== null);
+        };
+
+        const shPoints = parseTrends(shData);
+        const szPoints = parseTrends(szData);
+
+        if (shPoints.length === 0 || szPoints.length === 0) return null;
+
+        // Merge SH + SZ based on index (assuming aligned timestamps for simplicity, usually they are)
+        // Use Map for robustness
+        const combinedPoints: { d: string, t: string, val: number }[] = [];
+        const shMap = new Map(shPoints.map(p => [p.t, p.val]));
+        
+        // Iterate through SZ points (as base) and add SH values
+        for (const szP of szPoints) {
+            const shVal = shMap.get(szP.t) || 0;
+            combinedPoints.push({
+                d: szP.d,
+                t: szP.t,
+                val: szP.val + shVal // Sum of minute turnover
+            });
+        }
+
+        if (combinedPoints.length === 0) return null;
+
+        // 1. Calculate Today's Cumulative Turnover
+        const totalToday = combinedPoints.reduce((acc, p) => acc + p.val, 0);
+        
+        const lastPoint = combinedPoints[combinedPoints.length - 1];
+        const todayDate = lastPoint.d;
+        const latestTime = lastPoint.t;
+
+        // 2. Persistence Logic: If market is closed (>15:00), save today's curve to LS
+        if (latestTime >= "15:00") {
+             saveLocalMarketHistory(todayDate, combinedPoints);
+        }
+
+        // 3. Comparison Logic: Find "Yesterday" from LocalStorage
+        const history = getLocalMarketHistory();
+        const historyDates = Object.keys(history).filter(d => d !== todayDate).sort();
+        const yesterdayDate = historyDates[historyDates.length - 1]; // Get the most recent stored date
+        
+        let yesterdaySum = 0;
+        let hasYesterday = false;
+
+        if (yesterdayDate) {
+            const yesterdayPoints = history[yesterdayDate];
+            if (Array.isArray(yesterdayPoints)) {
+                // Sum turnover up to the SAME TIME as today
+                yesterdaySum = yesterdayPoints.reduce((acc, p) => {
+                    return p.t <= latestTime ? acc + p.val : acc;
+                }, 0);
+                
+                // Only consider it valid if we actually summed something (avoid empty days)
+                if (yesterdaySum > 0) hasYesterday = true;
+            }
+        }
+
+        // 4. Format Output
+        const toTrillion = (val: number) => (val / 1000000000000).toFixed(2);
+        let result = `${toTrillion(totalToday)}`;
+        
+        if (hasYesterday) {
+             const diff = totalToday - yesterdaySum;
+             const sign = diff >= 0 ? '+' : '';
+             result += ` (${sign}${toTrillion(diff)})`;
+        }
+
+        // Cache
+        (window as any)._sseTurnoverCache = {
+            timestamp: now,
+            data: result
+        };
+
+        return result;
+
+    } catch (error) {
+        console.error("Turnover Fetch Error", error);
+        if ((window as any)._sseTurnoverCache) {
+             return (window as any)._sseTurnoverCache.data;
+        }
+        return null;
+    }
+}
