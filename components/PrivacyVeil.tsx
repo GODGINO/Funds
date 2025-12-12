@@ -116,7 +116,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-        <div className="w-full max-w-lg text-left">
+        {/* Changed max-w-lg to max-w-4xl to allow more content on one line */}
+        <div className="w-full max-w-4xl text-left">
             <DinoIcon />
             <h1 className="text-3xl font-semibold mt-4 mb-2 text-slate-700 dark:text-gray-400">未连接到互联网</h1>
             <p className="text-lg mb-2 text-slate-700 dark:text-gray-400">请试试以下办法：</p>
@@ -124,12 +125,12 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                 <li>检查网线、调制解调器和路由器</li>
                 <li>重新连接到 Wi-Fi 网络</li>
             </ul>
-            <p className="text-base text-slate-500 dark:text-gray-500">
+            <p className="text-base text-slate-500 dark:text-gray-500 min-h-[1.5em]">
                 {isHovering ? <span>{hoverContent}</span> : '-'}
             </p>
             <p className="text-base text-slate-500 dark:text-gray-500">ERR_INTERNET_DISCONNECTED</p>
             <div className="text-lg mt-20 text-slate-700 dark:text-gray-400">
-                未连接到互联网 {lastRefreshTime}
+                {lastRefreshTime}
             </div>
         </div>
     </div>
