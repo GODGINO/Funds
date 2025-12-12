@@ -2124,7 +2124,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
         onClose={() => setIsImportModalOpen(false)}
         onImport={handleImportData}
         currentData={currentPortfolioJSON}
-        funds={funds}
+        funds={processedFunds}
         isAutoSyncEnabled={isAutoSyncEnabled}
         onToggleAutoSync={handleToggleAutoSync}
       />

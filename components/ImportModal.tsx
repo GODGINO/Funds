@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Fund } from '../types';
+import { Fund, ProcessedFund } from '../types';
 import { fetchGistData, updateGistData } from '../services/gistService';
 
 interface ImportModalProps {
@@ -8,7 +8,7 @@ interface ImportModalProps {
   onClose: () => void;
   onImport: (jsonString: string) => Promise<void>;
   currentData: string;
-  funds: Fund[];
+  funds: ProcessedFund[];
   isAutoSyncEnabled: boolean;
   onToggleAutoSync: (enabled: boolean) => void;
 }
