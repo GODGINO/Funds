@@ -298,7 +298,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
         <span className="text-gray-500 dark:text-gray-400 text-[10px]">|{data.realizedProfitPercent.toFixed(1)}%</span>
       </div>
     },
-    { key: 'netAmountChange', title: '▲金额', render: data => <div className={getProfitColor(data.netAmountChange)}>{formatInteger(data.netAmountChange)}</div> },
+    { key: 'netAmountChange', title: '操作金额', render: data => <div className={getProfitColor(data.netAmountChange)}>{formatInteger(data.netAmountChange)}</div> },
     { key: 'marketValueChange', title: '总值变动', render: data => <div className={getProfitColor(data.marketValueChange)}>{formatInteger(data.marketValueChange)}</div> },
     { key: 'operationProfit', title: '操作收益', render: data => 
       <div className={getProfitColor(data.operationProfit)}>
