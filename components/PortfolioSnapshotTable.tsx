@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine } from 'recharts';
 import { PortfolioSnapshot, ProcessedFund } from '../types';
@@ -342,9 +341,9 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
   return (
     <>
       <div className="mt-6 bg-white dark:bg-gray-900 rounded-lg shadow-md p-4 select-none">
-        <div className="w-full overflow-x-auto">
+        <div className="w-full">
           <table className="w-full text-[11px] text-center border-collapse table-fixed">
-            <thead className="bg-gray-50 dark:bg-gray-800 align-bottom">
+            <thead className="bg-gray-50 dark:bg-gray-800 align-bottom sticky top-4 z-20">
                <tr>
                 <th rowSpan={2} className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 text-left align-middle w-20">
                   <div>切片日期</div>
