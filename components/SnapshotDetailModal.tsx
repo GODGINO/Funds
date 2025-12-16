@@ -1,5 +1,6 @@
 
 import React, { useMemo, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { PortfolioSnapshot, ProcessedFund, TradingRecord, TransactionType } from '../types';
 
 interface SnapshotDetailModalProps {
@@ -564,9 +565,9 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
         </div>
     );
 
-    return (
+    return createPortal(
         <div
-            className="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex justify-center items-center transition-opacity"
+            className="fixed inset-0 bg-gray-900 bg-opacity-75 z-[100] flex justify-center items-center transition-opacity"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
             aria-modal="true"
             role="dialog"
@@ -604,7 +605,8 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                 </div>
 
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
