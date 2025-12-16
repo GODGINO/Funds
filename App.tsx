@@ -2044,7 +2044,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
           <div ref={fundTableContainerRef} className="bg-white dark:bg-gray-900 rounded-lg shadow-md p-4">
             <div className="w-full pb-4">
               <table className="w-full text-sm text-center border-collapse">
-                <thead className="bg-gray-50 dark:bg-gray-800 sticky top-4 z-40">
+                <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-40">
                   <tr>
                     <th className="p-0 border-r border-gray-300 dark:border-gray-600 font-semibold text-gray-600 dark:text-gray-300 w-[250px] min-w-[250px] text-left md:sticky md:left-0 bg-gray-50 dark:bg-gray-800 md:z-50">基金名称</th>
                     <th className="p-0 border-r border-gray-300 dark:border-gray-600 font-semibold text-gray-600 dark:text-gray-300 w-[450px] min-w-[450px] md:sticky md:left-[0px] bg-gray-50 dark:bg-gray-800 md:z-40">净值走势</th>

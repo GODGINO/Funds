@@ -117,7 +117,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
     <div className="mb-4 bg-white dark:bg-gray-900 rounded-lg shadow-md p-4 select-none">
       <div className="w-full">
         <table className="w-full text-xs text-center border-collapse">
-          <thead className="bg-gray-50 dark:bg-gray-800 sticky top-4 z-20">
+          <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-20">
             <tr>
               <th className="px-1 py-0 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 text-left sticky left-0 z-30 bg-gray-50 dark:bg-gray-800">
                 <div className="px-1">标签</div>
