@@ -71,7 +71,7 @@ const TransactionManagerModal: React.FC<TransactionManagerModalProps> = ({ isOpe
       aria-modal="true"
       role="dialog"
     >
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl m-4 transform transition-all flex flex-col max-h-[90vh]">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl m-4 transform transition-all flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">待处理交易管理</h3>
@@ -90,27 +90,27 @@ const TransactionManagerModal: React.FC<TransactionManagerModalProps> = ({ isOpe
                 <thead className="bg-gray-100 dark:bg-gray-700">
                   <tr>
                     <th className="p-2">基金名称</th>
-                    <th className="p-2">日期</th>
-                    <th className="p-2">类型</th>
-                    <th className="p-2 text-right">金额/份额</th>
-                    <th className="p-2 text-center">操作</th>
+                    <th className="p-2 whitespace-nowrap">日期</th>
+                    <th className="p-2 whitespace-nowrap">类型</th>
+                    <th className="p-2 text-right whitespace-nowrap">金额/份额</th>
+                    <th className="p-2 text-center whitespace-nowrap">操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pendingRecords.map(({ fund, record }) => (
                     <tr key={`${fund.code}-${record.date}`} className="border-t dark:border-gray-700">
                       <td className="p-2 font-medium">{fund.name} <span className="text-gray-500">{fund.code}</span></td>
-                      <td className="p-2 font-mono">{record.date}</td>
-                      <td className={`p-2 font-semibold ${getTypeColor(record.type)}`}>
+                      <td className="p-2 font-mono whitespace-nowrap">{record.date}</td>
+                      <td className={`p-2 font-semibold whitespace-nowrap ${getTypeColor(record.type)}`}>
                         {getTypeLabel(record.type)}
                       </td>
-                      <td className="p-2 text-right font-mono">
+                      <td className="p-2 text-right font-mono whitespace-nowrap">
                         {record.value?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         <span className="text-xs text-gray-400 ml-1">
                             {record.type === 'sell' || record.type === 'dividend-reinvest' ? '份' : '元'}
                         </span>
                       </td>
-                      <td className="p-2 text-center space-x-2">
+                      <td className="p-2 text-center space-x-2 whitespace-nowrap">
                         <button
                           onClick={() => onEdit(fund, record)}
                           className="font-medium text-primary-600 hover:text-primary-500"
