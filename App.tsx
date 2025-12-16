@@ -1362,6 +1362,16 @@ const App: React.FC = () => {
     );
   }, []);
 
+  const handleTagSelect = useCallback((tag: string | null) => {
+    setActiveTag(tag);
+    setTimeout(() => {
+        if (fundTableContainerRef.current) {
+            const y = fundTableContainerRef.current.getBoundingClientRect().top + window.scrollY - 60;
+            window.scrollTo({ left: 0, top: y, behavior: 'smooth' });
+        }
+    }, 100);
+  }, []);
+
   const handleTagDoubleClick = useCallback((tag: string) => {
     setActiveTag(prevActiveTag => {
       if (prevActiveTag === tag) {
@@ -1370,14 +1380,16 @@ const App: React.FC = () => {
         // For any other tag, revert to the new default '持有'.
         return tag === SYSTEM_TAGS.HOLDING ? null : SYSTEM_TAGS.HOLDING;
       }
-      
-      // When selecting a new tag, schedule the scroll and activate it.
-      setTimeout(() => {
-        fundTableContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
-      
       return tag;
     });
+    
+    // When selecting a new tag, schedule the scroll and activate it.
+    setTimeout(() => {
+        if (fundTableContainerRef.current) {
+            const y = fundTableContainerRef.current.getBoundingClientRect().top + window.scrollY - 60;
+            window.scrollTo({ left: 0, top: y, behavior: 'smooth' });
+        }
+    }, 100);
   }, []);
 
   const handleSnapshotFilter = useCallback((date: string) => {
@@ -1386,7 +1398,10 @@ const App: React.FC = () => {
     // Or we can toggle it off if already active.
     setActiveTag(prev => prev === tag ? null : tag);
     setTimeout(() => {
-        fundTableContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (fundTableContainerRef.current) {
+            const y = fundTableContainerRef.current.getBoundingClientRect().top + window.scrollY - 60;
+            window.scrollTo({ left: 0, top: y, behavior: 'smooth' });
+        }
     }, 100);
   }, []);
 
@@ -2014,7 +2029,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
             <ControlsCard
               tags={allTags}
               activeTag={activeTag}
-              onTagSelect={setActiveTag}
+              onTagSelect={handleTagSelect}
               sortBy={sortBy}
               sortOrder={sortOrder}
               onSortByChange={handleSortByChange}
