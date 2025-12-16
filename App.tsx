@@ -1196,6 +1196,10 @@ const App: React.FC = () => {
             const filterDate = activeTag.substring(8);
             return fund.userPosition?.tradingRecords?.some(r => r.date === filterDate) ?? false;
         }
+        
+        if (activeTag === 'TX_PENDING') {
+            return fund.userPosition?.tradingRecords?.some(r => r.nav === undefined) ?? false;
+        }
 
         const position = fund.userPosition;
         switch (activeTag) {
@@ -1393,7 +1397,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleSnapshotFilter = useCallback((date: string) => {
-    const tag = `TX_DATE:${date}`;
+    const tag = date === '待成交' ? 'TX_PENDING' : `TX_DATE:${date}`;
     // Simple set active tag to trigger the filter. No complex toggling needed as user can clear via dropdown.
     // Or we can toggle it off if already active.
     setActiveTag(prev => prev === tag ? null : tag);
@@ -1914,10 +1918,117 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
 
     const allSnapshots = [...historicalSnapshots, baselineSnapshot];
 
+    // --- New Logic: Pending Snapshot ---
+    const pendingRecordsExist = funds.some(f => f.userPosition?.tradingRecords?.some(r => r.nav === undefined));
+
+    if (pendingRecordsExist) {
+        let pendingTotalCostBasis = 0;
+        let pendingTotalRealizedProfit = 0;
+        let pendingCurrentMarketValue = 0;
+        let pendingDailyProfit = 0;
+        let pendingYesterdayMarketValue = 0;
+        
+        let pendingNetAmountChange = 0;
+        let pendingTotalBuyAmount = 0;
+        let pendingTotalSellAmount = 0;
+        let pendingTotalSellRealizedProfit = 0; // Delta for this "snapshot"
+
+        funds.forEach(fund => {
+            // Base state from processedFunds (which reflects confirmed state)
+            const procFund = processedFunds.find(pf => pf.code === fund.code);
+            if (!procFund) return;
+            
+            let shares = procFund.userPosition?.shares || 0;
+            let cost = procFund.userPosition?.cost || 0;
+            let totalCost = shares * cost;
+            let realized = procFund.userPosition?.realizedProfit || 0;
+            
+            const price = procFund.realTimeData?.estimatedNAV || procFund.latestNAV || 0;
+            // For daily profit calc
+            const yesterdayPrice = procFund.baseChartData.length > 1 ? procFund.baseChartData[procFund.baseChartData.length - 2].unitNAV : 0;
+
+            const pendingRecs = fund.userPosition?.tradingRecords?.filter(r => r.nav === undefined) || [];
+            
+            pendingRecs.forEach(r => {
+                const val = r.value || 0;
+                if (r.type === 'buy') {
+                    const sChange = price > 0 ? val / price : 0;
+                    shares += sChange;
+                    totalCost += val;
+                    pendingNetAmountChange += val;
+                    pendingTotalBuyAmount += val;
+                } else if (r.type === 'sell') {
+                    // val is shares
+                    const sChange = val; 
+                    const cash = sChange * price;
+                    const avgCost = shares > 0 ? totalCost / shares : 0;
+                    const costPart = avgCost * sChange;
+                    const profit = cash - costPart;
+                    
+                    shares -= sChange;
+                    totalCost -= costPart;
+                    realized += profit;
+                    
+                    pendingNetAmountChange -= cash;
+                    pendingTotalSellAmount += cash;
+                    pendingTotalSellRealizedProfit += profit;
+                } else if (r.type === 'dividend-cash') {
+                    realized += val;
+                    pendingNetAmountChange -= val;
+                    pendingTotalSellAmount += val; 
+                    pendingTotalSellRealizedProfit += val;
+                } else if (r.type === 'dividend-reinvest') {
+                    shares += val;
+                }
+                if (shares < 1e-6) { shares = 0; totalCost = 0; }
+            });
+            
+            pendingTotalCostBasis += totalCost;
+            pendingTotalRealizedProfit += realized;
+            if (price > 0) pendingCurrentMarketValue += shares * price;
+            
+            if (yesterdayPrice && yesterdayPrice > 0 && price > 0) {
+                pendingDailyProfit += shares * (price - yesterdayPrice);
+                pendingYesterdayMarketValue += shares * yesterdayPrice;
+            }
+        });
+        
+        const pendingSnapshot: PortfolioSnapshot = {
+            snapshotDate: '待成交',
+            totalCostBasis: pendingTotalCostBasis,
+            currentMarketValue: pendingCurrentMarketValue,
+            cumulativeValue: pendingCurrentMarketValue + pendingTotalRealizedProfit,
+            holdingProfit: pendingCurrentMarketValue - pendingTotalCostBasis,
+            totalProfit: (pendingCurrentMarketValue + pendingTotalRealizedProfit) - pendingTotalCostBasis,
+            profitRate: pendingTotalCostBasis > 0 ? ((pendingCurrentMarketValue + pendingTotalRealizedProfit - pendingTotalCostBasis) / pendingTotalCostBasis) * 100 : 0,
+            dailyProfit: pendingDailyProfit,
+            dailyProfitRate: pendingYesterdayMarketValue > 0 ? (pendingDailyProfit / pendingYesterdayMarketValue) * 100 : 0,
+            netAmountChange: pendingNetAmountChange,
+            totalBuyAmount: pendingTotalBuyAmount,
+            totalBuyFloatingProfit: undefined, // Execution at market price -> 0 floating
+            totalSellAmount: pendingTotalSellAmount,
+            totalSellOpportunityProfit: undefined, // Execution at market price -> 0 opp
+            totalSellRealizedProfit: pendingTotalSellRealizedProfit,
+        };
+        
+        allSnapshots.unshift(pendingSnapshot);
+    }
+
     const snapshotsWithChange = allSnapshots.map((snapshot, index) => {
       if (index < allSnapshots.length - 1) {
           const previousSnapshot = allSnapshots[index + 1];
           const marketValueChange = snapshot.currentMarketValue - previousSnapshot.currentMarketValue;
+          if (snapshot.snapshotDate === '待成交') {
+              return {
+                  ...snapshot,
+                  marketValueChange,
+                  operationProfit: undefined,
+                  profitPerHundred: undefined,
+                  profitCaused: undefined,
+                  profitCausedPerHundred: undefined,
+                  operationEffect: undefined
+              };
+          }
           const operationProfit = marketValueChange - (snapshot.netAmountChange ?? 0);
           const profitPerHundred = (snapshot.netAmountChange ?? 0) !== 0 ? (operationProfit / Math.abs(snapshot.netAmountChange ?? 0)) * 100 : undefined;
           
@@ -1941,7 +2052,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
       return { summaryProfitCaused: undefined, summaryOperationEffect: undefined };
     }
 
-    const latestSnapshot = portfolioSnapshots[0];
+    const latestSnapshot = portfolioSnapshots.find(s => s.snapshotDate !== '待成交') || portfolioSnapshots[0];
     const baselineSnapshot = portfolioSnapshots[portfolioSnapshots.length - 1];
 
     // Ensure we have a valid baseline to compare against

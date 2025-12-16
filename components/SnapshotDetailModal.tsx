@@ -131,6 +131,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
         }
 
         const snapshotDate = snapshot.snapshotDate;
+        const isPendingSnapshot = snapshotDate === '待成交';
         const latestNavMap = new Map(funds.map(f => [f.code, f.baseChartData[f.baseChartData.length - 1]?.unitNAV ?? 0]));
 
         const detailedBuys: any[] = [];
@@ -146,7 +147,11 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
             const position = fund.userPosition;
             if (!position?.tradingRecords) return;
 
-            const recordsOnDate = position.tradingRecords.filter(r => r.date === snapshotDate);
+            // Select records based on snapshot type
+            const recordsOnDate = isPendingSnapshot
+                ? position.tradingRecords.filter(r => r.nav === undefined)
+                : position.tradingRecords.filter(r => r.date === snapshotDate);
+            
             if (recordsOnDate.length === 0) return;
 
             const tags = position.tag ? position.tag.split(',').map(t => t.trim()).filter(Boolean) : [];
@@ -155,8 +160,9 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
             let prevTotalCost: number = (fund.initialUserPosition?.shares ?? 0) * (fund.initialUserPosition?.cost ?? 0);
 
             // Replay all transactions BEFORE the snapshot date to get the state at the start of the day.
+            // For pending snapshot, we replay ALL confirmed transactions.
             const recordsBeforeDate = (position.tradingRecords)
-                .filter(r => new Date(r.date).getTime() < new Date(snapshotDate).getTime())
+                .filter(r => isPendingSnapshot ? r.nav !== undefined : new Date(r.date).getTime() < new Date(snapshotDate).getTime())
                 .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
             for (const record of recordsBeforeDate) {
@@ -182,9 +188,24 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                 
                 // Group 'dividend-reinvest' with 'buy' (Inflow/Share Increase)
                 if (record.type === 'buy' || record.type === 'dividend-reinvest') {
-                    const sChange = record.sharesChange ?? 0;
-                    const rAmount = record.amount ?? 0;
-                    const rNav = record.nav ?? 0;
+                    let sChange = record.sharesChange ?? 0;
+                    let rAmount = record.amount ?? 0;
+                    let rNav = record.nav ?? 0;
+
+                    // Simulation logic for Pending Snapshot
+                    if (isPendingSnapshot && record.nav === undefined) {
+                        const val = record.value || 0;
+                        const price = fund.realTimeData?.estimatedNAV || fund.latestNAV || 0;
+                        if (record.type === 'buy') {
+                            rAmount = val;
+                            sChange = price > 0 ? val / price : 0;
+                            rNav = price;
+                        } else if (record.type === 'dividend-reinvest') {
+                            sChange = val; // value is shares
+                            rNav = price;
+                            // rAmount remains 0
+                        }
+                    }
 
                     const newTotalShares = prevShares + sChange;
                     const newTotalCost = prevTotalCost + rAmount;
@@ -216,15 +237,38 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
                 } else if (record.type === 'sell' || record.type === 'dividend-cash') { 
                     // Group 'dividend-cash' with 'sell' (Outflow/Payout)
-                    const sChange = record.sharesChange ?? 0;
-                    const rNav = record.nav ?? 0;
+                    let sChange = record.sharesChange ?? 0;
+                    let rNav = record.nav ?? 0;
                     
                     // Determine amount for display (Cash Flow)
                     // For Sell: record.amount is negative (outflow of value from market).
                     // For Dividend: record.amount is 0, but we want to show realizedProfitChange as cash received.
                     let rAmount = record.amount ?? 0; 
                     if (record.type === 'dividend-cash') {
-                        rAmount = -(record.realizedProfitChange ?? 0); // Make it negative to match Sell's convention (outflow from market/inflow to wallet)
+                        rAmount = -(record.realizedProfitChange ?? 0); 
+                    }
+                    
+                    let realizedProfit = record.realizedProfitChange ?? 0;
+
+                    // Simulation logic for Pending Snapshot
+                    if (isPendingSnapshot && record.nav === undefined) {
+                        const val = record.value || 0;
+                        const price = fund.realTimeData?.estimatedNAV || fund.latestNAV || 0;
+                        
+                        if (record.type === 'sell') {
+                            sChange = -val; // value is shares
+                            rNav = price;
+                            const cashIn = val * price;
+                            rAmount = -cashIn;
+                            
+                            // Calc estimated realized profit
+                            realizedProfit = (price - prevAvgCost) * val;
+                        } else if (record.type === 'dividend-cash') {
+                            // value is cash amount
+                            rNav = price; // Just as reference
+                            realizedProfit = val;
+                            rAmount = -val;
+                        }
                     }
 
                     const sharesChangePercent = (prevShares as number) > 0 ? (sChange / (prevShares as number)) * 100 : 0;
@@ -234,10 +278,6 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     // Sell: based on price difference vs trade nav.
                     // Cash Div: sChange is 0, so opportunity profit is 0.
                     const opportunityProfitPercent = (record.type === 'sell' && rNav > 0) ? ((rNav - latestNAV) / rNav) * 100 : 0;
-                    
-                    const realizedProfit = record.type === 'dividend-cash' 
-                        ? (record.realizedProfitChange ?? 0) 
-                        : (record.realizedProfitChange ?? 0);
                         
                     const realizedProfitPercent = (record.type === 'sell' && prevAvgCost > 0) 
                         ? ((rNav - prevAvgCost) / prevAvgCost) * 100 
@@ -346,7 +386,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                         <th className="p-2 whitespace-nowrap">基金名称</th>
                         <th className="p-2 text-right whitespace-nowrap">份额变化</th>
                         <th className="p-2 text-right whitespace-nowrap">成本变化</th>
-                        <th className="p-2 text-right whitespace-nowrap">浮盈</th>
+                        <th className="p-2 text-right whitespace-nowrap">{snapshot.snapshotDate === '待成交' ? '预估浮盈' : '浮盈'}</th>
                         <th className="p-2 text-right whitespace-nowrap">买入</th>
                     </tr>
                 </thead>
@@ -413,8 +453,8 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     <tr>
                         <th className="p-2 whitespace-nowrap">基金名称</th>
                         <th className="p-2 text-right whitespace-nowrap">份额变化</th>
-                        <th className="p-2 text-right whitespace-nowrap">机会收益</th>
-                        <th className="p-2 text-right whitespace-nowrap">落袋</th>
+                        <th className="p-2 text-right whitespace-nowrap">{snapshot.snapshotDate === '待成交' ? '预估机会收益' : '机会收益'}</th>
+                        <th className="p-2 text-right whitespace-nowrap">{snapshot.snapshotDate === '待成交' ? '预估落袋' : '落袋'}</th>
                         <th className="p-2 text-right whitespace-nowrap">到账</th>
                     </tr>
                 </thead>
@@ -565,6 +605,8 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
         </div>
     );
 
+    const headerTitle = snapshot.snapshotDate === '待成交' ? '待成交任务明细' : `操作明细: ${snapshot.snapshotDate}`;
+
     return createPortal(
         <div
             className="fixed inset-0 bg-gray-900 bg-opacity-75 z-[100] flex justify-center items-center transition-opacity"
@@ -575,7 +617,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
             <div className={`bg-gray-100 dark:bg-gray-800 rounded-lg shadow-xl w-full ${modalMaxWidthClass} m-4 transform transition-all flex flex-col max-h-[90vh]`}>
                 <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700 bg-white dark:bg-gray-900 rounded-t-lg flex-shrink-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-baseline flex-wrap">
-                        <span>操作明细: {snapshot.snapshotDate}</span>
+                        <span>{headerTitle}</span>
                         {netAmountChange !== 0 && (
                             <span className="ml-4">
                                 <span>金额变动: </span>

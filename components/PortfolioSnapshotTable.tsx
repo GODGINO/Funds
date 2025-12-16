@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine } from 'recharts';
 import { PortfolioSnapshot, ProcessedFund } from '../types';
@@ -16,6 +17,7 @@ const formatInteger = (value: number) => Math.round(value).toLocaleString('en-US
 const formatPercentage = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
 const getDaysAgo = (dateString: string): number | null => {
+    if (dateString === '待成交') return 0;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
         return null;
     }
@@ -232,7 +234,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
         ? (sums.profitCaused / Math.abs(sums.netAmountChange)) * 100 
         : 0;
 
-    const latestSnapshot = snapshots[0];
+    const latestSnapshot = snapshots.find(s => s.snapshotDate !== '待成交') || snapshots[0];
     const baselineSnapshot = snapshots[snapshots.length - 1];
 
     const operationEffect = Math.abs(baselineSnapshot.dailyProfit) > 1e-6
@@ -381,11 +383,18 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
             <tbody>
               {snapshots.map(snapshot => {
                 const isBaselineRow = snapshot.snapshotDate === '基准持仓';
-                const rowClasses = isBaselineRow
-                  ? 'font-semibold'
-                  : 'hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors duration-150 group';
+                const isPendingRow = snapshot.snapshotDate === '待成交';
                 
-                const daysAgo = isBaselineRow ? null : getDaysAgo(snapshot.snapshotDate);
+                let rowClasses = 'hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors duration-150 group';
+                if (isBaselineRow) {
+                    rowClasses = 'font-semibold';
+                } else if (isPendingRow) {
+                    rowClasses = 'bg-yellow-50/50 dark:bg-yellow-900/10 hover:bg-yellow-100 dark:hover:bg-yellow-900/20 border-dashed border-b-2 border-b-yellow-300 dark:border-b-yellow-700/50 group';
+                } else {
+                    rowClasses += ' border-b dark:border-gray-800';
+                }
+                
+                const daysAgo = (isBaselineRow || isPendingRow) ? null : getDaysAgo(snapshot.snapshotDate);
 
                 return (
                 <tr 
@@ -396,12 +405,18 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                     onMouseLeave={handleLongPressEnd}
                     onTouchStart={() => handleLongPressStart(snapshot.snapshotDate)}
                     onTouchEnd={handleLongPressEnd}
-                    className={`border-b dark:border-gray-800 ${rowClasses}`}
+                    className={rowClasses}
                 >
                   <td className="w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-left">
-                    <span>{isBaselineRow ? snapshot.snapshotDate : snapshot.snapshotDate.substring(2).replace(/-/g, '/')}</span>
-                    {daysAgo !== null && (
-                      <span className="text-gray-500 dark:text-gray-400 ml-2 text-[10px]">{daysAgo}</span>
+                    {isPendingRow ? (
+                        <span className="font-semibold text-yellow-700 dark:text-yellow-500">待成交</span>
+                    ) : (
+                        <>
+                            <span>{isBaselineRow ? snapshot.snapshotDate : snapshot.snapshotDate.substring(2).replace(/-/g, '/')}</span>
+                            {daysAgo !== null && (
+                            <span className="text-gray-500 dark:text-gray-400 ml-2 text-[10px]">{daysAgo}</span>
+                            )}
+                        </>
                     )}
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getCellHighlightClass('totalCostBasis', snapshot.totalCostBasis, isBaselineRow)}`} style={getBar_style(snapshot.totalCostBasis, maxAbsValues.totalCostBasis ?? 0, minAbsValues.totalCostBasis ?? 0)}><div className="relative">{formatInteger(snapshot.totalCostBasis)}</div></td>
