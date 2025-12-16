@@ -1988,7 +1988,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
 
 
   return (
-    <div className="min-h-screen bg-gray-100 text-gray-800 dark:bg-gray-950 dark:text-gray-200 font-sans p-4">
+    <div className="min-h-screen w-fit min-w-full bg-gray-100 text-gray-800 dark:bg-gray-950 dark:text-gray-200 font-sans p-4">
       {isVeiled && (
         <PrivacyVeil 
           onRefresh={handleRefresh} 
@@ -2002,7 +2002,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
         />
       )}
       {isAppLoading ? (
-         <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg shadow-md">
+         <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg shadow-md sticky left-4 w-[calc(100vw-2rem)]">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">Loading Your Funds...</h3>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Please wait while we fetch the latest data.
@@ -2010,37 +2010,41 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
         </div>
       ) : funds.length > 0 ? (
         <>
-          <ControlsCard
-            tags={allTags}
-            activeTag={activeTag}
-            onTagSelect={setActiveTag}
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            onSortByChange={handleSortByChange}
-            onSortOrderChange={handleSortOrderChange}
-            recordCount={recordCount}
-            onRecordCountChange={handleRecordCountChange}
-            zigzagThreshold={zigzagThreshold}
-            onZigzagThresholdChange={handleZigzagThresholdChange}
-            onRefresh={handleRefresh}
-            onLongPressRefresh={handleFullReload}
-            isRefreshing={isRefreshing}
-            isLoading={isLoading || isAppLoading}
-            totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit}
-            totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate}
-            summaryProfitCaused={snapshotSummary.summaryProfitCaused}
-            summaryOperationEffect={snapshotSummary.summaryOperationEffect}
-            onOpenGemini={handleOpenGemini}
-          />
-          <TagAnalysisTable 
-            data={analysisResults.tagAnalysisData} 
-            totals={analysisResults.portfolioTotals} 
-            activeTag={activeTag}
-            onTagDoubleClick={handleTagDoubleClick}
-            sortKey={tagSortKey}
-            sortOrder={tagSortOrder}
-            onSortChange={handleTagSortChange}
-          />
+          <div className="sticky left-4 z-30 w-[calc(100vw-2rem)]">
+            <ControlsCard
+              tags={allTags}
+              activeTag={activeTag}
+              onTagSelect={setActiveTag}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSortByChange={handleSortByChange}
+              onSortOrderChange={handleSortOrderChange}
+              recordCount={recordCount}
+              onRecordCountChange={handleRecordCountChange}
+              zigzagThreshold={zigzagThreshold}
+              onZigzagThresholdChange={handleZigzagThresholdChange}
+              onRefresh={handleRefresh}
+              onLongPressRefresh={handleFullReload}
+              isRefreshing={isRefreshing}
+              isLoading={isLoading || isAppLoading}
+              totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit}
+              totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate}
+              summaryProfitCaused={snapshotSummary.summaryProfitCaused}
+              summaryOperationEffect={snapshotSummary.summaryOperationEffect}
+              onOpenGemini={handleOpenGemini}
+            />
+          </div>
+          <div className="sticky left-4 z-20 w-[calc(100vw-2rem)]">
+            <TagAnalysisTable 
+              data={analysisResults.tagAnalysisData} 
+              totals={analysisResults.portfolioTotals} 
+              activeTag={activeTag}
+              onTagDoubleClick={handleTagDoubleClick}
+              sortKey={tagSortKey}
+              sortOrder={tagSortOrder}
+              onSortChange={handleTagSortChange}
+            />
+          </div>
           <div ref={fundTableContainerRef} className="bg-white dark:bg-gray-900 rounded-lg shadow-md p-4">
             <div className="w-full pb-4">
               <table className="w-full text-sm text-center border-collapse">
@@ -2081,21 +2085,23 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
             </div>
           </div>
           {portfolioSnapshots.length > 1 && (
-            <PortfolioSnapshotTable 
-              snapshots={portfolioSnapshots} 
-              funds={processedFunds} 
-              onTagDoubleClick={handleTagDoubleClick} 
-              onSnapshotFilter={handleSnapshotFilter} // Add this
-            />
+            <div className="sticky left-4 z-20 w-[calc(100vw-2rem)]">
+              <PortfolioSnapshotTable 
+                snapshots={portfolioSnapshots} 
+                funds={processedFunds} 
+                onTagDoubleClick={handleTagDoubleClick} 
+                onSnapshotFilter={handleSnapshotFilter} // Add this
+              />
+            </div>
           )}
         </>
       ) : (
-        <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg shadow-md">
+        <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg shadow-md sticky left-4 w-[calc(100vw-2rem)]">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">暂无数据</h3>
         </div>
       )}
 
-      <div className="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-md mt-6">
+      <div className="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-md mt-6 sticky left-4 z-20 w-[calc(100vw-2rem)]">
         <FundInputForm 
           onAddFund={handleAddFund} 
           isLoading={isLoading || isAppLoading || isRefreshing}
