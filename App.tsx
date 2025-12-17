@@ -5,7 +5,7 @@ import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, Index
 import { fetchFundData, fetchFundDetails, fetchIndexData, fetchTotalTurnover } from './services/fundService';
 import { updateGistData, fetchGistData } from './services/gistService';
 import FundInputForm from './components/FundInputForm';
-import FundRow from './components/FundRow';
+import FundTable from './components/FundTable';
 import FundDetailModal from './components/FundDetailModal';
 import { calculateZigzag } from './services/chartUtils';
 import ControlsCard from './components/ControlsCard';
@@ -1482,12 +1482,6 @@ const App: React.FC = () => {
     return sortedDates;
   }, [funds, todayHeaderDate]);
 
-  const getWeekday = (dateString: string) => {
-    const date = new Date(dateString);
-    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
-    return weekdays[date.getDay()];
-  }
-
   const handleOpenTradeModal = useCallback((fund: ProcessedFund, date: string, type: TransactionType, nav: number, isConfirmed: boolean, editingRecord?: TradingRecord) => {
     const modalState: TradeModalState = { fund, date, nav, isConfirmed, editingRecord };
     // Open BuyModal for buy and dividends, SellModal for sell
@@ -2172,43 +2166,16 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
             />
           </div>
           <div ref={fundTableContainerRef} className="bg-white dark:bg-gray-900 rounded-lg shadow-md p-4">
-            <div className="w-full pb-4">
-              <table className="w-full text-sm text-center border-collapse">
-                <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-40">
-                  <tr>
-                    <th className="p-0 border-r border-gray-300 dark:border-gray-600 font-semibold text-gray-600 dark:text-gray-300 w-[250px] min-w-[250px] text-left md:sticky md:left-0 bg-gray-50 dark:bg-gray-800 md:z-50">基金名称</th>
-                    <th className="p-0 border-r border-gray-300 dark:border-gray-600 font-semibold text-gray-600 dark:text-gray-300 w-[450px] min-w-[450px] md:sticky md:left-[0px] bg-gray-50 dark:bg-gray-800 md:z-40">净值走势</th>
-                    <th className="p-0 border-r border-gray-300 dark:border-gray-600 font-semibold text-gray-600 dark:text-gray-300 w-[60px] min-w-[60px] bg-gray-50 dark:bg-gray-800">
-                      {todayHeaderDate ? (
-                        <>{todayHeaderDate.substring(5)}{getWeekday(todayHeaderDate)}</>
-                      ) : (
-                        '当日净值'
-                      )}
-                    </th>
-                    {dateHeaders.map(date => (
-                      <th key={date} className="p-0 border-r border-gray-300 dark:border-gray-600 font-normal text-gray-500 dark:text-gray-400 min-w-[60px] bg-gray-50 dark:bg-gray-800">
-                        {date.substring(5)}{getWeekday(date)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="relative z-0">
-                  {processedAndSortedFunds.map(fund => (
-                    <FundRow 
-                      key={fund.code} 
-                      fund={fund} 
-                      dateHeaders={dateHeaders} 
-                      onShowDetails={handleShowFundDetails}
-                      onTagDoubleClick={handleTagDoubleClick}
-                      onTrade={handleOpenTradeModal}
-                      activeSort={sortBy}
-                      totalPortfolioValue={filteredMarketStats.total}
-                      marketValueRank={filteredMarketStats.rankMap.get(fund.code) || 0}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <FundTable
+                funds={processedAndSortedFunds}
+                todayHeaderDate={todayHeaderDate}
+                dateHeaders={dateHeaders}
+                onShowDetails={handleShowFundDetails}
+                onTagDoubleClick={handleTagDoubleClick}
+                onTrade={handleOpenTradeModal}
+                activeSort={sortBy}
+                marketStats={filteredMarketStats}
+            />
           </div>
           {portfolioSnapshots.length > 1 && (
             <div className="sticky left-4 z-20 w-[calc(100vw-2rem)]">
