@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot } from 'recharts';
 import { PortfolioSnapshot, ProcessedFund } from '../types';
@@ -69,20 +68,29 @@ const HeaderSparkline = React.memo<HeaderSparklineProps>(({ data, dataKey, strok
         return maxIdx;
     }, [data, dataKey]);
 
+    // 恢复为鼠标移动触发
     const handleMouseMove = useCallback((e: any) => {
-        if (e && e.activeTooltipIndex !== undefined) onHoverChange(e.activeTooltipIndex);
+        if (e && e.activeTooltipIndex !== undefined) {
+            onHoverChange(e.activeTooltipIndex);
+        }
     }, [onHoverChange]);
 
-    const handleMouseLeave = useCallback(() => onHoverChange(null), [onHoverChange]);
+    const handleMouseLeave = useCallback(() => {
+        onHoverChange(null);
+    }, [onHoverChange]);
 
     return (
         <div className="h-6 w-full">
             <ResponsiveContainer minWidth={0}>
-                <LineChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 2 }} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+                <LineChart 
+                    data={data} 
+                    margin={{ top: 2, right: 0, left: 0, bottom: 2 }} 
+                    onMouseMove={handleMouseMove}
+                    onMouseLeave={handleMouseLeave}
+                >
                     <YAxis hide domain={yDomain} />
                     <Line type="linear" dataKey={dataKey} stroke={stroke} strokeWidth={1.5} dot={false} isAnimationActive={false} />
                     {maxIndex !== -1 && <ReferenceLine x={maxIndex} stroke="#ef4444" strokeWidth={1} />}
-                    {/* FIX: Removed 'isAnimationActive' prop from ReferenceDot as it is not supported by the component and was causing a TypeScript error. */}
                     {hoveredChartIndex !== null && data[hoveredChartIndex] && (
                         <ReferenceDot x={hoveredChartIndex} y={data[hoveredChartIndex][dataKey]} r={3} fill={stroke} stroke="#fff" strokeWidth={1} />
                     )}
@@ -119,7 +127,7 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
         return '';
     };
 
-    let rowClasses = `transition-colors duration-75 group border-b dark:border-gray-800 ${isHovered ? 'bg-blue-100 dark:bg-gray-800/80' : 'hover:bg-blue-50 dark:hover:bg-gray-800/40'}`;
+    let rowClasses = `transition-colors duration-75 group border-b dark:border-gray-800 ${isHovered ? 'bg-blue-100 dark:bg-gray-800/80' : 'hover:bg-blue-50/50 dark:hover:bg-gray-800/20'}`;
     if (isBaselineRow) rowClasses += ' font-semibold';
     if (isPendingRow) rowClasses += ' bg-yellow-50/50 dark:bg-yellow-900/10 border-dashed border-b-2 border-b-yellow-300 dark:border-b-yellow-700/50';
 
@@ -160,7 +168,7 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
                 <div className="relative">{(snapshot.totalBuyAmount ?? 0) > 0 && snapshot.totalBuyFloatingProfit != null ? `${snapshot.totalBuyFloatingProfit >= 0 ? '+' : ''}${formatInteger(snapshot.totalBuyFloatingProfit)}|${((snapshot.totalBuyFloatingProfit / snapshot.totalBuyAmount!) * 100).toFixed(1)}%` : '-'}</div>
             </td>
             {renderCell('totalSellAmount', snapshot.totalSellAmount, formatInteger)}
-            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${getProfitColor(snapshot.totalSellOpportunityProfit ?? 0)} ${getCellHighlightClass('totalSellOpportunityProfit', snapshot.totalSellOpportunityProfit)}`} style={getBar_style(snapshot.totalSellOpportunityProfit, maxAbsValues.totalSellOpportunityProfit ?? 0, minAbsValues.totalSellOpportunityProfit ?? 0)}>
+            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(snapshot.totalSellOpportunityProfit ?? 0)} ${getCellHighlightClass('totalSellOpportunityProfit', snapshot.totalSellOpportunityProfit)}`} style={getBar_style(snapshot.totalSellOpportunityProfit, maxAbsValues.totalSellOpportunityProfit ?? 0, minAbsValues.totalSellOpportunityProfit ?? 0)}>
                 <div className="relative">{(snapshot.totalSellAmount ?? 0) > 0 && snapshot.totalSellOpportunityProfit != null ? `${snapshot.totalSellOpportunityProfit >= 0 ? '+' : ''}${formatInteger(snapshot.totalSellOpportunityProfit)}|${((snapshot.totalSellOpportunityProfit / snapshot.totalSellAmount!) * 100).toFixed(1)}%` : '-'}</div>
             </td>
             <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${getProfitColor(snapshot.totalSellRealizedProfit ?? 0)} ${getCellHighlightClass('totalSellRealizedProfit', snapshot.totalSellRealizedProfit)}`} style={getBar_style(snapshot.totalSellRealizedProfit, maxAbsValues.totalSellRealizedProfit ?? 0, minAbsValues.totalSellRealizedProfit ?? 0)}>
@@ -187,11 +195,13 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
   const chartData = useMemo(() => [...snapshots].reverse(), [snapshots]);
   const hoveredChartIndex = useMemo(() => hoveredIndex === null ? null : snapshots.length - 1 - hoveredIndex, [hoveredIndex, snapshots.length]);
 
-  const handleChartHoverChange = useCallback((chartIdx: number | null) => {
+  const handleHoverChange = useCallback((chartIdx: number | null) => {
       setHoveredIndex(chartIdx === null ? null : snapshots.length - 1 - chartIdx);
   }, [snapshots.length]);
 
-  const handleMouseEnter = useCallback((idx: number) => setHoveredIndex(idx), []);
+  const handleMouseEnter = useCallback((idx: number) => {
+      setHoveredIndex(idx);
+  }, []);
 
   const thickBorderRightKeys = useMemo(() => new Set(['dailyProfitRate', 'totalBuyFloatingProfit', 'totalSellRealizedProfit', 'operationProfit']), []);
   const wideColumnKeys = useMemo(() => new Set(['totalBuyFloatingProfit', 'totalSellOpportunityProfit', 'totalSellRealizedProfit', 'operationProfit', 'profitCaused']), []);
@@ -250,7 +260,9 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
   }, []);
 
   const handleRowClick = useCallback((e: React.MouseEvent, s: PortfolioSnapshot) => {
-      if (s.snapshotDate !== '基准持仓' && e.detail === 2) setSelectedSnapshot(s);
+      if (s.snapshotDate !== '基准持仓' && e.detail === 2) {
+          setSelectedSnapshot(s);
+      }
   }, []);
 
   return (
@@ -271,7 +283,13 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
               <tr>
                 {sparklineColumns.map(col => (
                   <th key={`${String(col.key)}-sparkline`} className={`p-0 border dark:border-gray-700 font-normal ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>
-                      <HeaderSparkline data={chartData} dataKey={col.key as string} stroke="#3b82f6" hoveredChartIndex={hoveredChartIndex} onHoverChange={handleChartHoverChange} />
+                      <HeaderSparkline 
+                        data={chartData} 
+                        dataKey={col.key as string} 
+                        stroke="#3b82f6" 
+                        hoveredChartIndex={hoveredChartIndex} 
+                        onHoverChange={handleHoverChange} 
+                      />
                   </th>
                 ))}
                 {summaryColumns.map(col => (
@@ -283,7 +301,19 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
             </thead>
             <tbody onMouseLeave={() => setHoveredIndex(null)}>
               {snapshots.map((s, i) => (
-                <SnapshotRow key={s.snapshotDate} snapshot={s} index={i} isHovered={hoveredIndex === i} onMouseEnter={handleMouseEnter} onRowClick={handleRowClick} onLongPressStart={handleLongPressStart} onLongPressEnd={handleLongPressEnd} maxAbsValues={maxAbsValues} minAbsValues={minAbsValues} maxes={maxes} />
+                <SnapshotRow 
+                    key={s.snapshotDate} 
+                    snapshot={s} 
+                    index={i} 
+                    isHovered={hoveredIndex === i} 
+                    onMouseEnter={handleMouseEnter}
+                    onRowClick={handleRowClick} 
+                    onLongPressStart={handleLongPressStart} 
+                    onLongPressEnd={handleLongPressEnd} 
+                    maxAbsValues={maxAbsValues} 
+                    minAbsValues={minAbsValues} 
+                    maxes={maxes} 
+                />
               ))}
             </tbody>
           </table>
