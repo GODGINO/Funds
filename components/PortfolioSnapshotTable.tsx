@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot } from 'recharts';
 import { PortfolioSnapshot, ProcessedFund } from '../types';
@@ -35,16 +34,16 @@ const getBar_style = (value: number | undefined | null, maxAbsValue: number, min
     return { background: `linear-gradient(to left, ${color} ${widthPercent}%, transparent ${widthPercent}%)` };
 };
 
-// --- 子组件: 头部迷你图 (优化性能) ---
+// --- 子组件: 头部迷你图 ---
 interface HeaderSparklineProps {
     data: any[];
     dataKey: string;
     stroke: string;
-    hoveredChartIndex: number | null;
-    onHoverChange: (index: number | null) => void;
+    activeChartIndex: number | null;
+    onSelectChange: (index: number | null) => void;
 }
 
-const HeaderSparkline = React.memo<HeaderSparklineProps>(({ data, dataKey, stroke, hoveredChartIndex, onHoverChange }) => {
+const HeaderSparkline = React.memo<HeaderSparklineProps>(({ data, dataKey, stroke, activeChartIndex, onSelectChange }) => {
     const yDomain = useMemo(() => {
         if (!data || data.length === 0) return ['auto', 'auto'];
         const values = data.map(p => p[dataKey]).filter((v): v is number => typeof v === 'number' && isFinite(v));
@@ -69,22 +68,33 @@ const HeaderSparkline = React.memo<HeaderSparklineProps>(({ data, dataKey, strok
         return maxIdx;
     }, [data, dataKey]);
 
-    const handleMouseMove = useCallback((e: any) => {
-        if (e && e.activeTooltipIndex !== undefined) onHoverChange(e.activeTooltipIndex);
-    }, [onHoverChange]);
-
-    const handleMouseLeave = useCallback(() => onHoverChange(null), [onHoverChange]);
+    // 仅在点击时触发同步
+    const handleClick = useCallback((e: any) => {
+        if (e && e.activeTooltipIndex !== undefined) {
+            onSelectChange(e.activeTooltipIndex);
+        }
+    }, [onSelectChange]);
 
     return (
-        <div className="h-6 w-full">
+        <div className="h-6 w-full cursor-crosshair">
             <ResponsiveContainer minWidth={0}>
-                <LineChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 2 }} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+                <LineChart 
+                    data={data} 
+                    margin={{ top: 2, right: 0, left: 0, bottom: 2 }} 
+                    onClick={handleClick}
+                >
                     <YAxis hide domain={yDomain} />
                     <Line type="linear" dataKey={dataKey} stroke={stroke} strokeWidth={1.5} dot={false} isAnimationActive={false} />
                     {maxIndex !== -1 && <ReferenceLine x={maxIndex} stroke="#ef4444" strokeWidth={1} />}
-                    {/* FIX: Removed 'isAnimationActive' prop from ReferenceDot as it is not supported by the component and was causing a TypeScript error. */}
-                    {hoveredChartIndex !== null && data[hoveredChartIndex] && (
-                        <ReferenceDot x={hoveredChartIndex} y={data[hoveredChartIndex][dataKey]} r={3} fill={stroke} stroke="#fff" strokeWidth={1} />
+                    {activeChartIndex !== null && data[activeChartIndex] && (
+                        <ReferenceDot 
+                            x={activeChartIndex} 
+                            y={data[activeChartIndex][dataKey]} 
+                            r={3.5} 
+                            fill={stroke} 
+                            stroke="#fff" 
+                            strokeWidth={1.5} 
+                        />
                     )}
                 </LineChart>
             </ResponsiveContainer>
@@ -92,13 +102,12 @@ const HeaderSparkline = React.memo<HeaderSparklineProps>(({ data, dataKey, strok
     );
 });
 
-// --- 子组件: 表格行 (优化性能) ---
+// --- 子组件: 表格行 ---
 interface SnapshotRowProps {
     snapshot: PortfolioSnapshot;
     index: number;
-    isHovered: boolean;
-    onMouseEnter: (index: number) => void;
-    onRowClick: (e: React.MouseEvent, s: PortfolioSnapshot) => void;
+    isActive: boolean;
+    onRowClick: (e: React.MouseEvent, s: PortfolioSnapshot, idx: number) => void;
     onLongPressStart: (date: string) => void;
     onLongPressEnd: () => void;
     maxAbsValues: any;
@@ -106,7 +115,7 @@ interface SnapshotRowProps {
     maxes: any;
 }
 
-const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, onMouseEnter, onRowClick, onLongPressStart, onLongPressEnd, maxAbsValues, minAbsValues, maxes }) => {
+const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isActive, onRowClick, onLongPressStart, onLongPressEnd, maxAbsValues, minAbsValues, maxes }) => {
     const isBaselineRow = snapshot.snapshotDate === '基准持仓';
     const isPendingRow = snapshot.snapshotDate === '待成交';
     const daysAgo = (isBaselineRow || isPendingRow) ? null : getDaysAgo(snapshot.snapshotDate);
@@ -119,7 +128,7 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
         return '';
     };
 
-    let rowClasses = `transition-colors duration-75 group border-b dark:border-gray-800 ${isHovered ? 'bg-blue-100 dark:bg-gray-800/80' : 'hover:bg-blue-50 dark:hover:bg-gray-800/40'}`;
+    let rowClasses = `transition-colors duration-75 group border-b dark:border-gray-800 ${isActive ? 'bg-blue-100 dark:bg-gray-800/80' : 'hover:bg-blue-50/50 dark:hover:bg-gray-800/20'}`;
     if (isBaselineRow) rowClasses += ' font-semibold';
     if (isPendingRow) rowClasses += ' bg-yellow-50/50 dark:bg-yellow-900/10 border-dashed border-b-2 border-b-yellow-300 dark:border-b-yellow-700/50';
 
@@ -131,8 +140,7 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
 
     return (
         <tr 
-            onClick={(e) => onRowClick(e, snapshot)}
-            onMouseEnter={() => onMouseEnter(index)}
+            onClick={(e) => onRowClick(e, snapshot, index)}
             onMouseDown={() => onLongPressStart(snapshot.snapshotDate)}
             onMouseUp={onLongPressEnd}
             onMouseLeave={onLongPressEnd}
@@ -182,16 +190,14 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
 // --- 主组件 ---
 const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapshots, funds, onTagDoubleClick, onSnapshotFilter }) => {
   const [selectedSnapshot, setSelectedSnapshot] = useState<PortfolioSnapshot | null>(null);
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   
   const chartData = useMemo(() => [...snapshots].reverse(), [snapshots]);
-  const hoveredChartIndex = useMemo(() => hoveredIndex === null ? null : snapshots.length - 1 - hoveredIndex, [hoveredIndex, snapshots.length]);
+  const activeChartIndex = useMemo(() => activeIndex === null ? null : snapshots.length - 1 - activeIndex, [activeIndex, snapshots.length]);
 
-  const handleChartHoverChange = useCallback((chartIdx: number | null) => {
-      setHoveredIndex(chartIdx === null ? null : snapshots.length - 1 - chartIdx);
+  const handleSelectChange = useCallback((chartIdx: number | null) => {
+      setActiveIndex(chartIdx === null ? null : snapshots.length - 1 - chartIdx);
   }, [snapshots.length]);
-
-  const handleMouseEnter = useCallback((idx: number) => setHoveredIndex(idx), []);
 
   const thickBorderRightKeys = useMemo(() => new Set(['dailyProfitRate', 'totalBuyFloatingProfit', 'totalSellRealizedProfit', 'operationProfit']), []);
   const wideColumnKeys = useMemo(() => new Set(['totalBuyFloatingProfit', 'totalSellOpportunityProfit', 'totalSellRealizedProfit', 'operationProfit', 'profitCaused']), []);
@@ -249,8 +255,14 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
       if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; }
   }, []);
 
-  const handleRowClick = useCallback((e: React.MouseEvent, s: PortfolioSnapshot) => {
-      if (s.snapshotDate !== '基准持仓' && e.detail === 2) setSelectedSnapshot(s);
+  const handleRowClick = useCallback((e: React.MouseEvent, s: PortfolioSnapshot, idx: number) => {
+      if (e.detail === 1) {
+          // 单击选择
+          setActiveIndex(idx);
+      } else if (e.detail === 2) {
+          // 双击详情
+          if (s.snapshotDate !== '基准持仓') setSelectedSnapshot(s);
+      }
   }, []);
 
   return (
@@ -271,7 +283,13 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
               <tr>
                 {sparklineColumns.map(col => (
                   <th key={`${String(col.key)}-sparkline`} className={`p-0 border dark:border-gray-700 font-normal ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>
-                      <HeaderSparkline data={chartData} dataKey={col.key as string} stroke="#3b82f6" hoveredChartIndex={hoveredChartIndex} onHoverChange={handleChartHoverChange} />
+                      <HeaderSparkline 
+                        data={chartData} 
+                        dataKey={col.key as string} 
+                        stroke="#3b82f6" 
+                        activeChartIndex={activeChartIndex} 
+                        onSelectChange={handleSelectChange} 
+                      />
                   </th>
                 ))}
                 {summaryColumns.map(col => (
@@ -281,9 +299,20 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                 ))}
               </tr>
             </thead>
-            <tbody onMouseLeave={() => setHoveredIndex(null)}>
+            <tbody>
               {snapshots.map((s, i) => (
-                <SnapshotRow key={s.snapshotDate} snapshot={s} index={i} isHovered={hoveredIndex === i} onMouseEnter={handleMouseEnter} onRowClick={handleRowClick} onLongPressStart={handleLongPressStart} onLongPressEnd={handleLongPressEnd} maxAbsValues={maxAbsValues} minAbsValues={minAbsValues} maxes={maxes} />
+                <SnapshotRow 
+                    key={s.snapshotDate} 
+                    snapshot={s} 
+                    index={i} 
+                    isActive={activeIndex === i} 
+                    onRowClick={handleRowClick} 
+                    onLongPressStart={handleLongPressStart} 
+                    onLongPressEnd={handleLongPressEnd} 
+                    maxAbsValues={maxAbsValues} 
+                    minAbsValues={minAbsValues} 
+                    maxes={maxes} 
+                />
               ))}
             </tbody>
           </table>
