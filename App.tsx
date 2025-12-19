@@ -152,6 +152,22 @@ const App: React.FC = () => {
     return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
   }, []);
 
+  // --- 优化后的滚动辅助函数 ---
+  const scrollToFundTable = useCallback(() => {
+    // 延迟 100ms 等待过滤渲染完成
+    setTimeout(() => {
+        if (fundTableContainerRef.current) {
+            // 使用 offsetTop 实现精确的顶部对齐，不留边距
+            // offsetTop 是相对于最近的定位祖先元素的偏移量，在标准布局中非常可靠
+            const targetY = fundTableContainerRef.current.offsetTop;
+            window.scrollTo({ 
+                top: Math.max(0, targetY), 
+                behavior: 'smooth' 
+            });
+        }
+    }, 100);
+  }, []);
+
   // Effect for initial timestamp
   useEffect(() => {
     // This effect runs whenever isAppLoading changes.
@@ -1368,13 +1384,8 @@ const App: React.FC = () => {
 
   const handleTagSelect = useCallback((tag: string | null) => {
     setActiveTag(tag);
-    setTimeout(() => {
-        if (fundTableContainerRef.current) {
-            const y = fundTableContainerRef.current.getBoundingClientRect().top + window.scrollY - 60;
-            window.scrollTo({ left: 0, top: y, behavior: 'smooth' });
-        }
-    }, 100);
-  }, []);
+    scrollToFundTable();
+  }, [scrollToFundTable]);
 
   const handleTagDoubleClick = useCallback((tag: string) => {
     setActiveTag(prevActiveTag => {
@@ -1387,27 +1398,16 @@ const App: React.FC = () => {
       return tag;
     });
     
-    // When selecting a new tag, schedule the scroll and activate it.
-    setTimeout(() => {
-        if (fundTableContainerRef.current) {
-            const y = fundTableContainerRef.current.getBoundingClientRect().top + window.scrollY - 60;
-            window.scrollTo({ left: 0, top: y, behavior: 'smooth' });
-        }
-    }, 100);
-  }, []);
+    scrollToFundTable();
+  }, [scrollToFundTable]);
 
   const handleSnapshotFilter = useCallback((date: string) => {
     const tag = date === '待成交' ? 'TX_PENDING' : `TX_DATE:${date}`;
     // Simple set active tag to trigger the filter. No complex toggling needed as user can clear via dropdown.
     // Or we can toggle it off if already active.
     setActiveTag(prev => prev === tag ? null : tag);
-    setTimeout(() => {
-        if (fundTableContainerRef.current) {
-            const y = fundTableContainerRef.current.getBoundingClientRect().top + window.scrollY - 60;
-            window.scrollTo({ left: 0, top: y, behavior: 'smooth' });
-        }
-    }, 100);
-  }, []);
+    scrollToFundTable();
+  }, [scrollToFundTable]);
 
   const handleTagSortChange = useCallback((newKey: keyof TagAnalysisData) => {
     setTagSortKey(prevKey => {

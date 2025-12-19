@@ -131,7 +131,6 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
         <button
           type="button"
           onClick={onOpenImportModal}
-          disabled={isDisabled}
           className="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           User Data
@@ -143,7 +142,6 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
         <button
           type="button"
           onClick={onOpenTransactionManager}
-          disabled={isDisabled}
           className="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           TxMgr
@@ -160,7 +158,6 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
         <button
           type="button"
           onClick={onOpenTerminal}
-          disabled={isDisabled}
           className="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-black hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span className="text-green-500 font-mono font-bold mr-1">{`>_Term`}</span>
