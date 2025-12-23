@@ -157,11 +157,11 @@ const App: React.FC = () => {
     // 延迟 100ms 等待过滤渲染完成
     setTimeout(() => {
         if (fundTableContainerRef.current) {
-            // 使用 offsetTop 实现精确的顶部对齐，不留边距
-            // offsetTop 是相对于最近的定位祖先元素的偏移量，在标准布局中非常可靠
+            // 使用 offsetTop 实现精确的顶部对齐
             const targetY = fundTableContainerRef.current.offsetTop;
             window.scrollTo({ 
                 top: Math.max(0, targetY), 
+                left: 0, // 同时重置横向滚动到最左侧
                 behavior: 'smooth' 
             });
         }
@@ -1905,9 +1905,9 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
         cumulativeValue: baselineCumulativeValue,
         holdingProfit: baselineHoldingProfit,
         totalProfit: baselineTotalProfit,
-        profitRate: baselineProfitRate,
+        profitRate: baselineTotalCostBasis > 0 ? (baselineTotalProfit / baselineTotalCostBasis) * 100 : 0,
         dailyProfit: baselineDailyProfit,
-        dailyProfitRate: baselineDailyProfitRate,
+        dailyProfitRate: baselineYesterdayMarketValue > 0 ? (baselineDailyProfit / baselineYesterdayMarketValue) * 100 : 0,
     };
 
     const allSnapshots = [...historicalSnapshots, baselineSnapshot];

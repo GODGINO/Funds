@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, XAxis, ReferenceArea, Tooltip, ReferenceDot } from 'recharts';
 import { FundDataPoint, TradingRecord, TransactionType } from '../types';
@@ -13,7 +14,7 @@ interface ChartDataPoint {
   zigzagNAV?: number;
   dailyProfit?: number;
   changeSinceDate?: number; 
-  changeFromBaseline?: number; // 新增：相对于局部基准点的变动
+  changeFromBaseline?: number; // 相对于局部基准点的变动
   tradeRecord?: TradingRecord; 
 }
 
