@@ -69,9 +69,13 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
 
         if (!date) return null;
 
+        // 统一处理日期，去掉具体的时分
+        const displayDate = date.split(' ')[0];
+        const displayBaselineDate = localBaselineDate ? localBaselineDate.split(' ')[0] : '';
+
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const dataDate = new Date(date.split(' ')[0]);
+        const dataDate = new Date(displayDate);
         dataDate.setHours(0, 0, 0, 0);
         const diffTime = today.getTime() - dataDate.getTime();
         const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
@@ -85,20 +89,36 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
         const relChangeLabel = isBaselineActive ? "较基准涨跌:" : "距今涨跌:";
         const isBaselinePoint = isBaselineActive && date === localBaselineDate;
 
+        // 计算基准日与当前点的天数差
+        let diffDaysBetween = 0;
+        if (isBaselineActive) {
+            const bDate = new Date(displayBaselineDate);
+            bDate.setHours(0, 0, 0, 0);
+            diffDaysBetween = Math.round((dataDate.getTime() - bDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+
         return (
-            <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-2 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 text-xs min-w-[150px] pointer-events-none">
-                <div className="flex flex-col space-y-1.5">
-                    {/* Header - Removed border-b and pb-1 */}
-                    <div className="flex justify-between items-baseline gap-2 mb-1">
-                        <span className={`font-semibold whitespace-nowrap ${isBaselinePoint ? 'text-blue-600 dark:text-blue-400 underline' : 'text-gray-800 dark:text-gray-100'}`}>
-                            {date}
-                        </span>
-                        <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap">{daysAgoText}</span>
-                    </div>
+            <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-1.5 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 text-[10px] leading-tight min-w-[150px] pointer-events-none">
+                <div className="flex flex-col space-y-0.5">
+                    {/* Header - 移除了 border-b 以保持风格一致 */}
+                    {isBaselineActive && !isBaselinePoint ? (
+                         <div className="flex justify-between items-center gap-1 mb-0.5">
+                            <span className="text-blue-600 dark:text-blue-400 font-semibold">{displayBaselineDate}</span>
+                            <span className="text-gray-400 dark:text-gray-500 scale-90 whitespace-nowrap">{Math.abs(diffDaysBetween)}天</span>
+                            <span className="text-gray-800 dark:text-gray-100 font-semibold">{displayDate}</span>
+                        </div>
+                    ) : (
+                        <div className="flex justify-between items-baseline gap-2 mb-0.5">
+                            <span className={`font-semibold whitespace-nowrap ${isBaselinePoint ? 'text-blue-600 dark:text-blue-400 underline' : 'text-gray-800 dark:text-gray-100'}`}>
+                                {displayDate}
+                            </span>
+                            <span className="text-gray-400 dark:text-gray-500 whitespace-nowrap scale-90 origin-right">{daysAgoText}</span>
+                        </div>
+                    )}
                     
                     {/* Basic Market Info */}
                     <div className="flex justify-between items-baseline gap-4">
-                        <span className="text-gray-600 dark:text-gray-400">当日涨跌:</span>
+                        <span className="text-gray-500 dark:text-gray-400">当日涨跌:</span>
                         <span className={`font-mono font-bold ${isGrowthPositive ? 'text-red-500' : 'text-green-600'}`}>
                             {dailyGrowthRate || '0.00%'}
                         </span>
@@ -106,7 +126,7 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
 
                     {dailyProfit !== undefined && (
                         <div className="flex justify-between items-baseline gap-4">
-                            <span className="text-gray-600 dark:text-gray-400">当日收益:</span>
+                            <span className="text-gray-500 dark:text-gray-400">当日收益:</span>
                             <span className={`font-mono font-bold ${getProfitColor(dailyProfit)}`}>
                                 {dailyProfit.toFixed(2)}
                             </span>
@@ -115,7 +135,7 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
 
                     {relChangeValue !== undefined && (
                         <div className="flex justify-between items-baseline gap-4">
-                            <span className={isBaselineActive ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-600 dark:text-gray-400'}>
+                            <span className={isBaselineActive ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-500 dark:text-gray-400'}>
                                 {relChangeLabel}
                             </span>
                             <span className={`font-mono font-bold ${getProfitColor(relChangeValue)}`}>
@@ -126,7 +146,7 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
 
                     {/* Trade Info */}
                     {tradeRecord && (
-                        <div className="flex justify-between items-baseline gap-4">
+                        <div className="flex justify-between items-baseline gap-4 pt-0.5">
                             <span className={`font-semibold ${getTransactionLabelColorClass(tradeRecord.type)}`}>
                                 {getTransactionLabel(tradeRecord.type)}:
                             </span>
