@@ -54,8 +54,8 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
   const profitCausedColor = summaryProfitCaused != null && summaryProfitCaused >= 0 ? 'text-red-500' : 'text-green-600';
   const operationEffectColor = summaryOperationEffect != null && summaryOperationEffect >= 0 ? 'text-red-500' : 'text-green-600';
   
-  // Check if API key is configured (replaced by Vite build)
-  const showGemini = !!process.env.API_KEY;
+  // 始终显示 Gemini/DeepSeek 图标，因为我们有了硬编码的 SiliconFlow 保底方案
+  const showGemini = true; 
   
   const longPressTimer = useRef<number | null>(null);
   const longPressTriggered = useRef<boolean>(false);
@@ -193,7 +193,7 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
       
       {/* Right-side group for refresh */}
       <div className="flex items-end gap-2">
-        {/* Gemini Advisor Button */}
+        {/* Gemini/DeepSeek Advisor Button */}
         {showGemini && (
           <button
             type="button"
@@ -201,7 +201,7 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
             disabled={isDisabled}
             className="p-2 rounded-full text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 dark:focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="AI Investment Advisor"
-            title="Gemini 智能投顾"
+            title="AI 智能投顾 (Gemini/DeepSeek)"
           >
              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />

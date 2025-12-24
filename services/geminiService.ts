@@ -1,9 +1,10 @@
 
-import { GoogleGenAI } from "@google/genai";
-import { ProcessedFund, PortfolioSnapshot, IndexData } from '../types';
+import { GoogleGenAI, Type } from "@google/genai";
+import { ProcessedFund, PortfolioSnapshot, IndexData, GeminiAdviceResponse } from '../types';
 
-// REMOVED TOP LEVEL INIT to prevent app crash on load if API key is missing
-// const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// 硅基流动硬编码配置 (保底方案)
+const SILICON_FLOW_KEY = 'sk-qmebwcebnibdwslnohyiladmqizjpwqhmrnttlsobwmcayen';
+const SILICON_FLOW_MODEL = 'Pro/deepseek-ai/DeepSeek-V3.2';
 
 interface AnalysisContext {
   funds: ProcessedFund[];
@@ -26,143 +27,173 @@ function formatFundDataForPrompt(fund: ProcessedFund): string {
     `${p.date?.split(' ')[0]}: ${p.unitNAV}`
   ).join(' -> ');
 
-  // Calculate drop from last buy for pyramid strategy
   const confirmedRecords = position?.tradingRecords?.filter(r => r.nav !== undefined && r.type === 'buy') || [];
   const lastBuyRecord = confirmedRecords.length > 0 ? confirmedRecords[confirmedRecords.length - 1] : null;
   const currentNAV = fund.realTimeData?.estimatedNAV || fund.latestNAV || 0;
-  // Explicitly capture today's change percentage
   const currentChange = fund.realTimeData?.estimatedChange || fund.latestChange || '0';
   
-  let pyramidSignal = "无上次买入记录，参考Zigzag趋势建仓";
+  let pyramidSignal = "无上次买入记录";
   if (lastBuyRecord && lastBuyRecord.nav && currentNAV > 0) {
       const changeFromLastBuy = ((currentNAV - lastBuyRecord.nav) / lastBuyRecord.nav) * 100;
       pyramidSignal = `距上次买入(${lastBuyRecord.date} @ ${lastBuyRecord.nav.toFixed(4)}): ${changeFromLastBuy >= 0 ? '+' : ''}${changeFromLastBuy.toFixed(2)}%`;
   }
 
-  const trades = position?.tradingRecords?.slice(-3).map(r => 
-    `${r.date} ${r.type === 'buy' ? '买入' : '卖出'} (净值:${r.nav?.toFixed(4) ?? '待定'})`
-  ).join('; ') || "近期无交易";
-
-  // Construct full history string (Date:NAV(Change%))
-  // We use baseChartData to include the real-time point if available.
-  const historyStr = fund.baseChartData.map(d => {
-    const dateStr = d.date?.split(' ')[0] || 'N/A';
-    const navStr = d.unitNAV !== undefined ? d.unitNAV.toFixed(4) : 'N/A';
-    let rateStr = String(d.dailyGrowthRate || '0');
-    if (!rateStr.includes('%')) rateStr += '%';
-    return `${dateStr}:${navStr}(${rateStr})`;
-  }).join('; ');
-
   return `
-- 基金名称: ${fund.name} (${fund.code})
-  当前净值: ${currentNAV.toFixed(4)}
-  今日涨跌: ${currentChange}%
-  估值分位点: ${fund.navPercentile ? fund.navPercentile.toFixed(2) + '%' : 'N/A'} (0%低估 - 100%高估)
+- 基金: ${fund.name} (${fund.code})
+  当前净值: ${currentNAV.toFixed(4)} (${currentChange}%)
+  分位点: ${fund.navPercentile ? fund.navPercentile.toFixed(2) + '%' : 'N/A'}
   状态: ${holdingStatus}
-  趋势概览: ${trend}
+  趋势: ${trend}
   金字塔参考: ${pyramidSignal}
-  关键拐点(Zigzag): ${zigzagSummary}
-  近期交易: ${trades}
-  完整历史数据(Date:NAV(Change)): [${historyStr}]
+  Zigzag: ${zigzagSummary}
   `;
 }
 
-function formatSnapshotsForPrompt(snapshots: PortfolioSnapshot[]): string {
-  if (!snapshots || snapshots.length === 0) return "暂无切片数据";
-  
-  // Take the last 3 operational snapshots (excluding baseline if possible) to show recent effectiveness
-  const recent = snapshots.filter(s => s.snapshotDate !== '基准持仓').slice(0, 3);
-  
-  return recent.map(s => `
-  日期: ${s.snapshotDate}
-  操作收益: ${s.operationProfit?.toFixed(2) ?? 0} (目标: 越大越好, 代表波动捕获能力)
-  造成盈亏: ${s.profitCaused?.toFixed(2) ?? 0} (目标: 越大越好, 代表对日收益能力的提升)
-  操作效果: ${s.operationEffect?.toFixed(2) ?? 0}%
-  `).join('\n');
+/**
+ * 使用硅基流动 API (DeepSeek-V3.2) 进行分析
+ */
+async function generateViaSiliconFlow(prompt: string): Promise<GeminiAdviceResponse> {
+    console.debug("[SiliconFlow] Using DeepSeek-V3.2 Fallback...");
+    
+    const options = {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${SILICON_FLOW_KEY}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            model: SILICON_FLOW_MODEL,
+            messages: [
+                {
+                    role: 'system',
+                    content: '你是一位专业的基金投资顾问，擅长执行金字塔加仓策略。请严格按照 JSON 格式输出建议。'
+                },
+                {
+                    role: 'user',
+                    content: prompt
+                }
+            ],
+            stream: false,
+            response_format: { type: 'json_object' }, // 强制 JSON 输出
+            temperature: 0.7,
+        })
+    };
+
+    const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', options);
+    if (!response.ok) {
+        throw new Error(`SiliconFlow API Error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    const content = result.choices?.[0]?.message?.content;
+    
+    console.debug("[SiliconFlow] Raw Response:", content);
+    return JSON.parse(content);
 }
 
-export async function generatePortfolioAdvice(context: AnalysisContext) {
-  const { funds, snapshots, indexData, activeTag } = context;
+/**
+ * 使用 Google Gemini API 进行分析
+ */
+async function generateViaGemini(prompt: string, apiKey: string): Promise<GeminiAdviceResponse> {
+    console.debug("[Gemini] Using Google Gemini API...");
+    const ai = new GoogleGenAI({ apiKey });
+    
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+                marketOverview: { type: Type.STRING },
+                sentimentScore: { type: Type.NUMBER },
+                strategySummary: { type: Type.STRING },
+                pyramidSignals: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            code: { type: Type.STRING },
+                            name: { type: Type.STRING },
+                            level: { type: Type.STRING },
+                            amount: { type: Type.NUMBER },
+                            reason: { type: Type.STRING }
+                        },
+                        required: ["code", "name", "level", "amount", "reason"]
+                    }
+                },
+                fundActions: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            code: { type: Type.STRING },
+                            name: { type: Type.STRING },
+                            action: { type: Type.STRING },
+                            priority: { type: Type.STRING },
+                            advice: { type: Type.STRING }
+                        },
+                        required: ["code", "name", "action", "priority", "advice"]
+                    }
+                },
+                riskWarnings: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING }
+                }
+            },
+            required: ["marketOverview", "sentimentScore", "strategySummary", "pyramidSignals", "fundActions", "riskWarnings"]
+        }
+      }
+    });
 
-  // Filter funds if a tag is active to focus analysis
+    console.debug("[Gemini] Raw Response:", response.text);
+    return JSON.parse(response.text);
+}
+
+export async function generatePortfolioAdvice(context: AnalysisContext): Promise<GeminiAdviceResponse> {
+  const { funds, indexData, activeTag } = context;
+
   const targetFunds = activeTag 
     ? funds.filter(f => {
         const p = f.userPosition;
         if (activeTag === '持有') return p && p.shares > 0;
         if (activeTag === '自选') return !p || p.shares === 0;
-        if (activeTag === '盈利') return (f.holdingProfit || 0) > 0;
-        if (activeTag === '亏损') return (f.holdingProfit || 0) < 0;
         return p?.tag?.includes(activeTag);
       }) 
     : funds;
 
   const fundsContext = targetFunds.map(formatFundDataForPrompt).join('\n');
-  const snapshotContext = formatSnapshotsForPrompt(snapshots);
-  const marketContext = indexData ? `上证指数: ${indexData.value} (涨跌: ${indexData.changePercent.toFixed(2)}%)` : "大盘数据不可用";
+  const marketContext = indexData ? `上证指数: ${indexData.value} (${indexData.changePercent.toFixed(2)}%)` : "大盘数据不可用";
 
   const systemPrompt = `
-你是一位世界顶级的基金投资顾问。你的目标是帮助用户最大化两个核心指标：
-1. **操作收益 (Operation Profit)**: 衡量用户通过低买高卖捕获的市场波动收益。
-2. **造成盈亏 (Profit Caused/Caused Profit)**: 衡量用户的操作对整个组合“每日盈利能力”的提升（即：是否在上涨前加仓了？是否在下跌前减仓了？）。
-
-请基于以下数据进行分析：
-- **大盘环境**: ${marketContext}
-- **历史操作效果**: ${snapshotContext}
-- **当前基金池状态**: 
+你是一位专业的基金投资顾问。请基于用户当前执行的 **4.5% 金字塔加仓策略** 进行深度分析。
+大盘环境: ${marketContext}
+当前基金池:
 ${fundsContext}
 
-**用户当前执行的策略：4.5% 金字塔加仓法**
-这是一个严格的左侧网格交易策略，旨在通过分批抄底降低成本。
-- **基础买入单位**: 500元。
-- **触发规则 (基于"距上次买入涨跌幅")**:
-  1. **第一档加仓**: 当跌幅达到 **-4.5%** 时，买入 **1倍单位 (500元)**。
-  2. **第二档加仓**: 当跌幅达到 **-9.0%** (在此基础上再跌4.5%) 时，买入 **2倍单位 (1000元)**。
-  3. **第三档加仓**: 当跌幅达到 **-13.5%** (在此基础上再跌4.5%) 时，买入 **4倍单位 (2000元)**。
-- **止盈规则**: 当收益率达到满意水平或估值过高(分位点>80%)时，分批止盈。
+策略规则:
+1. 距上次买入跌幅达 -4.5%: 买入 1倍(500元)。
+2. 距上次买入跌幅达 -9.0%: 买入 2倍(1000元)。
+3. 距上次买入跌幅达 -13.5%: 买入 4倍(2000元)。
 
-**分析指令**:
-1. **策略扫描 (Priority)**: 
-   - 仔细检查每只基金的“金字塔参考”数据。
-   - **必须高亮指出**任何触及 -4.5%, -9.0%, -13.5% 阈值的基金，并明确建议对应的加仓金额。
-2. **趋势确认**:
-   - 结合 Zigzag 拐点和**提供的完整历史数据(Date:NAV(Change))**。
-   - 观察历史走势，判断当前是处于下跌中继、底部震荡还是上升回调。
-   - 如果处于下跌趋势中且触发金字塔信号，建议按计划执行以摊低成本。
-   - 如果处于上升趋势回调（N字底），更是绝佳的买入机会。
-3. **最大化指标**:
-   - 指出哪些操作（加仓或止盈）能最有效地提升“操作收益”和“造成盈亏”。
-   - 对于长期亏损且无波动的“僵尸基金”，建议是否调仓。
-
-请输出一段 Markdown 格式报告，包含：
-1. **市场与策略概况**: 简述。
-2. **🚨金字塔加仓信号**: 列出触发 -4.5%/-9%/-13.5% 规则的基金及建议买入金额。
-3. **操作建议**: 其他买卖或持仓建议，请引用具体的历史数据或涨跌幅来支持你的观点。
-4. **风险提示**: 针对当前组合的最大风险点。
+请必须检查每只基金的“金字塔参考”，找出触发以上规则的基金，并给出具体的买卖建议。
+输出必须为结构化的 JSON 数据。
 `;
 
-  // LOGGING THE PROMPT AS REQUESTED
-  console.log("%c--- Gemini System Prompt ---", "color: #8e44ad; font-weight: bold; font-size: 12px;");
-  console.log(systemPrompt);
+  console.debug("[AI API] Request Context:", systemPrompt);
 
   try {
-    // Initialize AI client lazily and inside try-catch to avoid crashes if API key is missing or invalid
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const geminiKey = process.env.API_KEY;
     
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: systemPrompt,
-      config: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-      }
-    });
-    return response.text;
-  } catch (error) {
-    console.error("Gemini Analysis Failed:", error);
-    if (String(error).includes("API key")) {
-        throw new Error("API Key 无效或未配置。请检查 Netlify 环境变量 GEMINI_API_KEY。");
+    // 如果存在环境变量 Key，优先使用 Gemini，否则使用 SiliconFlow
+    if (geminiKey && geminiKey.trim() !== '') {
+        return await generateViaGemini(systemPrompt, geminiKey);
+    } else {
+        return await generateViaSiliconFlow(systemPrompt);
     }
-    throw new Error("AI 分析暂时不可用，请检查网络或稍后再试。");
+  } catch (error) {
+    console.error("AI Analysis Failed:", error);
+    throw new Error("AI 分析暂时不可用，请检查网络或稍后重试。");
   }
 }
