@@ -2,10 +2,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ProcessedFund, PortfolioSnapshot, IndexData, GeminiAdviceResponse } from '../types';
 
-// 硅基流动硬编码配置 (保底方案)
-const SILICON_FLOW_KEY = 'sk-qmebwcebnibdwslnohyiladmqizjpwqhmrnttlsobwmcayen';
-const SILICON_FLOW_MODEL = 'Pro/deepseek-ai/DeepSeek-V3.2';
-
 interface AnalysisContext {
   funds: ProcessedFund[];
   snapshots: PortfolioSnapshot[];
@@ -49,145 +45,8 @@ function formatFundDataForPrompt(fund: ProcessedFund): string {
   `;
 }
 
-/**
- * 格式化并解析 AI 返回的内容，剥离可能的 Markdown
- */
-function parseAIResponse(rawContent: string): GeminiAdviceResponse {
-    try {
-        // 1. 尝试剥离 Markdown 代码块标记
-        let cleaned = rawContent
-            .replace(/```json\n?/, '')
-            .replace(/```\n?$/, '')
-            .trim();
-        
-        // 2. 尝试寻找第一个 { 和最后一个 } 之间的内容
-        const firstBrace = cleaned.indexOf('{');
-        const lastBrace = cleaned.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace !== -1) {
-            cleaned = cleaned.substring(firstBrace, lastBrace + 1);
-        }
-
-        const parsed = JSON.parse(cleaned);
-        
-        // 3. 结构补全 (补救性)
-        return {
-            marketOverview: parsed.marketOverview || "未提供概览",
-            sentimentScore: typeof parsed.sentimentScore === 'number' ? parsed.sentimentScore : 50,
-            strategySummary: parsed.strategySummary || "未提供策略总结",
-            pyramidSignals: Array.isArray(parsed.pyramidSignals) ? parsed.pyramidSignals : [],
-            fundActions: Array.isArray(parsed.fundActions) ? parsed.fundActions : [],
-            riskWarnings: Array.isArray(parsed.riskWarnings) ? parsed.riskWarnings : []
-        };
-    } catch (e) {
-        console.error("[AI API] Parse Error. Raw content:", rawContent);
-        throw new Error("AI 返回数据格式有误，解析失败。");
-    }
-}
-
-/**
- * 使用硅基流动 API (DeepSeek-V3.2) 进行分析
- */
-async function generateViaSiliconFlow(prompt: string): Promise<GeminiAdviceResponse> {
-    console.debug("[SiliconFlow] Using DeepSeek-V3.2 Fallback...");
-    
-    const options = {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${SILICON_FLOW_KEY}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            model: SILICON_FLOW_MODEL,
-            messages: [
-                {
-                    role: 'system',
-                    content: '你是一位专业的基金投资顾问，擅长执行金字塔加仓策略。请严格按照 JSON 格式输出建议。'
-                },
-                {
-                    role: 'user',
-                    content: prompt
-                }
-            ],
-            stream: false,
-            response_format: { type: 'json_object' },
-            temperature: 0.7,
-        })
-    };
-
-    const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', options);
-    if (!response.ok) {
-        throw new Error(`SiliconFlow API Error: ${response.status}`);
-    }
-
-    const result = await response.json();
-    const content = result.choices?.[0]?.message?.content || "";
-    
-    console.debug("[SiliconFlow] Raw Response:", content);
-    return parseAIResponse(content);
-}
-
-/**
- * 使用 Google Gemini API 进行分析
- */
-async function generateViaGemini(prompt: string, apiKey: string): Promise<GeminiAdviceResponse> {
-    console.debug("[Gemini] Using Google Gemini API...");
-    const ai = new GoogleGenAI({ apiKey });
-    
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-                marketOverview: { type: Type.STRING },
-                sentimentScore: { type: Type.NUMBER },
-                strategySummary: { type: Type.STRING },
-                pyramidSignals: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            code: { type: Type.STRING },
-                            name: { type: Type.STRING },
-                            level: { type: Type.STRING },
-                            amount: { type: Type.NUMBER },
-                            reason: { type: Type.STRING }
-                        },
-                        required: ["code", "name", "level", "amount", "reason"]
-                    }
-                },
-                fundActions: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            code: { type: Type.STRING },
-                            name: { type: Type.STRING },
-                            action: { type: Type.STRING },
-                            priority: { type: Type.STRING },
-                            advice: { type: Type.STRING }
-                        },
-                        required: ["code", "name", "action", "priority", "advice"]
-                    }
-                },
-                riskWarnings: {
-                    type: Type.ARRAY,
-                    items: { type: Type.STRING }
-                }
-            },
-            required: ["marketOverview", "sentimentScore", "strategySummary", "pyramidSignals", "fundActions", "riskWarnings"]
-        }
-      }
-    });
-
-    console.debug("[Gemini] Raw Response:", response.text);
-    return parseAIResponse(response.text);
-}
-
 export async function generatePortfolioAdvice(context: AnalysisContext): Promise<GeminiAdviceResponse> {
-  const { funds, indexData, activeTag } = context;
+  const { funds, snapshots, indexData, activeTag } = context;
 
   const targetFunds = activeTag 
     ? funds.filter(f => {
@@ -213,22 +72,64 @@ ${fundsContext}
 3. 距上次买入跌幅达 -13.5%: 买入 4倍(2000元)。
 
 请必须检查每只基金的“金字塔参考”，找出触发以上规则的基金，并给出具体的买卖建议。
-输出必须为结构化的 JSON 数据。
+输出必须为结构化的 JSON。
 `;
 
-  console.debug("[AI API] Request Context:", systemPrompt);
-
   try {
-    const geminiKey = process.env.API_KEY;
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
-    // 如果存在环境变量 Key，优先使用 Gemini，否则使用 SiliconFlow
-    if (geminiKey && geminiKey.trim() !== '') {
-        return await generateViaGemini(systemPrompt, geminiKey);
-    } else {
-        return await generateViaSiliconFlow(systemPrompt);
-    }
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: systemPrompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+                marketOverview: { type: Type.STRING, description: "市场大环境及策略执行概况" },
+                sentimentScore: { type: Type.NUMBER, description: "市场情绪评分 0-100" },
+                strategySummary: { type: Type.STRING, description: "针对当前组合的策略总结" },
+                pyramidSignals: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            code: { type: Type.STRING },
+                            name: { type: Type.STRING },
+                            level: { type: Type.STRING, description: "触发的加仓档位" },
+                            amount: { type: Type.NUMBER, description: "建议买入金额" },
+                            reason: { type: Type.STRING }
+                        },
+                        required: ["code", "name", "level", "amount", "reason"]
+                    }
+                },
+                fundActions: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            code: { type: Type.STRING },
+                            name: { type: Type.STRING },
+                            action: { type: Type.STRING, enum: ["买入", "卖出", "持有", "调仓"] },
+                            priority: { type: Type.STRING, enum: ["高", "中", "低"] },
+                            advice: { type: Type.STRING }
+                        },
+                        required: ["code", "name", "action", "priority", "advice"]
+                    }
+                },
+                riskWarnings: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING }
+                }
+            },
+            required: ["marketOverview", "sentimentScore", "strategySummary", "pyramidSignals", "fundActions", "riskWarnings"]
+        }
+      }
+    });
+
+    return JSON.parse(response.text);
   } catch (error) {
-    console.error("AI Analysis Failed:", error);
-    throw new Error(error instanceof Error ? error.message : "AI 分析暂时不可用。");
+    console.error("Gemini Analysis Failed:", error);
+    throw new Error("AI 分析暂时不可用，请检查 API 配置或网络。");
   }
 }
