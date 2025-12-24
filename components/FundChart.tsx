@@ -88,8 +88,8 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
         return (
             <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-2 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 text-xs min-w-[150px] pointer-events-none">
                 <div className="flex flex-col space-y-1.5">
-                    {/* Header */}
-                    <div className="flex justify-between items-baseline gap-2 mb-0.5 border-b border-gray-100 dark:border-gray-700 pb-1">
+                    {/* Header - Removed border-b and pb-1 */}
+                    <div className="flex justify-between items-baseline gap-2 mb-1">
                         <span className={`font-semibold whitespace-nowrap ${isBaselinePoint ? 'text-blue-600 dark:text-blue-400 underline' : 'text-gray-800 dark:text-gray-100'}`}>
                             {date}
                         </span>
