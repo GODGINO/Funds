@@ -36,13 +36,18 @@ const GeminiAdvisorModal: React.FC<GeminiAdvisorModalProps> = ({
 
   const sentimentColor = useMemo(() => {
     if (!analysisResult) return 'text-gray-400';
-    const score = analysisResult.sentimentScore;
+    const score = analysisResult.sentimentScore ?? 50;
     if (score >= 70) return 'text-red-500';
     if (score <= 30) return 'text-green-500';
     return 'text-yellow-500';
   }, [analysisResult]);
 
   if (!isOpen) return null;
+
+  // 使用本地变量保存数组并提供默认值，防止渲染崩溃
+  const pyramidSignals = analysisResult?.pyramidSignals || [];
+  const fundActions = analysisResult?.fundActions || [];
+  const riskWarnings = analysisResult?.riskWarnings || [];
 
   return (
     <div
@@ -98,9 +103,9 @@ const GeminiAdvisorModal: React.FC<GeminiAdvisorModalProps> = ({
                   </div>
                   <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center text-center">
                       <h4 className="text-gray-500 dark:text-gray-400 text-xs font-bold mb-2">市场情绪</h4>
-                      <div className={`text-4xl font-black ${sentimentColor}`}>{analysisResult.sentimentScore}</div>
+                      <div className={`text-4xl font-black ${sentimentColor}`}>{analysisResult.sentimentScore ?? 0}</div>
                       <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full mt-3 overflow-hidden">
-                          <div className={`h-full ${sentimentColor.replace('text-', 'bg-')} transition-all duration-1000`} style={{ width: `${analysisResult.sentimentScore}%` }}></div>
+                          <div className={`h-full ${sentimentColor.replace('text-', 'bg-')} transition-all duration-1000`} style={{ width: `${analysisResult.sentimentScore ?? 0}%` }}></div>
                       </div>
                   </div>
               </div>
@@ -111,9 +116,9 @@ const GeminiAdvisorModal: React.FC<GeminiAdvisorModalProps> = ({
                       <span className="text-red-500">🚨</span>
                       <h4 className="text-lg font-bold text-gray-900 dark:text-white">金字塔策略信号</h4>
                   </div>
-                  {analysisResult.pyramidSignals.length > 0 ? (
+                  {pyramidSignals.length > 0 ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {analysisResult.pyramidSignals.map((sig, i) => (
+                          {pyramidSignals.map((sig, i) => (
                               <div key={i} className="bg-white dark:bg-gray-800 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm hover:shadow-md transition-shadow">
                                   <div className="flex justify-between items-start mb-2">
                                       <div className="font-bold text-gray-900 dark:text-white">{sig.name}</div>
@@ -135,7 +140,7 @@ const GeminiAdvisorModal: React.FC<GeminiAdvisorModalProps> = ({
               <section>
                   <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-3">组合优化建议</h4>
                   <div className="space-y-3">
-                      {analysisResult.fundActions.map((item, i) => (
+                      {fundActions.map((item, i) => (
                           <div key={i} className="flex items-center gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 group hover:border-indigo-300 transition-colors">
                               <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold flex-shrink-0 ${
                                   item.action === '买入' ? 'bg-red-50 text-red-600' : 
@@ -167,7 +172,7 @@ const GeminiAdvisorModal: React.FC<GeminiAdvisorModalProps> = ({
                       <h4 className="font-bold">风险雷达</h4>
                   </div>
                   <ul className="space-y-1.5">
-                      {analysisResult.riskWarnings.map((warn, i) => (
+                      {riskWarnings.map((warn, i) => (
                           <li key={i} className="text-sm text-amber-700 dark:text-amber-500/80 flex items-start gap-2">
                               <span className="mt-1.5 w-1 h-1 rounded-full bg-amber-400 flex-shrink-0"></span>
                               {warn}

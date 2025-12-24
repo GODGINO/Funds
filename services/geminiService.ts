@@ -50,6 +50,41 @@ function formatFundDataForPrompt(fund: ProcessedFund): string {
 }
 
 /**
+ * 格式化并解析 AI 返回的内容，剥离可能的 Markdown
+ */
+function parseAIResponse(rawContent: string): GeminiAdviceResponse {
+    try {
+        // 1. 尝试剥离 Markdown 代码块标记
+        let cleaned = rawContent
+            .replace(/```json\n?/, '')
+            .replace(/```\n?$/, '')
+            .trim();
+        
+        // 2. 尝试寻找第一个 { 和最后一个 } 之间的内容
+        const firstBrace = cleaned.indexOf('{');
+        const lastBrace = cleaned.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+            cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+        }
+
+        const parsed = JSON.parse(cleaned);
+        
+        // 3. 结构补全 (补救性)
+        return {
+            marketOverview: parsed.marketOverview || "未提供概览",
+            sentimentScore: typeof parsed.sentimentScore === 'number' ? parsed.sentimentScore : 50,
+            strategySummary: parsed.strategySummary || "未提供策略总结",
+            pyramidSignals: Array.isArray(parsed.pyramidSignals) ? parsed.pyramidSignals : [],
+            fundActions: Array.isArray(parsed.fundActions) ? parsed.fundActions : [],
+            riskWarnings: Array.isArray(parsed.riskWarnings) ? parsed.riskWarnings : []
+        };
+    } catch (e) {
+        console.error("[AI API] Parse Error. Raw content:", rawContent);
+        throw new Error("AI 返回数据格式有误，解析失败。");
+    }
+}
+
+/**
  * 使用硅基流动 API (DeepSeek-V3.2) 进行分析
  */
 async function generateViaSiliconFlow(prompt: string): Promise<GeminiAdviceResponse> {
@@ -74,7 +109,7 @@ async function generateViaSiliconFlow(prompt: string): Promise<GeminiAdviceRespo
                 }
             ],
             stream: false,
-            response_format: { type: 'json_object' }, // 强制 JSON 输出
+            response_format: { type: 'json_object' },
             temperature: 0.7,
         })
     };
@@ -85,10 +120,10 @@ async function generateViaSiliconFlow(prompt: string): Promise<GeminiAdviceRespo
     }
 
     const result = await response.json();
-    const content = result.choices?.[0]?.message?.content;
+    const content = result.choices?.[0]?.message?.content || "";
     
     console.debug("[SiliconFlow] Raw Response:", content);
-    return JSON.parse(content);
+    return parseAIResponse(content);
 }
 
 /**
@@ -148,7 +183,7 @@ async function generateViaGemini(prompt: string, apiKey: string): Promise<Gemini
     });
 
     console.debug("[Gemini] Raw Response:", response.text);
-    return JSON.parse(response.text);
+    return parseAIResponse(response.text);
 }
 
 export async function generatePortfolioAdvice(context: AnalysisContext): Promise<GeminiAdviceResponse> {
@@ -194,6 +229,6 @@ ${fundsContext}
     }
   } catch (error) {
     console.error("AI Analysis Failed:", error);
-    throw new Error("AI 分析暂时不可用，请检查网络或稍后重试。");
+    throw new Error(error instanceof Error ? error.message : "AI 分析暂时不可用。");
   }
 }
