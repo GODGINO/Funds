@@ -1414,9 +1414,9 @@ const App: React.FC = () => {
       if (prevKey === newKey) {
         setTagSortOrder(prevOrder => {
           if (prevOrder === 'desc') return 'asc';
-          if (prevOrder === 'asc') return 'abs_desc';
-          if (prevOrder === 'abs_desc') return 'abs_asc';
-          return 'desc'; // from 'abs_asc' back to 'desc'
+          if (prevOrder === 'asc') return 'abs_asc';
+          if (prevOrder === 'abs_asc') return 'abs_desc';
+          return 'desc'; // from 'abs_desc' back to 'desc'
         });
       } else {
         setTagSortOrder('desc'); // Reset to default when key changes

@@ -101,7 +101,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
       }
 
       return (
-          <th className={`px-1 py-0 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 ${className}`} onClick={() => onSortChange(sortableKey)}>
+          <th className={`px-1 py-0 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 cursor-pointer ${className || ''}`} onClick={() => onSortChange(sortableKey)}>
               <div className="flex justify-end">
                   <div className="text-right">
                       {newTitleElement}
@@ -130,7 +130,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                 <div>估算总值</div>
                 <div className="font-mono font-normal">{formatIntegerWithCommas(totals.totalMarketValue)}</div>
               </SortableHeader>
-               <SortableHeader sortableKey="cumulativeMarketValue">
+               <SortableHeader sortableKey="cumulativeMarketValue" className="border-r-2 border-r-gray-400 dark:border-r-gray-500">
                 <div>累计总值</div>
                 <div className="font-mono font-normal">{formatIntegerWithCommas(totals.cumulativeMarketValue)}</div>
               </SortableHeader>
@@ -149,7 +149,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                 <div>持有收益率</div>
                 <div className={`font-mono font-normal ${getProfitColor(totals.holdingProfitRate)}`}>{formatPercentage(totals.holdingProfitRate)}</div>
               </SortableHeader>
-              <SortableHeader sortableKey="totalProfitRate">
+              <SortableHeader sortableKey="totalProfitRate" className="border-r-2 border-r-gray-400 dark:border-r-gray-500">
                 <div>累计收益率</div>
                 <div className={`font-mono font-normal ${getProfitColor(totals.totalProfitRate)}`}>{formatPercentage(totals.totalProfitRate)}</div>
               </SortableHeader>
@@ -160,7 +160,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
               <SortableHeader sortableKey="dailyEfficiency">
                 <div>今日效率</div>
               </SortableHeader>
-              <SortableHeader sortableKey="dailyProfitRate">
+              <SortableHeader sortableKey="dailyProfitRate" className="border-r-2 border-r-gray-400 dark:border-r-gray-500">
                 <div>今日收益率</div>
                 <div className={`font-mono font-normal ${getProfitColor(totals.dailyProfitRate)}`}>{formatPercentage(totals.dailyProfitRate)}</div>
               </SortableHeader>
@@ -223,7 +223,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                       )}
                     </div>
                   </td>
-                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right" style={getBarStyle(item.cumulativeMarketValue, maxAbsValues.cumulativeMarketValue)}>
+                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500" style={getBarStyle(item.cumulativeMarketValue, maxAbsValues.cumulativeMarketValue)}>
                     <div className="relative">
                       {formatIntegerWithCommas(item.cumulativeMarketValue)}
                       {totals.cumulativeMarketValue !== 0 && (
@@ -253,7 +253,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.holdingProfitRate)}`} style={getBarStyle(item.holdingProfitRate, maxAbsValues.holdingProfitRate)}>
                     <div className="relative">{formatPercentage(item.holdingProfitRate)}</div>
                   </td>
-                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalProfitRate)}`} style={getBarStyle(item.totalProfitRate, maxAbsValues.totalProfitRate)}>
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${getProfitColor(item.totalProfitRate)}`} style={getBarStyle(item.totalProfitRate, maxAbsValues.totalProfitRate)}>
                     <div className="relative">{formatPercentage(item.totalProfitRate)}</div>
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalDailyProfit)}`} style={getBarStyle(item.totalDailyProfit, maxAbsValues.totalDailyProfit)}>
@@ -267,7 +267,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getEfficiencyColor(item.dailyEfficiency)}`} style={getBarStyle(item.dailyEfficiency, maxAbsValues.dailyEfficiency, 'efficiency')}>
                       <div className="relative">{formatEfficiency(item.dailyEfficiency)}</div>
                   </td>
-                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.dailyProfitRate)} ${dailyHighlightClass}`} style={getBarStyle(item.dailyProfitRate, maxAbsValues.dailyProfitRate)}>
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${getProfitColor(item.dailyProfitRate)} ${dailyHighlightClass}`} style={getBarStyle(item.dailyProfitRate, maxAbsValues.dailyProfitRate)}>
                     <div className="relative">{formatPercentage(item.dailyProfitRate)}</div>
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalRecentProfit)}`} style={getBarStyle(item.totalRecentProfit, maxAbsValues.totalRecentProfit)}>
