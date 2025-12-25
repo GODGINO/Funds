@@ -1,8 +1,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
-// FIX: Added GeminiAdviceResponse to imports to fix type errors
-import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData, TransactionType, SortByType, GeminiAdviceResponse } from './types';
+import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData, TransactionType, SortByType } from './types';
 import { fetchFundData, fetchFundDetails, fetchIndexData, fetchTotalTurnover } from './services/fundService';
 import { updateGistData, fetchGistData } from './services/gistService';
 import FundInputForm from './components/FundInputForm';
@@ -116,8 +115,7 @@ const App: React.FC = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isTransactionManagerOpen, setIsTransactionManagerOpen] = useState(false);
   const [isGeminiModalOpen, setIsGeminiModalOpen] = useState(false);
-  // FIX: Updated state type from string | null to GeminiAdviceResponse | null to match service return type and modal props
-  const [geminiAnalysisResult, setGeminiAnalysisResult] = useState<GeminiAdviceResponse | null>(null);
+  const [geminiAnalysisResult, setGeminiAnalysisResult] = useState<string | null>(null);
   const [isGeminiLoading, setIsGeminiLoading] = useState(false);
   const [geminiError, setGeminiError] = useState<string | null>(null);
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
@@ -1905,7 +1903,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
         totalCostBasis: baselineTotalCostBasis,
         currentMarketValue: baselineCurrentMarketValue,
         cumulativeValue: baselineCumulativeValue,
-        holdingProfit: baselineCurrentMarketValue - baselineTotalCostBasis,
+        holdingProfit: baselineHoldingProfit,
         totalProfit: baselineTotalProfit,
         profitRate: baselineTotalCostBasis > 0 ? (baselineTotalProfit / baselineTotalCostBasis) * 100 : 0,
         dailyProfit: baselineDailyProfit,
@@ -2089,7 +2087,6 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
         indexData: indexData,
         activeTag: activeTag,
       });
-      // FIX: The state now correctly accepts the GeminiAdviceResponse object.
       setGeminiAnalysisResult(result);
     } catch (err) {
       setGeminiError(err instanceof Error ? err.message : '生成建议失败');
@@ -2243,7 +2240,6 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
         isOpen={isGeminiModalOpen}
         onClose={() => setIsGeminiModalOpen(false)}
         isLoading={isGeminiLoading}
-        // FIX: analysisResult prop now correctly expects and receives the GeminiAdviceResponse object.
         analysisResult={geminiAnalysisResult}
         error={geminiError}
         onGenerate={handleGenerateAdvice}

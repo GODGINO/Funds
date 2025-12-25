@@ -18,14 +18,22 @@ export interface RealTimeData {
 export type TransactionType = 'buy' | 'sell' | 'dividend-cash' | 'dividend-reinvest';
 
 export interface TradingRecord {
-  date: string;
-  type: TransactionType;
+  date: string;              // 交易确认/申请日期
+  type: TransactionType;     // 交易类型
+
+  // Fields for PENDING trades
+  // For 'buy' / 'dividend-cash', this is the amount (money).
+  // For 'sell' / 'dividend-reinvest', this is the shares.
   value?: number;
-  nav?: number;
-  sharesChange?: number;
-  amount?: number;
-  realizedProfitChange?: number;
+
+  // Fields for CONFIRMED trades
+  nav?: number;              // 确认成交的单位净值 (对于现金分红为除权日净值)
+  sharesChange?: number;     // 确认的份额变化 (买入/再投为正, 卖出为负, 现金分红为0)
+  amount?: number;           // 确认的本金变动 (买入为正, 卖出为负, 分红/再投为0)
+  // dividendAmount has been removed. Use realizedProfitChange for cash dividends.
+  realizedProfitChange?: number; // 落袋收益变化 (卖出或现金分红时产生)
 }
+
 
 export interface UserPosition {
   code: string;
@@ -33,8 +41,10 @@ export interface UserPosition {
   cost: number;
   tag?: string;
   realizedProfit: number;
-  tradingRecords?: TradingRecord[];
+  tradingRecords?: TradingRecord[]; // Now stores both confirmed and pending records
 }
+
+// The TradingTask interface is no longer needed and has been removed.
 
 export interface Fund {
   code: string;
@@ -73,6 +83,7 @@ export interface ProcessedFund extends Fund {
 }
 
 export type TagSortOrder = 'asc' | 'desc' | 'abs_asc' | 'abs_desc';
+
 export type SortByType = 'trend' | 'dailyChange' | 'navPercentile' | 'amount' | 'holdingProfitRate' | 'totalProfitRate' | 'smartScore';
 
 export interface TagAnalysisData {
@@ -103,12 +114,13 @@ export interface IndexData {
   changePercent: number;
 }
 
+// 交易弹窗上下文状态
 export interface TradeModalState {
   fund: ProcessedFund;
   date: string;
-  nav: number;
-  isConfirmed: boolean;
-  editingRecord?: TradingRecord;
+  nav: number; // The NAV for estimation or confirmed transaction
+  isConfirmed: boolean; // True if NAV is final for that day
+  editingRecord?: TradingRecord; // Optional: The record being edited (can be pending or confirmed)
 }
 
 export interface PortfolioSnapshot {
@@ -133,30 +145,4 @@ export interface PortfolioSnapshot {
   totalSellAmount?: number;
   totalSellOpportunityProfit?: number;
   totalSellRealizedProfit?: number;
-}
-
-// AI 投顾结构化输出定义
-export interface GeminiPyramidSignal {
-    code: string;
-    name: string;
-    level: string; // "1档(-4.5%)", "2档(-9%)", "3档(-13.5%)"
-    amount: number;
-    reason: string;
-}
-
-export interface GeminiFundAction {
-    code: string;
-    name: string;
-    action: '买入' | '卖出' | '持有' | '调仓';
-    priority: '高' | '中' | '低';
-    advice: string;
-}
-
-export interface GeminiAdviceResponse {
-    marketOverview: string;
-    sentimentScore: number; // 0-100
-    strategySummary: string;
-    pyramidSignals: GeminiPyramidSignal[];
-    fundActions: GeminiFundAction[];
-    riskWarnings: string[];
 }
