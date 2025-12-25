@@ -113,59 +113,74 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       const historicalDates = Object.keys(history).filter(d => d !== todayDate).sort();
       const allDates = [...historicalDates.slice(-5), todayDate].filter(Boolean);
 
-      const tData: any[] = [];
+      // --- 1. Index Chart Data (Continuous Time Axis) ---
       const iData: any[] = [];
       const dayIndices: number[] = [];
-
+      
       allDates.forEach((date, dateIdx) => {
           const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
           if (points.length === 0) return;
 
-          if (tData.length > 0) {
-              dayIndices.push(tData.length);
-          }
-
-          const sortedPoints = [...points].sort((a, b) => a.t.localeCompare(b.t));
-          let cumulativeVal = 0;
+          if (iData.length > 0) dayIndices.push(iData.length);
+          const sorted = [...points].sort((a, b) => a.t.localeCompare(b.t));
           
-          sortedPoints.forEach(p => {
-              cumulativeVal += p.val;
-              const pointIdx = tData.length;
-              const tObj: any = { id: pointIdx };
-              const iObj: any = { id: pointIdx };
-              const key = `v${allDates.length - 1 - dateIdx}`; 
-              tObj[key] = cumulativeVal;
-              if (p.ind > 0) iObj[key] = p.ind;
-              tData.push(tObj);
-              iData.push(iObj);
+          sorted.forEach((p, pIdx) => {
+              const globalIdx = iData.length;
+              const obj: any = { id: globalIdx };
+              const key = `v${allDates.length - 1 - dateIdx}`; // v0=Today, v1=Y-1...
+              if (p.ind > 0) obj[key] = p.ind;
+              
+              // 关键：为了连接首尾，每一天（除了最后一天）的最后一个点，同时也赋给下一天的 key
+              if (pIdx === sorted.length - 1 && dateIdx < allDates.length - 1) {
+                  const nextKey = `v${allDates.length - 1 - (dateIdx + 1)}`;
+                  obj[nextKey] = p.ind;
+              }
+              iData.push(obj);
           });
       });
 
-      // Calculate distribution dots at current time
+      // --- 2. Turnover Chart Data (Overlapping Time Axis) ---
+      const timeSlots: string[] = [];
+      let hour = 9, min = 15;
+      while (hour < 15 || (hour === 15 && min === 0)) {
+          if (hour === 11 && min > 30) { hour = 13; min = 1; continue; }
+          if (hour === 13 && min === 0) { min = 1; continue; }
+          timeSlots.push(`${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
+          min++;
+          if (min === 60) { hour++; min = 0; }
+      }
+
+      const dayTurnoverMaps = allDates.map(date => {
+          const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
+          const map = new Map<string, number>();
+          let sum = 0;
+          [...points].sort((a,b) => a.t.localeCompare(b.t)).forEach(p => {
+              sum += p.val;
+              map.set(p.t, sum);
+          });
+          return map;
+      });
+
+      const tData = timeSlots.map(t => {
+          const obj: any = { t };
+          dayTurnoverMaps.forEach((map, i) => {
+              const val = map.get(t);
+              const key = `v${allDates.length - 1 - i}`; 
+              if (val !== undefined) obj[key] = val;
+          });
+          return obj;
+      });
+
+      // --- 3. Vertical Distribution Dots ---
       let dots: number[] = [];
       if (todayTurnoverPoints.length > 0) {
           const lastPoint = todayTurnoverPoints[todayTurnoverPoints.length - 1];
-          const currentTimeStr = lastPoint.t;
-          
-          const getValAtTime = (points: MarketDataPoint[], time: string) => {
-              let sum = 0;
-              for (const p of points) {
-                  if (p.t <= time) sum += p.val;
-                  else break;
-              }
-              return sum;
-          };
-
-          const vals = allDates.map(date => {
-              const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
-              return getValAtTime(points, currentTimeStr);
-          }).filter(v => v > 0);
-
-          if (vals.length > 0) {
-              const minVal = Math.min(...vals);
-              const maxVal = Math.max(...vals);
-              const range = maxVal - minVal;
-              dots = vals.map(v => range > 0 ? (v - minVal) / range : 0.5).reverse(); // Reverse to match v0, v1...
+          const currentTime = lastPoint.t;
+          const valsAtCurrent = dayTurnoverMaps.map(map => map.get(currentTime) || 0).filter(v => v > 0);
+          if (valsAtCurrent.length > 0) {
+              const minV = Math.min(...valsAtCurrent);
+              const maxV = Math.max(...valsAtCurrent);
+              dots = valsAtCurrent.map(v => maxV > minV ? (v - minV) / (maxV - minV) : 0.5).reverse();
           }
       }
 
@@ -193,6 +208,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
         <div className="w-full max-w-3xl text-left">
             <div className="flex flex-col items-start">
                 <div className="h-[88px] w-full flex items-end gap-1 overflow-hidden transition-opacity duration-300" style={{ opacity: isHovering ? 1 : 0 }}>
+                    {/* Left: Continuous Index Chart */}
                     {indexChartData.length > 0 && (
                         <div className="flex-1 h-full">
                             <ResponsiveContainer width="100%" height="100%">
@@ -218,16 +234,14 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                             </ResponsiveContainer>
                         </div>
                     )}
+                    {/* Right: Overlapping Turnover Chart */}
                     {turnoverChartData.length > 0 && (
                         <div className="flex-1 h-full flex items-end">
                             <div className="flex-1 h-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                        <XAxis dataKey="id" hide padding={{ left: 0, right: 0 }} />
+                                        <XAxis dataKey="t" hide padding={{ left: 0, right: 0 }} />
                                         <YAxis hide domain={['dataMin', 'dataMax']} padding={{ top: 0, bottom: 0 }} />
-                                        {dayIndices.map(idx => (
-                                            <ReferenceLine key={idx} x={idx} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
-                                        ))}
                                         {lineColors.map((color, i) => (
                                             <Line 
                                                 key={`turnover-${i}`} 
