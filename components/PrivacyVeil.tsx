@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, XAxis, ReferenceLine, Tooltip } from 'recharts';
 import { IndexData, MarketDataPoint } from '../types';
 import { getLocalMarketHistory } from '../services/fundService';
@@ -20,21 +20,6 @@ interface PrivacyVeilProps {
   todayTurnoverPoints?: MarketDataPoint[];
 }
 
-const CustomValueTooltip: React.FC<any> = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-        return (
-            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 shadow-sm text-[10px] font-mono font-bold">
-                {payload.map((entry: any, index: number) => (
-                    <div key={index} style={{ color: entry.color }}>
-                        {entry.value >= 10000 ? (entry.value / 1000000000000).toFixed(2) + 'T' : entry.value.toFixed(2)}
-                    </div>
-                ))}
-            </div>
-        );
-    }
-    return null;
-};
-
 const PrivacyVeil: React.FC<PrivacyVeilProps> = ({ 
     onRefresh, 
     lastRefreshTime,
@@ -48,6 +33,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
 }) => {
   const [isHovering, setIsHovering] = useState(false);
   const [chartMode, setChartMode] = useState(0);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const idleTimerRef = useRef<number | null>(null);
 
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -61,9 +47,10 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
   };
 
   const handleMouseEnter = () => { setIsHovering(true); resetIdleTimer(); };
-  const handleMouseMove = () => { if (!isHovering) setIsHovering(true); resetIdleTimer(); };
-  const handleMouseLeave = () => {
+  const handleMouseMoveMain = () => { if (!isHovering) setIsHovering(true); resetIdleTimer(); };
+  const handleMouseLeaveMain = () => {
       setIsHovering(false);
+      setHoveredIdx(null);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       if (!isMobile) window.location.href = 'feishu://';
   };
@@ -73,8 +60,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
   const formattedProfit = `${totalDailyProfit >= 0 ? '+' : ''}${totalDailyProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formattedRate = `${totalDailyProfitRate >= 0 ? '+' : ''}${totalDailyProfitRate.toFixed(2)}%`;
   const formattedIndex = indexData ? `${indexData.value.toFixed(2)} ${indexData.change >= 0 ? '+' : ''}${indexData.change.toFixed(2)} ${indexData.changePercent >= 0 ? '+' : ''}${indexData.changePercent.toFixed(2)}%` : '';
-
-  const hoverContent = [formattedProfit, formattedRate, summaryProfitCaused != null ? `${summaryProfitCaused >= 0 ? '+' : ''}${summaryProfitCaused.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '', summaryOperationEffect != null ? `${summaryOperationEffect >= 0 ? '+' : ''}${summaryOperationEffect.toFixed(2)}%` : '', formattedIndex, marketTurnover].filter(Boolean).join(' ');
 
   const { turnoverChartData, indexChartData, todayOnlyIndexData, dayIndices, distributionDots } = useMemo(() => {
       if (!isHovering) return { turnoverChartData: [], indexChartData: [], todayOnlyIndexData: [], dayIndices: [], distributionDots: [] };
@@ -95,7 +80,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           if (iData.length > 0) dayIdxArr.push(iData.length);
           [...points].sort((a,b) => a.t.localeCompare(b.t)).forEach((p, pIdx, arr) => {
               const currentIdx = iData.length;
-              const obj: any = { idx: currentIdx };
+              const obj: any = { idx: currentIdx, t: p.t, val: p.ind };
               const key = `v${allDates.length - 1 - dIdx}`;
               if (p.ind > 0) obj[key] = p.ind;
               if (pIdx === arr.length - 1 && dIdx < allDates.length - 1) {
@@ -108,6 +93,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       // --- Mode 1: 今日实时指数 ---
       const tOnlyData = todayTurnoverPoints.map((p, i) => ({
           idx: i,
+          t: p.t,
+          val: p.ind,
           v0: p.ind > 0 ? p.ind : null
       }));
 
@@ -126,10 +113,15 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       }))).sort();
 
       const tData = validTimes.map((t, i) => {
-          const obj: any = { idx: i };
+          const obj: any = { idx: i, t };
           turnoverMaps.forEach((map, dIdx) => {
               const val = map.get(t);
-              if (val !== undefined) obj[`v${allDates.length - 1 - dIdx}`] = val;
+              if (val !== undefined) {
+                  obj[`v${allDates.length - 1 - dIdx}`] = val;
+                  if (dIdx === (allDates.indexOf(todayDate) !== -1 ? allDates.indexOf(todayDate) : 0)) {
+                      obj.val = val;
+                  }
+              }
           });
           return obj;
       });
@@ -150,6 +142,37 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
 
   const lineColors = ['#000000', 'rgba(0, 0, 0, 0.5)', 'rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.18)', 'rgba(0, 0, 0, 0.11)'];
 
+  // 动态拼接页脚内容
+  const hoverPointValue = useMemo(() => {
+      if (hoveredIdx === null) return null;
+      const currentDataArr = chartMode === 0 ? indexChartData : (chartMode === 1 ? todayOnlyIndexData : turnoverChartData);
+      const point = currentDataArr[hoveredIdx];
+      if (!point) return null;
+
+      // 根据数据类型格式化显示
+      if (chartMode === 2) {
+          return `${point.t} ${(point.val / 1000000000000).toFixed(2)}T`;
+      } else {
+          return `${point.t} ${point.val?.toFixed(2)}`;
+      }
+  }, [hoveredIdx, chartMode, indexChartData, todayOnlyIndexData, turnoverChartData]);
+
+  const baseHoverContent = [formattedProfit, formattedRate, summaryProfitCaused != null ? `${summaryProfitCaused >= 0 ? '+' : ''}${summaryProfitCaused.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '', summaryOperationEffect != null ? `${summaryOperationEffect >= 0 ? '+' : ''}${summaryOperationEffect.toFixed(2)}%` : '', formattedIndex, marketTurnover].filter(Boolean).join(' ');
+
+  const finalFooterContent = hoveredIdx !== null && hoverPointValue 
+      ? `${baseHoverContent} | ${hoverPointValue}` 
+      : baseHoverContent;
+
+  const handleMouseMoveChart = useCallback((e: any) => {
+      if (e && e.activeTooltipIndex !== undefined) {
+          setHoveredIdx(e.activeTooltipIndex);
+      }
+  }, []);
+
+  const handleMouseLeaveChart = useCallback(() => {
+      setHoveredIdx(null);
+  }, []);
+
   return (
     <div
       className="fixed inset-0 bg-white dark:bg-gray-900 z-[200] flex flex-col justify-center items-center text-slate-700 dark:text-gray-400 font-sans p-8 select-none"
@@ -157,8 +180,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       onDoubleClick={onRefresh}
       onClick={() => setChartMode(p => (p + 1) % 3)}
       onMouseEnter={handleMouseEnter}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
+      onMouseMove={handleMouseMoveMain}
+      onMouseLeave={handleMouseLeaveMain}
     >
         <div className="w-full max-w-3xl text-left">
             <div className="flex items-end gap-3 w-full">
@@ -167,25 +190,25 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                     <div className="flex-1 h-full relative">
                         <ResponsiveContainer width="100%" height="100%">
                             {chartMode === 0 ? (
-                                <LineChart data={indexChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                <LineChart data={indexChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }} onMouseMove={handleMouseMoveChart} onMouseLeave={handleMouseLeaveChart}>
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    <Tooltip content={<CustomValueTooltip />} cursor={{ stroke: 'rgba(0,0,0,0.1)', strokeWidth: 1 }} />
+                                    <Tooltip content={<></>} cursor={{ stroke: 'rgba(0,0,0,0.15)', strokeWidth: 1 }} />
                                     {dayIndices.map(idx => <ReferenceLine key={idx} x={idx} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />)}
                                     {lineColors.map((color, i) => <Line key={i} type="monotone" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
                             ) : chartMode === 1 ? (
-                                <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }} onMouseMove={handleMouseMoveChart} onMouseLeave={handleMouseLeaveChart}>
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    <Tooltip content={<CustomValueTooltip />} cursor={{ stroke: 'rgba(0,0,0,0.1)', strokeWidth: 1 }} />
+                                    <Tooltip content={<></>} cursor={{ stroke: 'rgba(0,0,0,0.15)', strokeWidth: 1 }} />
                                     <Line type="monotone" dataKey="v0" stroke="#000000" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : (
-                                <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }} onMouseMove={handleMouseMoveChart} onMouseLeave={handleMouseLeaveChart}>
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    <Tooltip content={<CustomValueTooltip />} cursor={{ stroke: 'rgba(0,0,0,0.1)', strokeWidth: 1 }} />
+                                    <Tooltip content={<></>} cursor={{ stroke: 'rgba(0,0,0,0.15)', strokeWidth: 1 }} />
                                     {lineColors.map((color, i) => <Line key={i} type="monotone" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
                             )}
@@ -206,7 +229,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                 <li>检查网线、调制解调器和路由器</li>
                 <li>重新连接到 Wi-Fi 网络</li>
             </ul>
-            <p className="text-base text-slate-500 dark:text-gray-500 min-h-[1.5em]">{isHovering ? <span>{hoverContent}</span> : '-'}</p>
+            <p className="text-base text-slate-500 dark:text-gray-500 min-h-[1.5em] font-mono">{isHovering ? <span>{finalFooterContent}</span> : '-'}</p>
             <p className="text-base text-slate-500 dark:text-gray-500">ERR_INTERNET_DISCONNECTED</p>
             <div className="text-lg mt-20">未连接到互联网 {lastRefreshTime}</div>
         </div>
