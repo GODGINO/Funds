@@ -31,7 +31,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
     todayTurnoverPoints = []
 }) => {
   const [isHovering, setIsHovering] = useState(false);
-  const [showTurnoverChart, setShowTurnoverChart] = useState(false);
+  // chartMode: 0 = 今日+历史上证指数, 1 = 今日上证指数(分时), 2 = 今日+历史成交额
+  const [chartMode, setChartMode] = useState(0);
   const idleTimerRef = useRef<number | null>(null);
 
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -106,8 +107,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
     marketTurnover,
   ].filter(Boolean).join(' ');
 
-  const { turnoverChartData, indexChartData, dayIndices, distributionDots } = useMemo(() => {
-      if (!isHovering) return { turnoverChartData: [], indexChartData: [], dayIndices: [], distributionDots: [] };
+  const { turnoverChartData, indexChartData, todayOnlyIndexData, dayIndices, distributionDots } = useMemo(() => {
+      if (!isHovering) return { turnoverChartData: [], indexChartData: [], todayOnlyIndexData: [], dayIndices: [], distributionDots: [] };
       
       const history = getLocalMarketHistory();
       const todayDate = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[0].t.split(' ')[0] : '';
@@ -139,17 +140,25 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           });
       });
 
-      // --- 2. Turnover Chart Data (Overlapping Time Axis) ---
-      const timeSlots: string[] = [];
+      // --- 2. Full Day Time Slots for Time-Aligned Charts ---
+      const fullDaySlots: string[] = [];
       let hour = 9, min = 15;
       while (hour < 15 || (hour === 15 && min === 0)) {
           if (hour === 11 && min > 30) { hour = 13; min = 1; continue; }
           if (hour === 13 && min === 0) { min = 1; continue; }
-          timeSlots.push(`${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
+          fullDaySlots.push(`${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
           min++;
           if (min === 60) { hour++; min = 0; }
       }
 
+      // --- 3. Today Only Index Data (Fixed Time Axis to avoid stretching) ---
+      const todayIndexMap = new Map(todayTurnoverPoints.map(p => [p.t, p.ind]));
+      const tOnlyData = fullDaySlots.map(t => ({
+          t,
+          v0: todayIndexMap.get(t) || null
+      }));
+
+      // --- 4. Turnover Chart Data (Overlapping Time Axis) ---
       const dayTurnoverMaps = allDates.map(date => {
           const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
           const map = new Map<string, number>();
@@ -161,7 +170,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           return map;
       });
 
-      const tData = timeSlots.map(t => {
+      const tData = fullDaySlots.map(t => {
           const obj: any = { t };
           dayTurnoverMaps.forEach((map, i) => {
               const val = map.get(t);
@@ -171,7 +180,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           return obj;
       });
 
-      // --- 3. Vertical Distribution Dots ---
+      // --- 5. Vertical Distribution Dots ---
       let dots: number[] = [];
       if (todayTurnoverPoints.length > 0) {
           const lastPoint = todayTurnoverPoints[todayTurnoverPoints.length - 1];
@@ -184,7 +193,13 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           }
       }
 
-      return { turnoverChartData: tData, indexChartData: iData, dayIndices, distributionDots: dots };
+      return { 
+          turnoverChartData: tData, 
+          indexChartData: iData, 
+          todayOnlyIndexData: tOnlyData,
+          dayIndices, 
+          distributionDots: dots 
+      };
   }, [isHovering, todayTurnoverPoints]);
 
   const lineColors = [
@@ -196,8 +211,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       'rgba(0, 0, 0, 0.15)',   // Y-5 (v5)
   ];
 
-  const toggleChart = (e: React.MouseEvent) => {
-      setShowTurnoverChart(prev => !prev);
+  const cycleChart = () => {
+      setChartMode(prev => (prev + 1) % 3);
   };
 
   return (
@@ -205,7 +220,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       className="fixed inset-0 bg-white dark:bg-gray-900 z-[200] flex flex-col justify-center items-center text-slate-700 dark:text-gray-400 font-sans p-8 select-none"
       onContextMenu={(e) => e.preventDefault()}
       onDoubleClick={onRefresh}
-      onClick={toggleChart}
+      onClick={cycleChart}
       onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -223,13 +238,17 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                 >
                     <div className="flex-1 h-full relative">
                         <ResponsiveContainer width="100%" height="100%">
-                            {showTurnoverChart ? (
-                                <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                    <XAxis dataKey="t" hide padding={{ left: 0, right: 0 }} />
+                            {chartMode === 0 ? (
+                                /* Mode 0: 今日+历史上证指数 (连续) */
+                                <LineChart data={indexChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                    <XAxis dataKey="id" hide padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} padding={{ top: 0, bottom: 0 }} />
+                                    {dayIndices.map(idx => (
+                                        <ReferenceLine key={idx} x={idx} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
+                                    ))}
                                     {lineColors.map((color, i) => (
                                         <Line 
-                                            key={`turnover-${i}`} 
+                                            key={`idx-cont-${i}`} 
                                             type="monotone" 
                                             dataKey={`v${i}`} 
                                             stroke={color} 
@@ -240,16 +259,29 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                         />
                                     ))}
                                 </LineChart>
-                            ) : (
-                                <LineChart data={indexChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                    <XAxis dataKey="id" hide padding={{ left: 0, right: 0 }} />
+                            ) : chartMode === 1 ? (
+                                /* Mode 1: 今日上证指数 (分时, 不拉伸, 两侧留白) */
+                                <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 20, left: 20, bottom: 0 }}>
+                                    <XAxis dataKey="t" hide padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} padding={{ top: 0, bottom: 0 }} />
-                                    {dayIndices.map(idx => (
-                                        <ReferenceLine key={idx} x={idx} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
-                                    ))}
+                                    <Line 
+                                        type="monotone" 
+                                        dataKey="v0" 
+                                        stroke="#000000" 
+                                        strokeWidth={2} 
+                                        dot={false} 
+                                        isAnimationActive={false} 
+                                        connectNulls={false} 
+                                    />
+                                </LineChart>
+                            ) : (
+                                /* Mode 2: 今日+历史成交额 (重叠) */
+                                <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                    <XAxis dataKey="t" hide padding={{ left: 0, right: 0 }} />
+                                    <YAxis hide domain={['dataMin', 'dataMax']} padding={{ top: 0, bottom: 0 }} />
                                     {lineColors.map((color, i) => (
                                         <Line 
-                                            key={`index-${i}`} 
+                                            key={`to-ov-${i}`} 
                                             type="monotone" 
                                             dataKey={`v${i}`} 
                                             stroke={color} 
@@ -272,8 +304,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     key={i}
                                     className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[6px] rounded-full"
                                     style={{ 
-                                        // Adjust positioning to ensure dots at 0 and 1 are exactly at the edges
-                                        // The 6px offset accounts for the height of the dot itself.
                                         bottom: `calc(${pos * 100}% - ${pos * 6}px)`,
                                         backgroundColor: lineColors[i],
                                         zIndex: lineColors.length - i
