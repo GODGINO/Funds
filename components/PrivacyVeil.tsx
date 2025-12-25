@@ -39,8 +39,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
     if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current);
     }
-    // Set an 8-second timer. If no activity occurs within this window while inside the veil,
-    // hide the data and trigger the boss key redirect.
     idleTimerRef.current = window.setTimeout(() => {
         setIsHovering(false);
         if (!isMobile) {
@@ -55,7 +53,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
   };
 
   const handleMouseMove = () => {
-      // Ensure data is shown if it was hidden by timeout but user starts moving again
       if (!isHovering) setIsHovering(true);
       resetIdleTimer();
   };
@@ -65,13 +62,11 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       if (idleTimerRef.current) {
           clearTimeout(idleTimerRef.current);
       }
-      // Redirect to Boss Key app when leaving the veil/window (on PC)
       if (!isMobile) {
           window.location.href = 'feishu://';
       }
   };
 
-  // Cleanup timer on unmount
   useEffect(() => {
       return () => {
           if (idleTimerRef.current) {
@@ -110,18 +105,14 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
     marketTurnover,
   ].filter(Boolean).join(' ');
 
-  // --- Mini Chart Logic ---
   const chartData = useMemo(() => {
       if (!isHovering) return [];
       
       const history = getLocalMarketHistory();
       const todayDate = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[0].t.split(' ')[0] : '';
       const historicalDates = Object.keys(history).filter(d => d !== todayDate).sort();
-      const recentDates = historicalDates.slice(-5); // Get last 5 days
+      const recentDates = historicalDates.slice(-5);
       
-      // We'll create 6 lines: today, day-1, day-2, ..., day-5
-      // All normalized by minute index or time string.
-      // SH trends2 starts at 09:15 and ends at 15:00.
       const timeSlots: string[] = [];
       let hour = 9, min = 15;
       while (hour < 15 || (hour === 15 && min === 0)) {
@@ -135,7 +126,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       const calculateCumulative = (points: MarketDataPoint[]) => {
           const map = new Map<string, number>();
           let sum = 0;
-          // Sort points just in case
           const sorted = [...points].sort((a, b) => a.t.localeCompare(b.t));
           sorted.forEach(p => {
               sum += p.val;
@@ -160,12 +150,12 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
   }, [isHovering, todayTurnoverPoints]);
 
   const lineColors = [
-      'rgba(51, 65, 85, 0.9)', // Today (Darkest, Slate-700-ish)
-      'rgba(51, 65, 85, 0.7)',
-      'rgba(51, 65, 85, 0.5)',
-      'rgba(51, 65, 85, 0.3)',
-      'rgba(51, 65, 85, 0.2)',
-      'rgba(51, 65, 85, 0.1)', // Oldest (Faded)
+      'rgba(15, 23, 42, 1)',   // Today (Slate-900, Bold)
+      'rgba(15, 23, 42, 0.8)', // Y-1
+      'rgba(15, 23, 42, 0.6)', // Y-2
+      'rgba(15, 23, 42, 0.4)', // Y-3
+      'rgba(15, 23, 42, 0.25)',// Y-4
+      'rgba(15, 23, 42, 0.15)',// Y-5 (Oldest)
   ];
 
   return (
@@ -178,29 +168,33 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       onMouseLeave={handleMouseLeave}
     >
         <div className="w-full max-w-2xl text-left">
-            <div className="flex items-center gap-4">
-                <DinoIcon />
-                {isHovering && chartData.length > 0 && (
-                    <div className="h-[44px] w-48 opacity-40 transition-opacity duration-500">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartData}>
-                                <YAxis hide domain={['auto', 'auto']} />
-                                {lineColors.map((color, i) => (
-                                    <Line 
-                                        key={i} 
-                                        type="monotone" 
-                                        dataKey={`v${i}`} 
-                                        stroke={color} 
-                                        strokeWidth={i === 0 ? 1.5 : 1} 
-                                        dot={false} 
-                                        isAnimationActive={false} 
-                                        connectNulls 
-                                    />
-                                ))}
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                )}
+            <div className="flex items-end gap-1 h-[88px]">
+                <div className="flex-shrink-0">
+                    <DinoIcon />
+                </div>
+                <div className="flex-grow max-w-xs h-full overflow-hidden">
+                    {isHovering && chartData.length > 0 && (
+                        <div className="w-full h-full opacity-40 transition-opacity duration-300">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                    <YAxis hide domain={['auto', 'auto']} padding={{ top: 0, bottom: 0 }} />
+                                    {lineColors.map((color, i) => (
+                                        <Line 
+                                            key={i} 
+                                            type="monotone" 
+                                            dataKey={`v${i}`} 
+                                            stroke={color} 
+                                            strokeWidth={i === 0 ? 2 : 1} 
+                                            dot={false} 
+                                            isAnimationActive={false} 
+                                            connectNulls 
+                                        />
+                                    ))}
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
+                </div>
             </div>
             <h1 className="text-3xl font-semibold mt-4 mb-2 text-slate-700 dark:text-gray-400">未连接到互联网</h1>
             <p className="text-lg mb-2 text-slate-700 dark:text-gray-400">请试试以下办法：</p>
