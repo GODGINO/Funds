@@ -71,7 +71,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       const isMarketClosed = now.getHours() >= 15;
       const allDates = (isMarketClosed || historicalDates.includes(todayDate)) ? historicalDates.slice(-5) : [...historicalDates.filter(d => d !== todayDate).slice(-4), todayDate].filter(Boolean);
 
-      // --- Mode 0 & 1: 指数数据（从 09:15 开始） ---
+      // --- Mode 0: 连续历史指数 ---
       const iData: any[] = [];
       const dayIdxArr: number[] = [];
       allDates.forEach((date, dIdx) => {
@@ -83,7 +83,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
               const obj: any = { idx: currentIdx };
               const key = `v${allDates.length - 1 - dIdx}`;
               if (p.ind > 0) obj[key] = p.ind;
-              // 桥接
               if (pIdx === arr.length - 1 && dIdx < allDates.length - 1) {
                   obj[`v${allDates.length - 1 - (dIdx + 1)}`] = p.ind;
               }
@@ -91,13 +90,13 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           });
       });
 
-      // 今日实时指数（重设索引以顶格）
+      // --- Mode 1: 今日实时指数（确保从 09:15 顶格） ---
       const tOnlyData = todayTurnoverPoints.map((p, i) => ({
           idx: i,
-          v0: p.ind || null
+          v0: p.ind > 0 ? p.ind : null
       }));
 
-      // --- Mode 2: 成交额数据（从 09:30 开始） ---
+      // --- Mode 2: 两市成交额（确保从 09:30 顶格） ---
       const turnoverMaps = allDates.map(date => {
           const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
           const map = new Map<string, number>();
@@ -106,7 +105,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           return map;
       });
 
-      // 找出两市开始交易的所有时间点（>= 09:30）
       const validTimes = Array.from(new Set(allDates.flatMap(d => {
           const points = d === todayDate ? todayTurnoverPoints : (history[d] || []);
           return points.filter(p => p.t >= "09:30").map(p => p.t);
@@ -121,7 +119,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           return obj;
       });
 
-      // 分布点
+      // 垂直分布点
       let dots: number[] = [];
       if (todayTurnoverPoints.length > 0) {
           const curT = todayTurnoverPoints[todayTurnoverPoints.length - 1].t;

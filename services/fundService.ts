@@ -230,7 +230,7 @@ export async function fetchIndexData(): Promise<IndexData | null> {
             return { value: latest, change: latest - first, changePercent: first > 0 ? ((latest - first) / first) * 100 : 0 };
         }
         const ts = Date.now();
-        const url = `https://push2delay.eastmoney.com/api/qt/stock/trends2/get?secid=1.000001&fields1=f1,f2,f3&fields2=f51,f52&ndays=1&_=${ts}`;
+        const url = `https://push2delay.eastmoney.com/api/qt/stock/trends2/get?secid=1.000001&fields1=f1,f2,f3&fields2=f51,f52&ndays=1&iscr=1&_=${ts}`;
         const resp = await fetch(url, { cache: 'no-store' });
         if (!resp.ok) throw new Error('SSE index fetch failed');
         const json = await resp.json();
@@ -279,14 +279,15 @@ export async function fetchTotalTurnover(): Promise<TurnoverResult | null> {
         if (cache && (now - cache.timestamp) < 60000) return cache.data;
 
         const fetchTrends = async (secid: string, fields: string) => {
-            const url = `https://push2delay.eastmoney.com/api/qt/stock/trends2/get?secid=${secid}&fields1=f1&fields2=${fields}&ndays=1&iscr=0&_=${now}`;
+            // iscr=1 关键：确保包含 09:15 竞价数据
+            const url = `https://push2delay.eastmoney.com/api/qt/stock/trends2/get?secid=${secid}&fields1=f1&fields2=${fields}&ndays=1&iscr=1&_=${now}`;
             const res = await fetch(url, { cache: 'no-store' });
             return res.json();
         };
 
         const [shData, szData] = await Promise.all([
-            fetchTrends('1.000001', 'f51,f52,f57'), // SH (Price starts 09:15, Vol starts 09:30)
-            fetchTrends('0.399001', 'f51,f52,f57')  // SZ (Starts 09:30)
+            fetchTrends('1.000001', 'f51,f52,f57'), 
+            fetchTrends('0.399001', 'f51,f52,f57')
         ]);
 
         const parseTrends = (data: any, isSH: boolean) => {
@@ -315,7 +316,7 @@ export async function fetchTotalTurnover(): Promise<TurnoverResult | null> {
 
         for (const shP of shPoints) {
             const szVal = szMap.get(shP.t) || 0;
-            // 9:15 - 9:30: Merged Turnover is 0 (SZ is missing, SH is 0 during auction)
+            // 9:15 - 9:30: 强制成交额补 0，即便 API 可能返回了少量竞价额
             const totalTurnover = shP.t < "09:30" ? 0 : (shP.val + szVal);
             combinedPoints.push({ t: shP.t, val: totalTurnover, ind: shP.ind });
         }
@@ -323,7 +324,7 @@ export async function fetchTotalTurnover(): Promise<TurnoverResult | null> {
         const totalToday = combinedPoints.reduce((acc, p) => acc + p.val, 0);
         const latestTime = combinedPoints[combinedPoints.length - 1].t;
         
-        // Save to local at 15:00
+        // 保存历史记录：只要是 15:00 之后的数据，或者是收盘后的最终数据
         if (latestTime >= "15:00") saveLocalMarketHistory(todayDate, combinedPoints);
 
         const history = getLocalMarketHistory();
