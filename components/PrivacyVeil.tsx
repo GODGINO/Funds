@@ -204,11 +204,11 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
 
   const lineColors = [
       '#000000',               // Today (v0): Pure Black
-      'rgba(0, 0, 0, 0.75)',   // Y-1 (v1)
-      'rgba(0, 0, 0, 0.55)',   // Y-2 (v2)
-      'rgba(0, 0, 0, 0.4)',    // Y-3 (v3)
-      'rgba(0, 0, 0, 0.25)',   // Y-4 (v4)
-      'rgba(0, 0, 0, 0.15)',   // Y-5 (v5)
+      'rgba(0, 0, 0, 0.5)',    // Y-1 (v1): Significant drop to 0.5 (Exponential decay)
+      'rgba(0, 0, 0, 0.3)',    // Y-2 (v2): 0.3
+      'rgba(0, 0, 0, 0.18)',   // Y-3 (v3): 0.18
+      'rgba(0, 0, 0, 0.11)',   // Y-4 (v4): 0.11
+      'rgba(0, 0, 0, 0.07)',   // Y-5 (v5): 0.07
   ];
 
   const cycleChart = () => {
