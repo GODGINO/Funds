@@ -229,7 +229,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                 <li>检查网线、调制解调器和路由器</li>
                 <li>重新连接到 Wi-Fi 网络</li>
             </ul>
-            <p className="text-base text-slate-500 dark:text-gray-500 min-h-[1.5em] font-mono">{isHovering ? <span>{finalFooterContent}</span> : '-'}</p>
+            <p className="text-base text-slate-500 dark:text-gray-500 min-h-[1.5em]">{isHovering ? <span>{finalFooterContent}</span> : '-'}</p>
             <p className="text-base text-slate-500 dark:text-gray-500">ERR_INTERNET_DISCONNECTED</p>
             <div className="text-lg mt-20">未连接到互联网 {lastRefreshTime}</div>
         </div>
