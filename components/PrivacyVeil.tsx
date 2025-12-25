@@ -180,6 +180,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           if (valsAtCurrent.length > 0) {
               const minV = Math.min(...valsAtCurrent);
               const maxV = Math.max(...valsAtCurrent);
+              // Normalize v to [0, 1] range based on current set of day values
               dots = valsAtCurrent.map(v => maxV > minV ? (v - minV) / (maxV - minV) : 0.5).reverse();
           }
       }
@@ -259,13 +260,15 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                             </div>
                             {/* Vertical Distribution Indicator */}
                             {distributionDots.length > 0 && (
-                                <div className="w-[2px] h-full relative ml-0.5 bg-gray-50 dark:bg-gray-800/20">
+                                <div className="w-[2px] h-full relative ml-[2px] bg-gray-50 dark:bg-gray-800/20 overflow-hidden">
                                     {distributionDots.map((pos, i) => (
                                         <div 
                                             key={i}
                                             className="absolute left-1/2 -translate-x-1/2 w-[3px] h-[3px] rounded-full"
                                             style={{ 
-                                                bottom: `${pos * 100}%`,
+                                                // Adjust positioning to ensure dots at 0 and 1 are exactly at the edges
+                                                // The 3px offset accounts for the height of the dot itself.
+                                                bottom: `calc(${pos * 100}% - ${pos * 3}px)`,
                                                 backgroundColor: lineColors[i],
                                                 zIndex: lineColors.length - i
                                             }}
