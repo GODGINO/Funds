@@ -197,7 +197,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
   ];
 
   const toggleChart = (e: React.MouseEvent) => {
-      e.stopPropagation();
       setShowTurnoverChart(prev => !prev);
   };
 
@@ -206,6 +205,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       className="fixed inset-0 bg-white dark:bg-gray-900 z-[200] flex flex-col justify-center items-center text-slate-700 dark:text-gray-400 font-sans p-8 select-none"
       onContextMenu={(e) => e.preventDefault()}
       onDoubleClick={onRefresh}
+      onClick={toggleChart}
       onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -218,9 +218,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                 </div>
                 
                 <div 
-                    className="h-[88px] flex-1 flex items-end overflow-hidden transition-opacity duration-300 cursor-pointer relative" 
+                    className="h-[88px] flex-1 flex items-end overflow-hidden transition-opacity duration-300 relative" 
                     style={{ opacity: isHovering ? 1 : 0 }}
-                    onClick={toggleChart}
                 >
                     <div className="flex-1 h-full relative">
                         <ResponsiveContainer width="100%" height="100%">
@@ -267,13 +266,15 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
 
                     {/* Vertical Distribution Indicator - Always visible */}
                     {distributionDots.length > 0 && (
-                        <div className="w-1 h-full relative ml-[2px] bg-gray-50 dark:bg-gray-800/20 overflow-hidden shrink-0">
+                        <div className="w-[6px] h-full relative ml-[2px] bg-gray-50 dark:bg-gray-800/20 overflow-hidden shrink-0">
                             {distributionDots.map((pos, i) => (
                                 <div 
                                     key={i}
-                                    className="absolute left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
+                                    className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[6px] rounded-full"
                                     style={{ 
-                                        bottom: `calc(${pos * 100}% - ${pos * 4}px)`,
+                                        // Adjust positioning to ensure dots at 0 and 1 are exactly at the edges
+                                        // The 6px offset accounts for the height of the dot itself.
+                                        bottom: `calc(${pos * 100}% - ${pos * 6}px)`,
                                         backgroundColor: lineColors[i],
                                         zIndex: lineColors.length - i
                                     }}
