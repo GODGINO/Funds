@@ -32,81 +32,34 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
     todayTurnoverPoints = []
 }) => {
   const [isHovering, setIsHovering] = useState(false);
-  // chartMode: 0 = 今日+历史上证指数, 1 = 今日上证指数(分时), 2 = 今日+历史成交额
   const [chartMode, setChartMode] = useState(0);
   const idleTimerRef = useRef<number | null>(null);
 
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
   const resetIdleTimer = () => {
-    if (idleTimerRef.current) {
-        clearTimeout(idleTimerRef.current);
-    }
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     idleTimerRef.current = window.setTimeout(() => {
         setIsHovering(false);
-        if (!isMobile) {
-            window.location.href = 'feishu://';
-        }
+        if (!isMobile) window.location.href = 'feishu://';
     }, 8000);
   };
 
-  const handleMouseEnter = () => {
-      setIsHovering(true);
-      resetIdleTimer();
-  };
-
-  const handleMouseMove = () => {
-      if (!isHovering) setIsHovering(true);
-      resetIdleTimer();
-  };
-
+  const handleMouseEnter = () => { setIsHovering(true); resetIdleTimer(); };
+  const handleMouseMove = () => { if (!isHovering) setIsHovering(true); resetIdleTimer(); };
   const handleMouseLeave = () => {
       setIsHovering(false);
-      if (idleTimerRef.current) {
-          clearTimeout(idleTimerRef.current);
-      }
-      if (!isMobile) {
-          window.location.href = 'feishu://';
-      }
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      if (!isMobile) window.location.href = 'feishu://';
   };
 
-  useEffect(() => {
-      return () => {
-          if (idleTimerRef.current) {
-              clearTimeout(idleTimerRef.current);
-          }
-      };
-  }, []);
+  useEffect(() => () => { if (idleTimerRef.current) clearTimeout(idleTimerRef.current); }, []);
 
   const formattedProfit = `${totalDailyProfit >= 0 ? '+' : ''}${totalDailyProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formattedRate = `${totalDailyProfitRate >= 0 ? '+' : ''}${totalDailyProfitRate.toFixed(2)}%`;
-  
-  let formattedProfitCaused = '';
-  if (summaryProfitCaused !== undefined) {
-    formattedProfitCaused = `${summaryProfitCaused >= 0 ? '+' : ''}${summaryProfitCaused.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
-  
-  let formattedOperationEffect = '';
-  if (summaryOperationEffect !== undefined) {
-    formattedOperationEffect = `${summaryOperationEffect >= 0 ? '+' : ''}${summaryOperationEffect.toFixed(2)}%`;
-  }
+  const formattedIndex = indexData ? `${indexData.value.toFixed(2)} ${indexData.change >= 0 ? '+' : ''}${indexData.change.toFixed(2)} ${indexData.changePercent >= 0 ? '+' : ''}${indexData.changePercent.toFixed(2)}%` : '';
 
-  let formattedIndex = '';
-  if (indexData) {
-      const value = indexData.value.toFixed(2);
-      const change = `${indexData.change >= 0 ? '+' : ''}${indexData.change.toFixed(2)}`;
-      const changePercent = `${indexData.changePercent >= 0 ? '+' : ''}${indexData.changePercent.toFixed(2)}%`;
-      formattedIndex = `${value} ${change} ${changePercent}`;
-  }
-
-  const hoverContent = [
-    formattedProfit,
-    formattedRate,
-    formattedProfitCaused,
-    formattedOperationEffect,
-    formattedIndex,
-    marketTurnover,
-  ].filter(Boolean).join(' ');
+  const hoverContent = [formattedProfit, formattedRate, summaryProfitCaused != null ? `${summaryProfitCaused >= 0 ? '+' : ''}${summaryProfitCaused.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '', summaryOperationEffect != null ? `${summaryOperationEffect >= 0 ? '+' : ''}${summaryOperationEffect.toFixed(2)}%` : '', formattedIndex, marketTurnover].filter(Boolean).join(' ');
 
   const { turnoverChartData, indexChartData, todayOnlyIndexData, dayIndices, distributionDots } = useMemo(() => {
       if (!isHovering) return { turnoverChartData: [], indexChartData: [], todayOnlyIndexData: [], dayIndices: [], distributionDots: [] };
@@ -114,235 +67,136 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       const history = getLocalMarketHistory();
       const todayDate = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[0].t.split(' ')[0] : '';
       const historicalDates = Object.keys(history).sort();
-      
       const now = new Date();
       const isMarketClosed = now.getHours() >= 15;
-      const isTodayInHistory = historicalDates.includes(todayDate);
+      const allDates = (isMarketClosed || historicalDates.includes(todayDate)) ? historicalDates.slice(-5) : [...historicalDates.filter(d => d !== todayDate).slice(-4), todayDate].filter(Boolean);
 
-      // --- 关键逻辑: 保证总共展示 5 条线 ---
-      let allDates: string[];
-      if (isMarketClosed || isTodayInHistory) {
-          // 下午 3 点后或数据已在历史记录中：直接取历史最后 5 天
-          allDates = historicalDates.slice(-5);
-      } else {
-          // 下午 3 点前：取历史最后 4 天 + 今日实时数据
-          const prevDates = historicalDates.filter(d => d !== todayDate).slice(-4);
-          allDates = [...prevDates, todayDate].filter(Boolean);
+      // 1. 生成完整全天时间槽 (用于指数/对齐)
+      const slots15: string[] = [];
+      let h = 9, m = 15;
+      while (h < 15 || (h === 15 && m === 0)) {
+          if (h === 11 && m > 30) { h = 13; m = 1; continue; }
+          if (h === 13 && m === 0) { m = 1; continue; }
+          slots15.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+          m++; if (m === 60) { h++; m = 0; }
       }
 
-      // --- 1. Index Chart Data (Continuous Time Axis) ---
+      // 2. 生成成交额时间槽 (09:30 开始，用于顶格)
+      const slots30 = slots15.filter(t => t >= "09:30");
+
+      // 指数数据 (09:15 开始)
       const iData: any[] = [];
-      const dayIndices: number[] = [];
-      
-      allDates.forEach((date, dateIdx) => {
+      const dayIdxArr: number[] = [];
+      allDates.forEach((date, dIdx) => {
           const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
           if (points.length === 0) return;
-
-          if (iData.length > 0) dayIndices.push(iData.length);
-          const sorted = [...points].sort((a, b) => a.t.localeCompare(b.t));
-          
-          sorted.forEach((p, pIdx) => {
-              const globalIdx = iData.length;
-              const obj: any = { id: globalIdx };
-              // 使用 v0-v4 代表从近到远的线
-              const key = `v${allDates.length - 1 - dateIdx}`; 
+          if (iData.length > 0) dayIdxArr.push(iData.length);
+          [...points].sort((a,b) => a.t.localeCompare(b.t)).forEach((p, pIdx, arr) => {
+              const obj: any = { id: iData.length };
+              const key = `v${allDates.length - 1 - dIdx}`;
               if (p.ind > 0) obj[key] = p.ind;
-              
-              if (pIdx === sorted.length - 1 && dateIdx < allDates.length - 1) {
-                  const nextKey = `v${allDates.length - 1 - (dateIdx + 1)}`;
+              if (pIdx === arr.length - 1 && dIdx < allDates.length - 1) {
+                  const nextKey = `v${allDates.length - 1 - (dIdx + 1)}`;
                   obj[nextKey] = p.ind;
               }
               iData.push(obj);
           });
       });
 
-      // --- 2. Full Day Time Slots for Time-Aligned Charts ---
-      const fullDaySlots: string[] = [];
-      let hour = 9, min = 15;
-      while (hour < 15 || (hour === 15 && min === 0)) {
-          if (hour === 11 && min > 30) { hour = 13; min = 1; continue; }
-          if (hour === 13 && min === 0) { min = 1; continue; }
-          fullDaySlots.push(`${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
-          min++;
-          if (min === 60) { hour++; min = 0; }
-      }
-
-      // --- 3. Today Only Index Data (Fixed Time Axis to avoid stretching) ---
+      // 今日实时指数 (09:15 开始)
       const todayIndexMap = new Map(todayTurnoverPoints.map(p => [p.t, p.ind]));
-      const tOnlyData = fullDaySlots.map(t => ({
-          t,
-          v0: todayIndexMap.get(t) || null
-      }));
+      const tOnlyData = slots15.map(t => ({ t, v0: todayIndexMap.get(t) || null }));
 
-      // --- 4. Turnover Chart Data (Overlapping Time Axis) ---
+      // 成交额数据 (09:30 开始顶格)
       const dayTurnoverMaps = allDates.map(date => {
           const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
           const map = new Map<string, number>();
           let sum = 0;
-          [...points].sort((a,b) => a.t.localeCompare(b.t)).forEach(p => {
-              sum += p.val;
-              map.set(p.t, sum);
-          });
+          [...points].sort((a,b) => a.t.localeCompare(b.t)).forEach(p => { sum += p.val; map.set(p.t, sum); });
           return map;
       });
 
-      const tData = fullDaySlots.map(t => {
+      const tData = slots30.map(t => {
           const obj: any = { t };
           dayTurnoverMaps.forEach((map, i) => {
               const val = map.get(t);
-              const key = `v${allDates.length - 1 - i}`; 
-              if (val !== undefined) obj[key] = val;
+              if (val !== undefined) obj[`v${allDates.length - 1 - i}`] = val;
           });
           return obj;
       });
 
-      // --- 5. Vertical Distribution Dots ---
+      // 分布点
       let dots: number[] = [];
       if (todayTurnoverPoints.length > 0) {
-          const lastPoint = todayTurnoverPoints[todayTurnoverPoints.length - 1];
-          const currentTime = lastPoint.t;
-          const valsAtCurrent = dayTurnoverMaps.map(map => map.get(currentTime) || 0).filter(v => v > 0);
-          if (valsAtCurrent.length > 0) {
-              const minV = Math.min(...valsAtCurrent);
-              const maxV = Math.max(...valsAtCurrent);
-              dots = valsAtCurrent.map(v => maxV > minV ? (v - minV) / (maxV - minV) : 0.5).reverse();
+          const curT = todayTurnoverPoints[todayTurnoverPoints.length - 1].t;
+          const vals = dayTurnoverMaps.map(m => m.get(curT) || 0).filter(v => v > 0);
+          if (vals.length) {
+              const minV = Math.min(...vals), maxV = Math.max(...vals);
+              dots = vals.map(v => maxV > minV ? (v - minV) / (maxV - minV) : 0.5).reverse();
           }
       }
 
-      return { 
-          turnoverChartData: tData, 
-          indexChartData: iData, 
-          todayOnlyIndexData: tOnlyData,
-          dayIndices, 
-          distributionDots: dots 
-      };
+      return { turnoverChartData: tData, indexChartData: iData, todayOnlyIndexData: tOnlyData, dayIndices: dayIdxArr, distributionDots: dots };
   }, [isHovering, todayTurnoverPoints]);
 
-  const lineColors = [
-      '#000000',               // Today (v0): Pure Black
-      'rgba(0, 0, 0, 0.5)',    // Y-1 (v1)
-      'rgba(0, 0, 0, 0.3)',    // Y-2 (v2)
-      'rgba(0, 0, 0, 0.18)',   // Y-3 (v3)
-      'rgba(0, 0, 0, 0.11)',   // Y-4 (v4)
-  ];
-
-  const cycleChart = () => {
-      setChartMode(prev => (prev + 1) % 3);
-  };
+  const lineColors = ['#000000', 'rgba(0, 0, 0, 0.5)', 'rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.18)', 'rgba(0, 0, 0, 0.11)'];
 
   return (
     <div
       className="fixed inset-0 bg-white dark:bg-gray-900 z-[200] flex flex-col justify-center items-center text-slate-700 dark:text-gray-400 font-sans p-8 select-none"
       onContextMenu={(e) => e.preventDefault()}
       onDoubleClick={onRefresh}
-      onClick={cycleChart}
+      onClick={() => setChartMode(p => (p + 1) % 3)}
       onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
         <div className="w-full max-w-3xl text-left">
-            {/* Horizontal Layout: Dino on left, Chart on right */}
             <div className="flex items-end gap-3 w-full">
-                <div className="flex-shrink-0 mb-1">
-                    <DinoIcon />
-                </div>
-                
-                <div 
-                    className="h-[88px] flex-1 flex items-end overflow-hidden transition-opacity duration-300 relative" 
-                    style={{ opacity: isHovering ? 1 : 0 }}
-                >
+                <div className="flex-shrink-0 mb-1"><DinoIcon /></div>
+                <div className="h-[88px] flex-1 flex items-end overflow-hidden transition-opacity duration-300 relative" style={{ opacity: isHovering ? 1 : 0 }}>
                     <div className="flex-1 h-full relative">
                         <ResponsiveContainer width="100%" height="100%">
                             {chartMode === 0 ? (
-                                /* Mode 0: 今日+历史上证指数 (连续) */
                                 <LineChart data={indexChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="id" hide padding={{ left: 0, right: 0 }} />
-                                    <YAxis hide domain={['dataMin', 'dataMax']} padding={{ top: 0, bottom: 0 }} />
-                                    {dayIndices.map(idx => (
-                                        <ReferenceLine key={idx} x={idx} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
-                                    ))}
-                                    {lineColors.map((color, i) => (
-                                        <Line 
-                                            key={`idx-cont-${i}`} 
-                                            type="monotone" 
-                                            dataKey={`v${i}`} 
-                                            stroke={color} 
-                                            strokeWidth={1} 
-                                            dot={false} 
-                                            isAnimationActive={false} 
-                                            connectNulls 
-                                        />
-                                    ))}
+                                    <YAxis hide domain={['dataMin', 'dataMax']} />
+                                    {dayIndices.map(idx => <ReferenceLine key={idx} x={idx} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />)}
+                                    {lineColors.map((color, i) => <Line key={i} type="monotone" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
                             ) : chartMode === 1 ? (
-                                /* Mode 1: 今日上证指数 (分时, 不拉伸, 两侧留白) */
-                                <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 20, left: 20, bottom: 0 }}>
+                                <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="t" hide padding={{ left: 0, right: 0 }} />
-                                    <YAxis hide domain={['dataMin', 'dataMax']} padding={{ top: 0, bottom: 0 }} />
-                                    <Line 
-                                        type="monotone" 
-                                        dataKey="v0" 
-                                        stroke="#000000" 
-                                        strokeWidth={1} 
-                                        dot={false} 
-                                        isAnimationActive={false} 
-                                        connectNulls={false} 
-                                    />
+                                    <YAxis hide domain={['dataMin', 'dataMax']} />
+                                    <Line type="monotone" dataKey="v0" stroke="#000000" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls={false} />
                                 </LineChart>
                             ) : (
-                                /* Mode 2: 今日+历史成交额 (重叠) */
                                 <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="t" hide padding={{ left: 0, right: 0 }} />
-                                    <YAxis hide domain={['dataMin', 'dataMax']} padding={{ top: 0, bottom: 0 }} />
-                                    {lineColors.map((color, i) => (
-                                        <Line 
-                                            key={`to-ov-${i}`} 
-                                            type="monotone" 
-                                            dataKey={`v${i}`} 
-                                            stroke={color} 
-                                            strokeWidth={1} 
-                                            dot={false} 
-                                            isAnimationActive={false} 
-                                            connectNulls 
-                                        />
-                                    ))}
+                                    <YAxis hide domain={['dataMin', 'dataMax']} />
+                                    {lineColors.map((color, i) => <Line key={i} type="monotone" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
                             )}
                         </ResponsiveContainer>
                     </div>
-
-                    {/* Vertical Distribution Indicator - Always visible */}
                     {distributionDots.length > 0 && (
                         <div className="w-[6px] h-full relative ml-[2px] bg-gray-50 dark:bg-gray-800/20 overflow-hidden shrink-0">
                             {distributionDots.map((pos, i) => (
-                                <div 
-                                    key={i}
-                                    className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[6px] rounded-full"
-                                    style={{ 
-                                        bottom: `calc(${pos * 100}% - ${pos * 6}px)`,
-                                        backgroundColor: lineColors[i] || 'rgba(0,0,0,0.1)',
-                                        zIndex: lineColors.length - i
-                                    }}
-                                />
+                                <div key={i} className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[6px] rounded-full" style={{ bottom: `calc(${pos * 100}% - ${pos * 6}px)`, backgroundColor: lineColors[i] || 'rgba(0,0,0,0.1)', zIndex: lineColors.length - i }} />
                             ))}
                         </div>
                     )}
                 </div>
             </div>
-
-            <h1 className="text-3xl font-semibold mt-4 mb-2 text-slate-700 dark:text-gray-400">未连接到互联网</h1>
-            <p className="text-lg mb-2 text-slate-700 dark:text-gray-400">请试试以下办法：</p>
+            <h1 className="text-3xl font-semibold mt-4 mb-2">未连接到互联网</h1>
+            <p className="text-lg mb-2">请试试以下办法：</p>
             <ul className="list-disc list-inside space-y-1 text-lg text-slate-600 dark:text-gray-400 mb-1">
                 <li>检查网线、调制解调器和路由器</li>
                 <li>重新连接到 Wi-Fi 网络</li>
             </ul>
-            <p className="text-base text-slate-500 dark:text-gray-500 min-h-[1.5em]">
-                {isHovering ? <span>{hoverContent}</span> : '-'}
-            </p>
+            <p className="text-base text-slate-500 dark:text-gray-500 min-h-[1.5em]">{isHovering ? <span>{hoverContent}</span> : '-'}</p>
             <p className="text-base text-slate-500 dark:text-gray-500">ERR_INTERNET_DISCONNECTED</p>
-            <div className="text-lg mt-20 text-slate-700 dark:text-gray-400">
-                未连接到互联网 {lastRefreshTime}
-            </div>
+            <div className="text-lg mt-20">未连接到互联网 {lastRefreshTime}</div>
         </div>
     </div>
   );
