@@ -31,6 +31,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
     todayTurnoverPoints = []
 }) => {
   const [isHovering, setIsHovering] = useState(false);
+  const [showTurnoverChart, setShowTurnoverChart] = useState(false);
   const idleTimerRef = useRef<number | null>(null);
 
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -127,10 +128,9 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           sorted.forEach((p, pIdx) => {
               const globalIdx = iData.length;
               const obj: any = { id: globalIdx };
-              const key = `v${allDates.length - 1 - dateIdx}`; // v0=Today, v1=Y-1...
+              const key = `v${allDates.length - 1 - dateIdx}`; 
               if (p.ind > 0) obj[key] = p.ind;
               
-              // 关键：为了连接首尾，每一天（除了最后一天）的最后一个点，同时也赋给下一天的 key
               if (pIdx === sorted.length - 1 && dateIdx < allDates.length - 1) {
                   const nextKey = `v${allDates.length - 1 - (dateIdx + 1)}`;
                   obj[nextKey] = p.ind;
@@ -196,6 +196,11 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       'rgba(0, 0, 0, 0.15)',   // Y-5 (v5)
   ];
 
+  const toggleChart = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setShowTurnoverChart(prev => !prev);
+  };
+
   return (
     <div
       className="fixed inset-0 bg-white dark:bg-gray-900 z-[200] flex flex-col justify-center items-center text-slate-700 dark:text-gray-400 font-sans p-8 select-none"
@@ -206,12 +211,37 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       onMouseLeave={handleMouseLeave}
     >
         <div className="w-full max-w-3xl text-left">
-            <div className="flex flex-col items-start">
-                <div className="h-[88px] w-full flex items-end gap-1 overflow-hidden transition-opacity duration-300" style={{ opacity: isHovering ? 1 : 0 }}>
-                    {/* Left: Continuous Index Chart */}
-                    {indexChartData.length > 0 && (
-                        <div className="flex-1 h-full">
-                            <ResponsiveContainer width="100%" height="100%">
+            {/* Horizontal Layout: Dino on left, Chart on right */}
+            <div className="flex items-end gap-3 w-full">
+                <div className="flex-shrink-0 mb-1">
+                    <DinoIcon />
+                </div>
+                
+                <div 
+                    className="h-[88px] flex-1 flex items-end overflow-hidden transition-opacity duration-300 cursor-pointer relative" 
+                    style={{ opacity: isHovering ? 1 : 0 }}
+                    onClick={toggleChart}
+                >
+                    <div className="flex-1 h-full relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                            {showTurnoverChart ? (
+                                <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                    <XAxis dataKey="t" hide padding={{ left: 0, right: 0 }} />
+                                    <YAxis hide domain={['dataMin', 'dataMax']} padding={{ top: 0, bottom: 0 }} />
+                                    {lineColors.map((color, i) => (
+                                        <Line 
+                                            key={`turnover-${i}`} 
+                                            type="monotone" 
+                                            dataKey={`v${i}`} 
+                                            stroke={color} 
+                                            strokeWidth={i === 0 ? 2 : 1} 
+                                            dot={false} 
+                                            isAnimationActive={false} 
+                                            connectNulls 
+                                        />
+                                    ))}
+                                </LineChart>
+                            ) : (
                                 <LineChart data={indexChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="id" hide padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} padding={{ top: 0, bottom: 0 }} />
@@ -231,57 +261,29 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                         />
                                     ))}
                                 </LineChart>
-                            </ResponsiveContainer>
-                        </div>
-                    )}
-                    {/* Right: Overlapping Turnover Chart */}
-                    {turnoverChartData.length > 0 && (
-                        <div className="flex-1 h-full flex items-end">
-                            <div className="flex-1 h-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                        <XAxis dataKey="t" hide padding={{ left: 0, right: 0 }} />
-                                        <YAxis hide domain={['dataMin', 'dataMax']} padding={{ top: 0, bottom: 0 }} />
-                                        {lineColors.map((color, i) => (
-                                            <Line 
-                                                key={`turnover-${i}`} 
-                                                type="monotone" 
-                                                dataKey={`v${i}`} 
-                                                stroke={color} 
-                                                strokeWidth={i === 0 ? 2 : 1} 
-                                                dot={false} 
-                                                isAnimationActive={false} 
-                                                connectNulls 
-                                            />
-                                        ))}
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </div>
-                            {/* Vertical Distribution Indicator */}
-                            {distributionDots.length > 0 && (
-                                <div className="w-1 h-full relative ml-[2px] bg-gray-50 dark:bg-gray-800/20 overflow-hidden">
-                                    {distributionDots.map((pos, i) => (
-                                        <div 
-                                            key={i}
-                                            className="absolute left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
-                                            style={{ 
-                                                // Adjust positioning to ensure dots at 0 and 1 are exactly at the edges
-                                                // The 4px offset accounts for the height of the dot itself (w-1 = 4px).
-                                                bottom: `calc(${pos * 100}% - ${pos * 4}px)`,
-                                                backgroundColor: lineColors[i],
-                                                zIndex: lineColors.length - i
-                                            }}
-                                        />
-                                    ))}
-                                </div>
                             )}
+                        </ResponsiveContainer>
+                    </div>
+
+                    {/* Vertical Distribution Indicator - Always visible */}
+                    {distributionDots.length > 0 && (
+                        <div className="w-1 h-full relative ml-[2px] bg-gray-50 dark:bg-gray-800/20 overflow-hidden shrink-0">
+                            {distributionDots.map((pos, i) => (
+                                <div 
+                                    key={i}
+                                    className="absolute left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
+                                    style={{ 
+                                        bottom: `calc(${pos * 100}% - ${pos * 4}px)`,
+                                        backgroundColor: lineColors[i],
+                                        zIndex: lineColors.length - i
+                                    }}
+                                />
+                            ))}
                         </div>
                     )}
-                </div>
-                <div className="flex-shrink-0">
-                    <DinoIcon />
                 </div>
             </div>
+
             <h1 className="text-3xl font-semibold mt-4 mb-2 text-slate-700 dark:text-gray-400">未连接到互联网</h1>
             <p className="text-lg mb-2 text-slate-700 dark:text-gray-400">请试试以下办法：</p>
             <ul className="list-disc list-inside space-y-1 text-lg text-slate-600 dark:text-gray-400 mb-1">
