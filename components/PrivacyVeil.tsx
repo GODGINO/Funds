@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { LineChart, Line, ResponsiveContainer, YAxis } from 'recharts';
+import { LineChart, Line, ResponsiveContainer, YAxis, XAxis, ReferenceLine } from 'recharts';
 import { IndexData, MarketDataPoint } from '../types';
 import { getLocalMarketHistory } from '../services/fundService';
 
@@ -105,57 +105,80 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
     marketTurnover,
   ].filter(Boolean).join(' ');
 
-  const chartData = useMemo(() => {
-      if (!isHovering) return [];
+  const { turnoverChartData, indexChartData, dayIndices, distributionDots } = useMemo(() => {
+      if (!isHovering) return { turnoverChartData: [], indexChartData: [], dayIndices: [], distributionDots: [] };
       
       const history = getLocalMarketHistory();
       const todayDate = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[0].t.split(' ')[0] : '';
       const historicalDates = Object.keys(history).filter(d => d !== todayDate).sort();
-      const recentDates = historicalDates.slice(-5);
-      
-      const timeSlots: string[] = [];
-      let hour = 9, min = 15;
-      while (hour < 15 || (hour === 15 && min === 0)) {
-          if (hour === 11 && min > 30) { hour = 13; min = 1; continue; }
-          if (hour === 13 && min === 0) { min = 1; continue; }
-          timeSlots.push(`${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
-          min++;
-          if (min === 60) { hour++; min = 0; }
+      const allDates = [...historicalDates.slice(-5), todayDate].filter(Boolean);
+
+      const tData: any[] = [];
+      const iData: any[] = [];
+      const dayIndices: number[] = [];
+
+      allDates.forEach((date, dateIdx) => {
+          const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
+          if (points.length === 0) return;
+
+          if (tData.length > 0) {
+              dayIndices.push(tData.length);
+          }
+
+          const sortedPoints = [...points].sort((a, b) => a.t.localeCompare(b.t));
+          let cumulativeVal = 0;
+          
+          sortedPoints.forEach(p => {
+              cumulativeVal += p.val;
+              const pointIdx = tData.length;
+              const tObj: any = { id: pointIdx };
+              const iObj: any = { id: pointIdx };
+              const key = `v${allDates.length - 1 - dateIdx}`; 
+              tObj[key] = cumulativeVal;
+              if (p.ind > 0) iObj[key] = p.ind;
+              tData.push(tObj);
+              iData.push(iObj);
+          });
+      });
+
+      // Calculate distribution dots at current time
+      let dots: number[] = [];
+      if (todayTurnoverPoints.length > 0) {
+          const lastPoint = todayTurnoverPoints[todayTurnoverPoints.length - 1];
+          const currentTimeStr = lastPoint.t;
+          
+          const getValAtTime = (points: MarketDataPoint[], time: string) => {
+              let sum = 0;
+              for (const p of points) {
+                  if (p.t <= time) sum += p.val;
+                  else break;
+              }
+              return sum;
+          };
+
+          const vals = allDates.map(date => {
+              const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
+              return getValAtTime(points, currentTimeStr);
+          }).filter(v => v > 0);
+
+          if (vals.length > 0) {
+              const minVal = Math.min(...vals);
+              const maxVal = Math.max(...vals);
+              const range = maxVal - minVal;
+              dots = vals.map(v => range > 0 ? (v - minVal) / range : 0.5).reverse(); // Reverse to match v0, v1...
+          }
       }
 
-      const calculateCumulative = (points: MarketDataPoint[]) => {
-          const map = new Map<string, number>();
-          let sum = 0;
-          const sorted = [...points].sort((a, b) => a.t.localeCompare(b.t));
-          sorted.forEach(p => {
-              sum += p.val;
-              map.set(p.t, sum);
-          });
-          return map;
-      };
-
-      const dayMaps = [
-          calculateCumulative(todayTurnoverPoints),
-          ...recentDates.reverse().map(d => calculateCumulative(history[d]))
-      ];
-
-      return timeSlots.map(t => {
-          const obj: any = { t };
-          dayMaps.forEach((map, i) => {
-              const val = map.get(t);
-              if (val !== undefined) obj[`v${i}`] = val;
-          });
-          return obj;
-      });
+      return { turnoverChartData: tData, indexChartData: iData, dayIndices, distributionDots: dots };
   }, [isHovering, todayTurnoverPoints]);
 
   const lineColors = [
-      'rgba(15, 23, 42, 1)',   // Today (Slate-900, Bold)
-      'rgba(15, 23, 42, 0.8)', // Y-1
-      'rgba(15, 23, 42, 0.6)', // Y-2
-      'rgba(15, 23, 42, 0.4)', // Y-3
-      'rgba(15, 23, 42, 0.25)',// Y-4
-      'rgba(15, 23, 42, 0.15)',// Y-5 (Oldest)
+      '#000000',               // Today (v0): Pure Black
+      'rgba(0, 0, 0, 0.75)',   // Y-1 (v1)
+      'rgba(0, 0, 0, 0.55)',   // Y-2 (v2)
+      'rgba(0, 0, 0, 0.4)',    // Y-3 (v3)
+      'rgba(0, 0, 0, 0.25)',   // Y-4 (v4)
+      'rgba(0, 0, 0, 0.15)',   // Y-5 (v5)
   ];
 
   return (
@@ -167,20 +190,21 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-        <div className="w-full max-w-2xl text-left">
-            <div className="flex items-end gap-1 h-[88px]">
-                <div className="flex-shrink-0">
-                    <DinoIcon />
-                </div>
-                <div className="flex-grow max-w-xs h-full overflow-hidden">
-                    {isHovering && chartData.length > 0 && (
-                        <div className="w-full h-full opacity-40 transition-opacity duration-300">
+        <div className="w-full max-w-3xl text-left">
+            <div className="flex flex-col items-start">
+                <div className="h-[88px] w-full flex items-end gap-1 overflow-hidden transition-opacity duration-300" style={{ opacity: isHovering ? 1 : 0 }}>
+                    {indexChartData.length > 0 && (
+                        <div className="flex-1 h-full">
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                    <YAxis hide domain={['auto', 'auto']} padding={{ top: 0, bottom: 0 }} />
+                                <LineChart data={indexChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                    <XAxis dataKey="id" hide padding={{ left: 0, right: 0 }} />
+                                    <YAxis hide domain={['dataMin', 'dataMax']} padding={{ top: 0, bottom: 0 }} />
+                                    {dayIndices.map(idx => (
+                                        <ReferenceLine key={idx} x={idx} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
+                                    ))}
                                     {lineColors.map((color, i) => (
                                         <Line 
-                                            key={i} 
+                                            key={`index-${i}`} 
                                             type="monotone" 
                                             dataKey={`v${i}`} 
                                             stroke={color} 
@@ -194,6 +218,52 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                             </ResponsiveContainer>
                         </div>
                     )}
+                    {turnoverChartData.length > 0 && (
+                        <div className="flex-1 h-full flex items-end">
+                            <div className="flex-1 h-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                        <XAxis dataKey="id" hide padding={{ left: 0, right: 0 }} />
+                                        <YAxis hide domain={['dataMin', 'dataMax']} padding={{ top: 0, bottom: 0 }} />
+                                        {dayIndices.map(idx => (
+                                            <ReferenceLine key={idx} x={idx} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
+                                        ))}
+                                        {lineColors.map((color, i) => (
+                                            <Line 
+                                                key={`turnover-${i}`} 
+                                                type="monotone" 
+                                                dataKey={`v${i}`} 
+                                                stroke={color} 
+                                                strokeWidth={i === 0 ? 2 : 1} 
+                                                dot={false} 
+                                                isAnimationActive={false} 
+                                                connectNulls 
+                                            />
+                                        ))}
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                            {/* Vertical Distribution Indicator */}
+                            {distributionDots.length > 0 && (
+                                <div className="w-[2px] h-full relative ml-0.5 bg-gray-50 dark:bg-gray-800/20">
+                                    {distributionDots.map((pos, i) => (
+                                        <div 
+                                            key={i}
+                                            className="absolute left-1/2 -translate-x-1/2 w-[3px] h-[3px] rounded-full"
+                                            style={{ 
+                                                bottom: `${pos * 100}%`,
+                                                backgroundColor: lineColors[i],
+                                                zIndex: lineColors.length - i
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+                <div className="flex-shrink-0">
+                    <DinoIcon />
                 </div>
             </div>
             <h1 className="text-3xl font-semibold mt-4 mb-2 text-slate-700 dark:text-gray-400">未连接到互联网</h1>
