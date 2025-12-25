@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
-import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData, TransactionType, SortByType } from './types';
+import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData, TransactionType, SortByType, MarketDataPoint } from './types';
 import { fetchFundData, fetchFundDetails, fetchIndexData, fetchTotalTurnover } from './services/fundService';
 import { updateGistData, fetchGistData } from './services/gistService';
 import FundInputForm from './components/FundInputForm';
@@ -133,6 +132,7 @@ const App: React.FC = () => {
   const [tagSortOrder, setTagSortOrder] = useState<TagSortOrder>('desc');
   const [indexData, setIndexData] = useState<IndexData | null>(null);
   const [marketTurnover, setMarketTurnover] = useState<string | null>(null);
+  const [marketTurnoverPoints, setMarketTurnoverPoints] = useState<MarketDataPoint[]>([]);
   
   const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState(() => {
     return localStorage.getItem('AUTO_SYNC_ENABLED') === 'true';
@@ -428,7 +428,12 @@ const App: React.FC = () => {
       try {
         // Start fetching index data and turnover immediately.
         const indexPromise = fetchIndexData().then(setIndexData);
-        const turnoverPromise = fetchTotalTurnover().then(setMarketTurnover);
+        const turnoverPromise = fetchTotalTurnover().then(res => {
+            if (res) {
+                setMarketTurnover(res.display);
+                setMarketTurnoverPoints(res.points);
+            }
+        });
 
         const savedPositionsJSON = localStorage.getItem('userFundPortfolio');
         if (savedPositionsJSON) {
@@ -581,8 +586,11 @@ const App: React.FC = () => {
         const newIndexData = await indexPromise;
         setIndexData(newIndexData);
         
-        const newTurnover = await turnoverPromise;
-        setMarketTurnover(newTurnover);
+        const res = await turnoverPromise;
+        if (res) {
+            setMarketTurnover(res.display);
+            setMarketTurnoverPoints(res.points);
+        }
     } catch (err) {
         // Log index error but don't show a blocking UI error
         console.error("Failed to refresh index data:", err);
@@ -2119,6 +2127,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
           summaryOperationEffect={snapshotSummary.summaryOperationEffect}
           indexData={indexData}
           marketTurnover={marketTurnover}
+          todayTurnoverPoints={marketTurnoverPoints}
         />
       )}
       {isAppLoading ? (

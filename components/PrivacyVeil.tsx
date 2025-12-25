@@ -1,6 +1,7 @@
-
-import React, { useState, useRef, useEffect } from 'react';
-import { IndexData } from '../types';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { LineChart, Line, ResponsiveContainer, YAxis } from 'recharts';
+import { IndexData, MarketDataPoint } from '../types';
+import { getLocalMarketHistory } from '../services/fundService';
 
 const DinoIcon: React.FC = () => (
     <svg className="dino-icon fill-current text-slate-700 dark:text-gray-500" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="1731" height="44" width="44"><path d="M982.92737207 56.98146258h-41.97086855V3.85500886H561.50493039V50.57912671H513.29340118v307.92648747h-46.72411785v48.21152925h-69.84366408v44.26665562h-71.33107543v50.18396602h-49.18158015v46.23909239h-93.96559618V501.65279054h-47.20914328v-47.20914332h-47.20914331v-95.93803304h-46.72411789v282.34947904h45.26904153v48.21152922h49.18158014v47.7265038h46.72411783v47.2091433h47.20914335v45.75406693h46.72411781v190.35631962h95.93803304v-48.69655464h-47.72650379v-46.72411784h47.20914334v-47.20914331h47.20914328v-46.72411791h47.72650379v46.72411791H512v142.66215084h94.77397194v-48.21152925h-45.75406699v-188.41621783h45.75406699v-47.72650374h48.69655468V664.94469029h46.23909242v-165.23200157h48.21152918v45.75406698h45.75406698v-92.47818481h-93.44823571v-94.93564712h187.89885738v-47.20914332h-140.20468865l-0.48502541-51.8007175h233.49124926v-202.06160037z m-328.03887603 65.47843509h-47.20914327v-47.20914332h47.20914327v47.20914332z" p-id="1732"></path></svg>
@@ -15,6 +16,7 @@ interface PrivacyVeilProps {
   summaryOperationEffect?: number;
   indexData: IndexData | null;
   marketTurnover: string | null;
+  todayTurnoverPoints?: MarketDataPoint[];
 }
 
 const PrivacyVeil: React.FC<PrivacyVeilProps> = ({ 
@@ -26,6 +28,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
     summaryOperationEffect,
     indexData,
     marketTurnover,
+    todayTurnoverPoints = []
 }) => {
   const [isHovering, setIsHovering] = useState(false);
   const idleTimerRef = useRef<number | null>(null);
@@ -107,6 +110,64 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
     marketTurnover,
   ].filter(Boolean).join(' ');
 
+  // --- Mini Chart Logic ---
+  const chartData = useMemo(() => {
+      if (!isHovering) return [];
+      
+      const history = getLocalMarketHistory();
+      const todayDate = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[0].t.split(' ')[0] : '';
+      const historicalDates = Object.keys(history).filter(d => d !== todayDate).sort();
+      const recentDates = historicalDates.slice(-5); // Get last 5 days
+      
+      // We'll create 6 lines: today, day-1, day-2, ..., day-5
+      // All normalized by minute index or time string.
+      // SH trends2 starts at 09:15 and ends at 15:00.
+      const timeSlots: string[] = [];
+      let hour = 9, min = 15;
+      while (hour < 15 || (hour === 15 && min === 0)) {
+          if (hour === 11 && min > 30) { hour = 13; min = 1; continue; }
+          if (hour === 13 && min === 0) { min = 1; continue; }
+          timeSlots.push(`${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
+          min++;
+          if (min === 60) { hour++; min = 0; }
+      }
+
+      const calculateCumulative = (points: MarketDataPoint[]) => {
+          const map = new Map<string, number>();
+          let sum = 0;
+          // Sort points just in case
+          const sorted = [...points].sort((a, b) => a.t.localeCompare(b.t));
+          sorted.forEach(p => {
+              sum += p.val;
+              map.set(p.t, sum);
+          });
+          return map;
+      };
+
+      const dayMaps = [
+          calculateCumulative(todayTurnoverPoints),
+          ...recentDates.reverse().map(d => calculateCumulative(history[d]))
+      ];
+
+      return timeSlots.map(t => {
+          const obj: any = { t };
+          dayMaps.forEach((map, i) => {
+              const val = map.get(t);
+              if (val !== undefined) obj[`v${i}`] = val;
+          });
+          return obj;
+      });
+  }, [isHovering, todayTurnoverPoints]);
+
+  const lineColors = [
+      'rgba(51, 65, 85, 0.9)', // Today (Darkest, Slate-700-ish)
+      'rgba(51, 65, 85, 0.7)',
+      'rgba(51, 65, 85, 0.5)',
+      'rgba(51, 65, 85, 0.3)',
+      'rgba(51, 65, 85, 0.2)',
+      'rgba(51, 65, 85, 0.1)', // Oldest (Faded)
+  ];
+
   return (
     <div
       className="fixed inset-0 bg-white dark:bg-gray-900 z-[200] flex flex-col justify-center items-center text-slate-700 dark:text-gray-400 font-sans p-8 select-none"
@@ -116,9 +177,31 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-        {/* Changed max-w-lg to max-w-2xl to allow more content on one line */}
         <div className="w-full max-w-2xl text-left">
-            <DinoIcon />
+            <div className="flex items-center gap-4">
+                <DinoIcon />
+                {isHovering && chartData.length > 0 && (
+                    <div className="h-[44px] w-48 opacity-40 transition-opacity duration-500">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData}>
+                                <YAxis hide domain={['auto', 'auto']} />
+                                {lineColors.map((color, i) => (
+                                    <Line 
+                                        key={i} 
+                                        type="monotone" 
+                                        dataKey={`v${i}`} 
+                                        stroke={color} 
+                                        strokeWidth={i === 0 ? 1.5 : 1} 
+                                        dot={false} 
+                                        isAnimationActive={false} 
+                                        connectNulls 
+                                    />
+                                ))}
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                )}
+            </div>
             <h1 className="text-3xl font-semibold mt-4 mb-2 text-slate-700 dark:text-gray-400">未连接到互联网</h1>
             <p className="text-lg mb-2 text-slate-700 dark:text-gray-400">请试试以下办法：</p>
             <ul className="list-disc list-inside space-y-1 text-lg text-slate-600 dark:text-gray-400 mb-1">

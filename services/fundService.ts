@@ -1,5 +1,4 @@
-
-import { FundDataPoint, RealTimeData, IndexData } from '../types';
+import { FundDataPoint, RealTimeData, IndexData, MarketDataPoint, TurnoverResult } from '../types';
 
 function parseHtmlTable(htmlContent: string): FundDataPoint[] {
     const data: FundDataPoint[] = [];
@@ -376,7 +375,7 @@ export async function fetchIndexData(): Promise<IndexData | null> {
 
 const MARKET_HISTORY_KEY = 'ginos_market_history_v1';
 
-function getLocalMarketHistory(): Record<string, { t: string, val: number }[]> {
+export function getLocalMarketHistory(): Record<string, MarketDataPoint[]> {
     try {
         return JSON.parse(localStorage.getItem(MARKET_HISTORY_KEY) || '{}');
     } catch {
@@ -384,10 +383,8 @@ function getLocalMarketHistory(): Record<string, { t: string, val: number }[]> {
     }
 }
 
-function saveLocalMarketHistory(date: string, data: { t: string, val: number }[]) {
+function saveLocalMarketHistory(date: string, data: MarketDataPoint[]) {
     const history = getLocalMarketHistory();
-    // Only update if data count is significantly better or not exists, 
-    // but here we trust the closed market data (after 15:00) is best.
     history[date] = data;
     
     // Prune: Keep only last 5 days to safe space
@@ -401,7 +398,7 @@ function saveLocalMarketHistory(date: string, data: { t: string, val: number }[]
     }
 }
 
-export async function fetchTotalTurnover(): Promise<string | null> {
+export async function fetchTotalTurnover(): Promise<TurnoverResult | null> {
     try {
         const EXPIRY_MS = 60 * 1000; // 1 minute cache
         const now = Date.now();
@@ -412,48 +409,62 @@ export async function fetchTotalTurnover(): Promise<string | null> {
         }
 
         // Fetch Today's Trends (Real-time minute data)
-        // using trends2 which returns array of "Date Time,Price,..." strings
-        // fields2=f51,f57 returns "Date Time, TurnoverAmount"
-        const fetchTrends = async (secid: string) => {
-            const url = `https://push2.eastmoney.com/api/qt/stock/trends2/get?secid=${secid}&fields1=f1&fields2=f51,f57&ndays=1&iscr=0&_=${now}`;
+        const fetchTrends = async (secid: string, fields: string) => {
+            const url = `https://push2delay.eastmoney.com/api/qt/stock/trends2/get?secid=${secid}&fields1=f1&fields2=${fields}&ndays=1&iscr=0&_=${now}`;
             const res = await fetch(url, { cache: 'no-store' });
             return res.json();
         };
 
-        const [shData, szData] = await Promise.all([fetchTrends('1.000001'), fetchTrends('0.399001')]);
+        // fields2=f51,f52,f57 returns "Date Time, Index, TurnoverAmount"
+        const [shData, szData] = await Promise.all([
+            fetchTrends('1.000001', 'f51,f52,f57'),
+            fetchTrends('0.399001', 'f51,f57')
+        ]);
 
-        // Helper: Parse "YYYY-MM-DD HH:MM,12345.00"
-        const parseTrends = (data: any) => {
+        const parseTrends = (data: any, isSH: boolean) => {
             const trends = data?.data?.trends;
             if (!Array.isArray(trends)) return [];
             return trends.map((item: string) => {
                 const parts = item.split(',');
-                if (parts.length < 2) return null;
-                const [dt, valStr] = parts;
-                const [d, t] = dt.split(' ');
-                const val = parseFloat(valStr);
-                if (!d || !t || isNaN(val)) return null;
-                return { d, t, val };
-            }).filter((x): x is { d: string, t: string, val: number } => x !== null);
+                if (isSH) {
+                    if (parts.length < 3) return null;
+                    const [dt, indStr, valStr] = parts;
+                    const [d, t] = dt.split(' ');
+                    const ind = parseFloat(indStr);
+                    const val = parseFloat(valStr);
+                    if (!d || !t || isNaN(ind) || isNaN(val)) return null;
+                    return { d, t, val, ind };
+                } else {
+                    if (parts.length < 2) return null;
+                    const [dt, valStr] = parts;
+                    const [d, t] = dt.split(' ');
+                    const val = parseFloat(valStr);
+                    if (!d || !t || isNaN(val)) return null;
+                    return { d, t, val };
+                }
+            }).filter((x): x is any => x !== null);
         };
 
-        const shPoints = parseTrends(shData);
-        const szPoints = parseTrends(szData);
+        const shPoints = parseTrends(shData, true);
+        const szPoints = parseTrends(szData, false);
 
-        if (shPoints.length === 0 || szPoints.length === 0) return null;
+        if (shPoints.length === 0) return null;
 
-        // Merge SH + SZ based on index (assuming aligned timestamps for simplicity, usually they are)
-        // Use Map for robustness
-        const combinedPoints: { d: string, t: string, val: number }[] = [];
-        const shMap = new Map(shPoints.map(p => [p.t, p.val]));
-        
-        // Iterate through SZ points (as base) and add SH values
-        for (const szP of szPoints) {
-            const shVal = shMap.get(szP.t) || 0;
+        // SH Index API (trends2) starts from 09:15
+        // Align SZ to SH timeline
+        const combinedPoints: MarketDataPoint[] = [];
+        const szMap = new Map(szPoints.map((p: any) => [p.t, p.val]));
+        const todayDate = shPoints[0].d;
+
+        for (const shP of shPoints) {
+            const szVal = szMap.get(shP.t) || 0;
+            // Pad 9:15-9:30 turnover with 0 per user request
+            const val = shP.t < "09:30" ? 0 : (shP.val + szVal);
+            
             combinedPoints.push({
-                d: szP.d,
-                t: szP.t,
-                val: szP.val + shVal // Sum of minute turnover
+                t: shP.t,
+                val: val,
+                ind: shP.ind
             });
         }
 
@@ -461,9 +472,7 @@ export async function fetchTotalTurnover(): Promise<string | null> {
 
         // 1. Calculate Today's Cumulative Turnover
         const totalToday = combinedPoints.reduce((acc, p) => acc + p.val, 0);
-        
         const lastPoint = combinedPoints[combinedPoints.length - 1];
-        const todayDate = lastPoint.d;
         const latestTime = lastPoint.t;
 
         // 2. Persistence Logic: If market is closed (>15:00), save today's curve to LS
@@ -474,7 +483,7 @@ export async function fetchTotalTurnover(): Promise<string | null> {
         // 3. Comparison Logic: Find "Yesterday" from LocalStorage
         const history = getLocalMarketHistory();
         const historyDates = Object.keys(history).filter(d => d !== todayDate).sort();
-        const yesterdayDate = historyDates[historyDates.length - 1]; // Get the most recent stored date
+        const yesterdayDate = historyDates[historyDates.length - 1]; 
         
         let yesterdaySum = 0;
         let hasYesterday = false;
@@ -486,8 +495,6 @@ export async function fetchTotalTurnover(): Promise<string | null> {
                 yesterdaySum = yesterdayPoints.reduce((acc, p) => {
                     return p.t <= latestTime ? acc + p.val : acc;
                 }, 0);
-                
-                // Only consider it valid if we actually summed something (avoid empty days)
                 if (yesterdaySum > 0) hasYesterday = true;
             }
         }
@@ -502,13 +509,18 @@ export async function fetchTotalTurnover(): Promise<string | null> {
              result += ` (${sign}${toTrillion(diff)})`;
         }
 
+        const turnoverResult: TurnoverResult = {
+            display: result,
+            points: combinedPoints
+        };
+
         // Cache
         (window as any)._sseTurnoverCache = {
             timestamp: now,
-            data: result
+            data: turnoverResult
         };
 
-        return result;
+        return turnoverResult;
 
     } catch (error) {
         console.error("Turnover Fetch Error", error);

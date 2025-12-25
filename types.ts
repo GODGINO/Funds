@@ -1,4 +1,3 @@
-
 export interface FundDataPoint {
   date: string;
   unitNAV: number;
@@ -55,6 +54,17 @@ export interface Fund {
   latestChange?: string;
   color?: string;
   userPosition?: UserPosition;
+}
+
+export interface MarketDataPoint {
+    t: string;
+    val: number;
+    ind: number;
+}
+
+export interface TurnoverResult {
+    display: string;
+    points: MarketDataPoint[];
 }
 
 export interface ProcessedFund extends Fund {
