@@ -1,3 +1,4 @@
+
 import { FundDataPoint, RealTimeData, IndexData, MarketDataPoint, TurnoverResult } from '../types';
 
 function parseHtmlTable(htmlContent: string): FundDataPoint[] {

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, XAxis, ReferenceLine } from 'recharts';
 import { IndexData, MarketDataPoint } from '../types';
@@ -112,8 +113,22 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       
       const history = getLocalMarketHistory();
       const todayDate = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[0].t.split(' ')[0] : '';
-      const historicalDates = Object.keys(history).filter(d => d !== todayDate).sort();
-      const allDates = [...historicalDates.slice(-5), todayDate].filter(Boolean);
+      const historicalDates = Object.keys(history).sort();
+      
+      const now = new Date();
+      const isMarketClosed = now.getHours() >= 15;
+      const isTodayInHistory = historicalDates.includes(todayDate);
+
+      // --- 关键逻辑: 保证总共展示 5 条线 ---
+      let allDates: string[];
+      if (isMarketClosed || isTodayInHistory) {
+          // 下午 3 点后或数据已在历史记录中：直接取历史最后 5 天
+          allDates = historicalDates.slice(-5);
+      } else {
+          // 下午 3 点前：取历史最后 4 天 + 今日实时数据
+          const prevDates = historicalDates.filter(d => d !== todayDate).slice(-4);
+          allDates = [...prevDates, todayDate].filter(Boolean);
+      }
 
       // --- 1. Index Chart Data (Continuous Time Axis) ---
       const iData: any[] = [];
@@ -129,6 +144,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           sorted.forEach((p, pIdx) => {
               const globalIdx = iData.length;
               const obj: any = { id: globalIdx };
+              // 使用 v0-v4 代表从近到远的线
               const key = `v${allDates.length - 1 - dateIdx}`; 
               if (p.ind > 0) obj[key] = p.ind;
               
@@ -204,11 +220,10 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
 
   const lineColors = [
       '#000000',               // Today (v0): Pure Black
-      'rgba(0, 0, 0, 0.5)',    // Y-1 (v1): Significant drop to 0.5 (Exponential decay)
-      'rgba(0, 0, 0, 0.3)',    // Y-2 (v2): 0.3
-      'rgba(0, 0, 0, 0.18)',   // Y-3 (v3): 0.18
-      'rgba(0, 0, 0, 0.11)',   // Y-4 (v4): 0.11
-      'rgba(0, 0, 0, 0.07)',   // Y-5 (v5): 0.07
+      'rgba(0, 0, 0, 0.5)',    // Y-1 (v1)
+      'rgba(0, 0, 0, 0.3)',    // Y-2 (v2)
+      'rgba(0, 0, 0, 0.18)',   // Y-3 (v3)
+      'rgba(0, 0, 0, 0.11)',   // Y-4 (v4)
   ];
 
   const cycleChart = () => {
@@ -305,7 +320,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[6px] rounded-full"
                                     style={{ 
                                         bottom: `calc(${pos * 100}% - ${pos * 6}px)`,
-                                        backgroundColor: lineColors[i],
+                                        backgroundColor: lineColors[i] || 'rgba(0,0,0,0.1)',
                                         zIndex: lineColors.length - i
                                     }}
                                 />
