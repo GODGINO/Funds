@@ -71,20 +71,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       const isMarketClosed = now.getHours() >= 15;
       const allDates = (isMarketClosed || historicalDates.includes(todayDate)) ? historicalDates.slice(-5) : [...historicalDates.filter(d => d !== todayDate).slice(-4), todayDate].filter(Boolean);
 
-      // 1. 生成完整全天时间槽 (用于指数/对齐)
-      const slots15: string[] = [];
-      let h = 9, m = 15;
-      while (h < 15 || (h === 15 && m === 0)) {
-          if (h === 11 && m > 30) { h = 13; m = 1; continue; }
-          if (h === 13 && m === 0) { m = 1; continue; }
-          slots15.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-          m++; if (m === 60) { h++; m = 0; }
-      }
-
-      // 2. 生成成交额时间槽 (09:30 开始，用于顶格)
-      const slots30 = slots15.filter(t => t >= "09:30");
-
-      // 指数数据 (09:15 开始)
+      // --- Mode 0 & 1: 指数数据（从 09:15 开始） ---
       const iData: any[] = [];
       const dayIdxArr: number[] = [];
       allDates.forEach((date, dIdx) => {
@@ -92,23 +79,26 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           if (points.length === 0) return;
           if (iData.length > 0) dayIdxArr.push(iData.length);
           [...points].sort((a,b) => a.t.localeCompare(b.t)).forEach((p, pIdx, arr) => {
-              const obj: any = { id: iData.length };
+              const currentIdx = iData.length;
+              const obj: any = { idx: currentIdx };
               const key = `v${allDates.length - 1 - dIdx}`;
               if (p.ind > 0) obj[key] = p.ind;
+              // 桥接
               if (pIdx === arr.length - 1 && dIdx < allDates.length - 1) {
-                  const nextKey = `v${allDates.length - 1 - (dIdx + 1)}`;
-                  obj[nextKey] = p.ind;
+                  obj[`v${allDates.length - 1 - (dIdx + 1)}`] = p.ind;
               }
               iData.push(obj);
           });
       });
 
-      // 今日实时指数 (09:15 开始)
-      const todayIndexMap = new Map(todayTurnoverPoints.map(p => [p.t, p.ind]));
-      const tOnlyData = slots15.map(t => ({ t, v0: todayIndexMap.get(t) || null }));
+      // 今日实时指数（重设索引以顶格）
+      const tOnlyData = todayTurnoverPoints.map((p, i) => ({
+          idx: i,
+          v0: p.ind || null
+      }));
 
-      // 成交额数据 (09:30 开始顶格)
-      const dayTurnoverMaps = allDates.map(date => {
+      // --- Mode 2: 成交额数据（从 09:30 开始） ---
+      const turnoverMaps = allDates.map(date => {
           const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
           const map = new Map<string, number>();
           let sum = 0;
@@ -116,11 +106,17 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           return map;
       });
 
-      const tData = slots30.map(t => {
-          const obj: any = { t };
-          dayTurnoverMaps.forEach((map, i) => {
+      // 找出两市开始交易的所有时间点（>= 09:30）
+      const validTimes = Array.from(new Set(allDates.flatMap(d => {
+          const points = d === todayDate ? todayTurnoverPoints : (history[d] || []);
+          return points.filter(p => p.t >= "09:30").map(p => p.t);
+      }))).sort();
+
+      const tData = validTimes.map((t, i) => {
+          const obj: any = { idx: i };
+          turnoverMaps.forEach((map, dIdx) => {
               const val = map.get(t);
-              if (val !== undefined) obj[`v${allDates.length - 1 - i}`] = val;
+              if (val !== undefined) obj[`v${allDates.length - 1 - dIdx}`] = val;
           });
           return obj;
       });
@@ -129,7 +125,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       let dots: number[] = [];
       if (todayTurnoverPoints.length > 0) {
           const curT = todayTurnoverPoints[todayTurnoverPoints.length - 1].t;
-          const vals = dayTurnoverMaps.map(m => m.get(curT) || 0).filter(v => v > 0);
+          const vals = turnoverMaps.map(m => m.get(curT) || 0).filter(v => v > 0);
           if (vals.length) {
               const minV = Math.min(...vals), maxV = Math.max(...vals);
               dots = vals.map(v => maxV > minV ? (v - minV) / (maxV - minV) : 0.5).reverse();
@@ -159,20 +155,20 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                         <ResponsiveContainer width="100%" height="100%">
                             {chartMode === 0 ? (
                                 <LineChart data={indexChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                    <XAxis dataKey="id" hide padding={{ left: 0, right: 0 }} />
+                                    <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     {dayIndices.map(idx => <ReferenceLine key={idx} x={idx} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />)}
                                     {lineColors.map((color, i) => <Line key={i} type="monotone" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
                             ) : chartMode === 1 ? (
                                 <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                    <XAxis dataKey="t" hide padding={{ left: 0, right: 0 }} />
+                                    <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    <Line type="monotone" dataKey="v0" stroke="#000000" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls={false} />
+                                    <Line type="monotone" dataKey="v0" stroke="#000000" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : (
                                 <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                    <XAxis dataKey="t" hide padding={{ left: 0, right: 0 }} />
+                                    <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     {lineColors.map((color, i) => <Line key={i} type="monotone" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>

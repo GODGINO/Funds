@@ -285,8 +285,8 @@ export async function fetchTotalTurnover(): Promise<TurnoverResult | null> {
         };
 
         const [shData, szData] = await Promise.all([
-            fetchTrends('1.000001', 'f51,f52,f57'), // SH Index starts from 9:15
-            fetchTrends('0.399001', 'f51,f57')      // SZ Index starts from 9:30
+            fetchTrends('1.000001', 'f51,f52,f57'), // SH (Price starts 09:15, Vol starts 09:30)
+            fetchTrends('0.399001', 'f51,f52,f57')  // SZ (Starts 09:30)
         ]);
 
         const parseTrends = (data: any, isSH: boolean) => {
@@ -294,22 +294,14 @@ export async function fetchTotalTurnover(): Promise<TurnoverResult | null> {
             if (!Array.isArray(trends)) return [];
             return trends.map((item: string) => {
                 const parts = item.split(',');
-                if (isSH) {
-                    if (parts.length < 3) return null;
-                    const [dt, indStr, valStr] = parts;
-                    const [d, t] = dt.split(' ');
-                    const ind = parseFloat(indStr);
-                    const val = parseFloat(valStr);
-                    if (!d || !t || isNaN(ind) || isNaN(val)) return null;
-                    return { d, t, val, ind };
-                } else {
-                    if (parts.length < 2) return null;
-                    const [dt, valStr] = parts;
-                    const [d, t] = dt.split(' ');
-                    const val = parseFloat(valStr);
-                    if (!d || !t || isNaN(val)) return null;
-                    return { d, t, val };
-                }
+                if (parts.length < 2) return null;
+                const [dt, priceStr] = parts;
+                const turnoverStr = parts[2] || "0";
+                const [d, t] = dt.split(' ');
+                const ind = parseFloat(priceStr);
+                const val = parseFloat(turnoverStr);
+                if (!d || !t || isNaN(ind)) return null;
+                return { d, t, val, ind };
             }).filter((x): x is any => x !== null);
         };
 
@@ -323,13 +315,15 @@ export async function fetchTotalTurnover(): Promise<TurnoverResult | null> {
 
         for (const shP of shPoints) {
             const szVal = szMap.get(shP.t) || 0;
-            // 9:15 - 9:30: Indices are present, but Turnover is 0
-            const val = shP.t < "09:30" ? 0 : (shP.val + szVal);
-            combinedPoints.push({ t: shP.t, val: val, ind: shP.ind });
+            // 9:15 - 9:30: Merged Turnover is 0 (SZ is missing, SH is 0 during auction)
+            const totalTurnover = shP.t < "09:30" ? 0 : (shP.val + szVal);
+            combinedPoints.push({ t: shP.t, val: totalTurnover, ind: shP.ind });
         }
 
         const totalToday = combinedPoints.reduce((acc, p) => acc + p.val, 0);
         const latestTime = combinedPoints[combinedPoints.length - 1].t;
+        
+        // Save to local at 15:00
         if (latestTime >= "15:00") saveLocalMarketHistory(todayDate, combinedPoints);
 
         const history = getLocalMarketHistory();
