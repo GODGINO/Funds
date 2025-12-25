@@ -108,6 +108,7 @@ export interface TagAnalysisData {
   totalYesterdayMarketValue: number;
   totalRecentProfit: number;
   totalInitialMarketValueForTrend: number;
+  totalRecentOperationAmount: number; // 新增：近期操作总额
   holdingProfitRate: number;
   totalProfitRate: number;
   dailyProfitRate: number;

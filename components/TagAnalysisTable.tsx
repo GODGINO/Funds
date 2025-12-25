@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { TagAnalysisData, TagSortOrder } from '../types';
 
@@ -39,7 +38,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
         'totalHoldingProfit', 'grandTotalProfit', 'holdingEfficiency', 
         'holdingProfitRate', 'totalProfitRate', 'totalDailyProfit', 
         'dailyEfficiency', 'dailyProfitRate', 'totalRecentProfit', 
-        'recentEfficiency', 'recentProfitRate'
+        'recentEfficiency', 'recentProfitRate', 'totalRecentOperationAmount'
     ];
     
     const maxVals: Partial<Record<keyof TagAnalysisData, number>> = {};
@@ -175,9 +174,14 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                 <div>近期收益率</div>
                 <div className={`font-mono font-normal ${getProfitColor(totals.recentProfitRate)}`}>
                     <div className="relative flex items-center justify-end gap-1">
+                        {totals.hasRecentTransaction && <span className="text-gray-800 dark:text-gray-200 text-[10px] leading-none transform translate-y-px">●</span>}
                         {formatPercentage(totals.recentProfitRate)}
                     </div>
                 </div>
+              </SortableHeader>
+              <SortableHeader sortableKey="totalRecentOperationAmount">
+                <div>近期操作</div>
+                <div className={`font-mono font-normal ${getProfitColor(totals.totalRecentOperationAmount)}`}>{formatIntegerWithCommas(totals.totalRecentOperationAmount)}</div>
               </SortableHeader>
             </tr>
           </thead>
@@ -286,6 +290,9 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                         {item.hasRecentTransaction && <span className="text-gray-800 dark:text-gray-200 text-[10px] leading-none transform translate-y-px">●</span>}
                         {formatPercentage(item.recentProfitRate)}
                     </div>
+                  </td>
+                  <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalRecentOperationAmount)}`} style={getBarStyle(item.totalRecentOperationAmount, maxAbsValues.totalRecentOperationAmount)}>
+                    <div className="relative">{formatIntegerWithCommas(item.totalRecentOperationAmount)}</div>
                   </td>
                 </tr>
               )

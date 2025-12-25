@@ -1006,6 +1006,7 @@ const App: React.FC = () => {
     let totalYesterdayMarketValue = 0;
     let totalRecentProfit = 0;
     let totalInitialMarketValueForTrend = 0;
+    let totalRecentOperationAmount = 0;
     let totalHasRecentTransaction = false;
 
     processedFunds.forEach(fund => {
@@ -1013,11 +1014,18 @@ const App: React.FC = () => {
         // 因此它应该对所有基金进行累加。
         grandTotalProfit += fund.totalProfit ?? 0;
         
-        // Calculate recent transaction status for the whole portfolio summary
-        if (fund.trendInfo && fund.trendInfo.days > 0 && fund.lastPivotDate && fund.userPosition?.tradingRecords?.some(r => {
-             return new Date(r.date).getTime() >= new Date(fund.lastPivotDate!).getTime();
-        })) {
+        // Calculate recent transaction status and amount for the whole portfolio summary
+        const recentOps = (fund.userPosition?.tradingRecords || []).filter(r => 
+             r.nav !== undefined && fund.lastPivotDate && 
+             new Date(r.date).getTime() >= new Date(fund.lastPivotDate!).getTime()
+        );
+
+        if (recentOps.length > 0) {
              totalHasRecentTransaction = true;
+             recentOps.forEach(r => {
+                 if (r.type === 'dividend-cash') totalRecentOperationAmount -= (r.realizedProfitChange || 0);
+                 else totalRecentOperationAmount += (r.amount || 0);
+             });
         }
 
         const position = fund.userPosition;
@@ -1050,6 +1058,7 @@ const App: React.FC = () => {
         totalHoldingProfit,
         totalDailyProfit,
         totalRecentProfit,
+        totalRecentOperationAmount,
         // FIX: Add missing properties to the totals object to match the component's expected type.
         totalYesterdayMarketValue,
         totalInitialMarketValueForTrend,
@@ -1070,6 +1079,7 @@ const App: React.FC = () => {
         totalYesterdayMarketValue: number;
         totalRecentProfit: number;
         totalInitialMarketValueForTrend: number;
+        totalRecentOperationAmount: number;
         fundCodes: Set<string>;
         sumDailyRates: number;
         dailyRateCount: number;
@@ -1079,9 +1089,18 @@ const App: React.FC = () => {
     } } = {};
 
     processedFunds.forEach(fund => {
-        const hasRecentTx = !!(fund.trendInfo && fund.trendInfo.days > 0 && fund.lastPivotDate && fund.userPosition?.tradingRecords?.some(r => {
-             return new Date(r.date).getTime() >= new Date(fund.lastPivotDate!).getTime();
-        }));
+        const recentOps = (fund.userPosition?.tradingRecords || []).filter(r => 
+             r.nav !== undefined && fund.lastPivotDate && 
+             new Date(r.date).getTime() >= new Date(fund.lastPivotDate!).getTime()
+        );
+        const hasRecentTx = recentOps.length > 0;
+        let fundRecentOpAmount = 0;
+        if (hasRecentTx) {
+             recentOps.forEach(r => {
+                 if (r.type === 'dividend-cash') fundRecentOpAmount -= (r.realizedProfitChange || 0);
+                 else fundRecentOpAmount += (r.amount || 0);
+             });
+        }
 
         const position = fund.userPosition;
         if (!position || !position.tag) return;
@@ -1099,6 +1118,7 @@ const App: React.FC = () => {
                     totalYesterdayMarketValue: 0,
                     totalRecentProfit: 0,
                     totalInitialMarketValueForTrend: 0,
+                    totalRecentOperationAmount: 0,
                     fundCodes: new Set<string>(),
                     sumDailyRates: 0,
                     dailyRateCount: 0,
@@ -1110,6 +1130,7 @@ const App: React.FC = () => {
             // Aggregate metrics that apply to ALL tagged funds (including zero-share)
             metricsByTag[tag].fundCodes.add(fund.code);
             metricsByTag[tag].totalRealizedProfit += position.realizedProfit || 0;
+            metricsByTag[tag].totalRecentOperationAmount += fundRecentOpAmount;
             
             if (hasRecentTx) {
                 metricsByTag[tag].hasRecentTransaction = true;
