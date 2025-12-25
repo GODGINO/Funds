@@ -252,7 +252,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                             type="monotone" 
                                             dataKey={`v${i}`} 
                                             stroke={color} 
-                                            strokeWidth={i === 0 ? 2 : 1} 
+                                            strokeWidth={1} 
                                             dot={false} 
                                             isAnimationActive={false} 
                                             connectNulls 
@@ -268,7 +268,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                         type="monotone" 
                                         dataKey="v0" 
                                         stroke="#000000" 
-                                        strokeWidth={2} 
+                                        strokeWidth={1} 
                                         dot={false} 
                                         isAnimationActive={false} 
                                         connectNulls={false} 
@@ -285,7 +285,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                             type="monotone" 
                                             dataKey={`v${i}`} 
                                             stroke={color} 
-                                            strokeWidth={i === 0 ? 2 : 1} 
+                                            strokeWidth={1} 
                                             dot={false} 
                                             isAnimationActive={false} 
                                             connectNulls 
