@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { LineChart, Line, ResponsiveContainer, YAxis, XAxis, ReferenceLine } from 'recharts';
+import { LineChart, Line, ResponsiveContainer, YAxis, XAxis, ReferenceLine, Tooltip } from 'recharts';
 import { IndexData, MarketDataPoint } from '../types';
 import { getLocalMarketHistory } from '../services/fundService';
 
@@ -19,6 +19,21 @@ interface PrivacyVeilProps {
   marketTurnover: string | null;
   todayTurnoverPoints?: MarketDataPoint[];
 }
+
+const CustomValueTooltip: React.FC<any> = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+        return (
+            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 shadow-sm text-[10px] font-mono font-bold">
+                {payload.map((entry: any, index: number) => (
+                    <div key={index} style={{ color: entry.color }}>
+                        {entry.value >= 10000 ? (entry.value / 1000000000000).toFixed(2) + 'T' : entry.value.toFixed(2)}
+                    </div>
+                ))}
+            </div>
+        );
+    }
+    return null;
+};
 
 const PrivacyVeil: React.FC<PrivacyVeilProps> = ({ 
     onRefresh, 
@@ -90,13 +105,13 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           });
       });
 
-      // --- Mode 1: 今日实时指数（确保从 09:15 顶格） ---
+      // --- Mode 1: 今日实时指数 ---
       const tOnlyData = todayTurnoverPoints.map((p, i) => ({
           idx: i,
           v0: p.ind > 0 ? p.ind : null
       }));
 
-      // --- Mode 2: 两市成交额（确保从 09:30 顶格） ---
+      // --- Mode 2: 两市成交额 ---
       const turnoverMaps = allDates.map(date => {
           const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
           const map = new Map<string, number>();
@@ -119,7 +134,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           return obj;
       });
 
-      // 垂直分布点
+      // 分布点
       let dots: number[] = [];
       if (todayTurnoverPoints.length > 0) {
           const curT = todayTurnoverPoints[todayTurnoverPoints.length - 1].t;
@@ -155,6 +170,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                 <LineChart data={indexChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
+                                    <Tooltip content={<CustomValueTooltip />} cursor={{ stroke: 'rgba(0,0,0,0.1)', strokeWidth: 1 }} />
                                     {dayIndices.map(idx => <ReferenceLine key={idx} x={idx} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />)}
                                     {lineColors.map((color, i) => <Line key={i} type="monotone" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
@@ -162,12 +178,14 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                 <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
+                                    <Tooltip content={<CustomValueTooltip />} cursor={{ stroke: 'rgba(0,0,0,0.1)', strokeWidth: 1 }} />
                                     <Line type="monotone" dataKey="v0" stroke="#000000" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : (
                                 <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
+                                    <Tooltip content={<CustomValueTooltip />} cursor={{ stroke: 'rgba(0,0,0,0.1)', strokeWidth: 1 }} />
                                     {lineColors.map((color, i) => <Line key={i} type="monotone" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
                             )}

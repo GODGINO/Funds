@@ -316,7 +316,7 @@ export async function fetchTotalTurnover(): Promise<TurnoverResult | null> {
 
         for (const shP of shPoints) {
             const szVal = szMap.get(shP.t) || 0;
-            // 9:15 - 9:30: 强制成交额补 0，即便 API 可能返回了少量竞价额
+            // 9:15 - 9:30: 强制成交额补 0，尽管指数在波动
             const totalTurnover = shP.t < "09:30" ? 0 : (shP.val + szVal);
             combinedPoints.push({ t: shP.t, val: totalTurnover, ind: shP.ind });
         }
@@ -324,8 +324,10 @@ export async function fetchTotalTurnover(): Promise<TurnoverResult | null> {
         const totalToday = combinedPoints.reduce((acc, p) => acc + p.val, 0);
         const latestTime = combinedPoints[combinedPoints.length - 1].t;
         
-        // 保存历史记录：只要是 15:00 之后的数据，或者是收盘后的最终数据
-        if (latestTime >= "15:00") saveLocalMarketHistory(todayDate, combinedPoints);
+        // 15:00 后且数据量充足（约255点左右）保存到本地
+        if (latestTime >= "15:00" && combinedPoints.length > 200) {
+            saveLocalMarketHistory(todayDate, combinedPoints);
+        }
 
         const history = getLocalMarketHistory();
         const historyDates = Object.keys(history).filter(d => d !== todayDate).sort();
