@@ -87,7 +87,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       const isMarketClosed = now.getHours() >= 15;
       const allDates = (isMarketClosed || historicalDates.includes(todayDate)) ? historicalDates.slice(-5) : [...historicalDates.filter(d => d !== todayDate).slice(-4), todayDate].filter(Boolean);
 
-      // --- Mode 0: 连续历史指数 & Zigzag 骨架 (0.2% 阈值) ---
+      // --- Mode 0: 连续历史指数 & Zigzag 骨架 (0.15% 阈值) ---
       const iData: any[] = [];
       const dayIdxArr: number[] = [];
       const continuousPoints: any[] = [];
@@ -115,7 +115,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       });
 
       if (continuousPoints.length > 0) {
-          const pivots = calculateZigzag(continuousPoints, 0.2);
+          const pivots = calculateZigzag(continuousPoints, 0.15);
           pivots.forEach(pivot => {
               const target = iData[pivot.idx];
               if (target) target.zz = pivot.unitNAV;
