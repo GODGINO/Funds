@@ -287,17 +287,19 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />)}
                                     <Line key="v_all" type="linear" dataKey="val" stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                     {theme.lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
-                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
+                                    {/* Mode 0 Zigzag 线宽改为 1 */}
+                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : chartMode === 1 ? (
                                 <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={[0, 256]} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    {/* 虚线统一使用 theme.ref 颜色 */}
+                                    {/* 标记线：保持为虚线 */}
                                     <ReferenceLine x={15} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />
                                     <ReferenceLine x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />
-                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
+                                    {/* 调换层级：v0（背景）在前，zz（骨架线）在后，使骨架线覆盖在顶层 */}
                                     <Line type="linear" dataKey="v0" stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
+                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : (
                                 <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
