@@ -161,6 +161,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           const [h, m] = latestPoint.t.split(':').map(Number);
           const lastMins = h * 60 + m;
           const openMins = 9 * 60 + 30;
+          // 逻辑修正：9:30-9:35 之间起点锁定 9:30，之后为 当前-5
           const currentStartMins = Math.max(openMins, lastMins - 5);
           startIdx = timeToIndex(`${String(Math.floor(currentStartMins / 60)).padStart(2, '0')}:${String(currentStartMins % 60).padStart(2, '0')}`);
       }
@@ -170,7 +171,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           return points.map(p => p.t);
       })))
       .sort()
-      .filter(t => timeToIndex(t) >= startIdx && timeToIndex(t) <= 256); // 终点固定 15:00
+      .filter(t => timeToIndex(t) >= startIdx && timeToIndex(t) <= 256); // 终点始终固定 15:00
 
       const tData = validTimes.map((t) => {
           const obj: any = { idx: timeToIndex(t), t };
@@ -202,7 +203,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           todayOnlyIndexData: tOnlyData, 
           dayIndices: dayIdxArr, 
           distributionDots: dots,
-          turnoverDomain: [startIdx, 256] // 终点永远是 256 (15:00)
+          turnoverDomain: [startIdx, 256] 
       };
   }, [isHovering, todayTurnoverPoints]);
 
@@ -245,7 +246,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                 <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={[0, 256]} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    {/* 09:30 和 11:30 的参考线 */}
                                     <ReferenceLine x={15} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
                                     <ReferenceLine x={135} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
                                     <Line type="linear" dataKey="v0" stroke="#a0a0a0" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
@@ -255,7 +255,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                 <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={turnoverDomain} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    {/* Mode 2 增加 11:30 的参考线 */}
                                     <ReferenceLine x={135} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
                                     {lineColors.map((color, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
@@ -263,7 +262,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                         </ResponsiveContainer>
                     </div>
                     {distributionDots.length > 0 && (
-                        <div className="w-[6px] h-full relative ml-[2px] bg-gray-50 dark:bg-gray-800/20 overflow-hidden shrink-0">
+                        /* 移除 bg-gray-50 灰色背景，改为纯白色 (或暗色模式下的暗背景) */
+                        <div className="w-[6px] h-full relative ml-[2px] bg-white dark:bg-gray-900 overflow-hidden shrink-0">
                             {distributionDots.map((pos, i) => (
                                 <div key={i} className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[4px] rounded-none" style={{ bottom: `calc(${pos * 100}% - ${pos * 4}px)`, backgroundColor: lineColors[i] || 'rgba(0,0,0,0.1)', zIndex: lineColors.length - i }} />
                             ))}
