@@ -97,7 +97,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       if (isDark) {
           return {
               main: '#ffffff', 
-              sub: '#64748b',  // 加深暗黑模式背景线颜色 (Slate 500)
+              sub: '#64748b',  
               ref: 'rgba(255, 255, 255, 0.2)',
               refThin: 'rgba(255, 255, 255, 0.08)',
               refThick: 'rgba(255, 255, 255, 0.3)',
@@ -112,7 +112,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       }
       return {
           main: '#000000', 
-          sub: '#94a3b8',  // 加深浅色模式背景线颜色 (Slate 400)
+          sub: '#94a3b8',  
           ref: 'rgba(0, 0, 0, 0.12)',
           refThin: 'rgba(0, 0, 0, 0.06)',
           refThick: 'rgba(0, 0, 0, 0.18)',
@@ -287,9 +287,10 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     {dayIndices.map(idx => <ReferenceLine key={`day-${idx}`} x={idx} stroke={theme.refThick} strokeWidth={1} />)}
-                                    {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke={theme.refThin} strokeDasharray="3 3" strokeWidth={1} />)}
+                                    {/* 盘中参考线：统一使用 refThick 颜色 */}
+                                    {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke={theme.refThick} strokeDasharray="3 3" strokeWidth={1} />)}
                                     {theme.lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
-                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
+                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : chartMode === 1 ? (
                                 <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
@@ -307,7 +308,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <XAxis dataKey="idx" type="number" hide domain={turnoverDomain} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     <ReferenceLine x={135} stroke={theme.ref} strokeWidth={1} />
-                                    {theme.lineColors.map((color, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
+                                    {theme.lineColors.map((color, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={color} strokeWidth={1.2} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
                             )}
                         </ResponsiveContainer>
