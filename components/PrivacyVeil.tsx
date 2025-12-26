@@ -78,8 +78,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
   const formattedRate = `${totalDailyProfitRate >= 0 ? '+' : ''}${totalDailyProfitRate.toFixed(2)}%`;
   const formattedIndex = indexData ? `${indexData.value.toFixed(2)} ${indexData.change >= 0 ? '+' : ''}${indexData.change.toFixed(2)} ${indexData.changePercent >= 0 ? '+' : ''}${indexData.changePercent.toFixed(2)}%` : '';
 
-  const { turnoverChartData, indexChartData, todayOnlyIndexData, dayIndices, distributionDots, turnoverDomain } = useMemo(() => {
-      if (!isHovering) return { turnoverChartData: [], indexChartData: [], todayOnlyIndexData: [], dayIndices: [], distributionDots: [], turnoverDomain: [15, 256] };
+  const { turnoverChartData, indexChartData, todayOnlyIndexData, dayIndices, intraDayRefIndices, distributionDots, turnoverDomain } = useMemo(() => {
+      if (!isHovering) return { turnoverChartData: [], indexChartData: [], todayOnlyIndexData: [], dayIndices: [], intraDayRefIndices: [], distributionDots: [], turnoverDomain: [15, 256] };
       
       const history = getLocalMarketHistory();
       const todayDate = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[0].t.split(' ')[0] : '';
@@ -91,12 +91,19 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       // --- Mode 0: 连续历史指数 & Zigzag 骨架 (0.15% 阈值) ---
       const iData: any[] = [];
       const dayIdxArr: number[] = [];
+      const dayRefLines: number[] = [];
       const continuousPoints: any[] = [];
 
       allDates.forEach((date, dIdx) => {
           const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
           if (points.length === 0) return;
-          if (iData.length > 0) dayIdxArr.push(iData.length);
+          const dayStartIdx = iData.length;
+          if (dayStartIdx > 0) dayIdxArr.push(dayStartIdx);
+          
+          // 添加日内参考线坐标 (基于 dayStartIdx)
+          dayRefLines.push(dayStartIdx + 15);  // 09:30
+          dayRefLines.push(dayStartIdx + 135); // 11:30
+
           const sorted = [...points].sort((a,b) => a.t.localeCompare(b.t));
 
           sorted.forEach((p, pIdx) => {
@@ -161,7 +168,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           const [h, m] = latestPoint.t.split(':').map(Number);
           const lastMins = h * 60 + m;
           const openMins = 9 * 60 + 30;
-          // 逻辑修正：9:30-9:35 之间起点锁定 9:30，之后为 当前-5
           const currentStartMins = Math.max(openMins, lastMins - 5);
           startIdx = timeToIndex(`${String(Math.floor(currentStartMins / 60)).padStart(2, '0')}:${String(currentStartMins % 60).padStart(2, '0')}`);
       }
@@ -171,7 +177,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           return points.map(p => p.t);
       })))
       .sort()
-      .filter(t => timeToIndex(t) >= startIdx && timeToIndex(t) <= 256); // 终点始终固定 15:00
+      .filter(t => timeToIndex(t) >= startIdx && timeToIndex(t) <= 256); 
 
       const tData = validTimes.map((t) => {
           const obj: any = { idx: timeToIndex(t), t };
@@ -202,6 +208,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           indexChartData: iData, 
           todayOnlyIndexData: tOnlyData, 
           dayIndices: dayIdxArr, 
+          intraDayRefIndices: dayRefLines,
           distributionDots: dots,
           turnoverDomain: [startIdx, 256] 
       };
@@ -238,7 +245,10 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                 <LineChart data={indexChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    {dayIndices.map(idx => <ReferenceLine key={idx} x={idx} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />)}
+                                    {/* 跨天分界线 */}
+                                    {dayIndices.map(idx => <ReferenceLine key={`day-${idx}`} x={idx} stroke="rgba(0,0,0,0.15)" strokeWidth={1} />)}
+                                    {/* 日内参考线 (09:30/11:30) */}
+                                    {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke="rgba(0,0,0,0.08)" strokeDasharray="3 3" strokeWidth={1} />)}
                                     {lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke="#a0a0a0" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
                                     <Line type="linear" dataKey="zz" stroke="#000000" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
@@ -262,7 +272,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                         </ResponsiveContainer>
                     </div>
                     {distributionDots.length > 0 && (
-                        /* 移除 bg-gray-50 灰色背景，改为纯白色 (或暗色模式下的暗背景) */
                         <div className="w-[6px] h-full relative ml-[2px] bg-white dark:bg-gray-900 overflow-hidden shrink-0">
                             {distributionDots.map((pos, i) => (
                                 <div key={i} className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[4px] rounded-none" style={{ bottom: `calc(${pos * 100}% - ${pos * 4}px)`, backgroundColor: lineColors[i] || 'rgba(0,0,0,0.1)', zIndex: lineColors.length - i }} />
