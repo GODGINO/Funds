@@ -287,8 +287,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />)}
                                     <Line key="v_all" type="linear" dataKey="val" stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                     {theme.lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
-                                    {/* Mode 0 Zigzag 线宽改为 1 */}
-                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
+                                    {/* Mode 0 Zigzag 线宽调整为 1.5 */}
+                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : chartMode === 1 ? (
                                 <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
@@ -297,9 +297,10 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     {/* 标记线：保持为虚线 */}
                                     <ReferenceLine x={15} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />
                                     <ReferenceLine x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />
-                                    {/* 调换层级：v0（背景）在前，zz（骨架线）在后，使骨架线覆盖在顶层 */}
+                                    {/* 调换层级：v0（背景）在前，zz（骨架线）在后 */}
                                     <Line type="linear" dataKey="v0" stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
-                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
+                                    {/* Mode 1 Zigzag 线宽调整为 1.5 */}
+                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : (
                                 <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
@@ -307,7 +308,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     {/* 虚线统一使用 theme.ref 颜色 */}
                                     <ReferenceLine x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />
-                                    {theme.lineColors.map((color, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={color} strokeWidth={1.2} dot={false} isAnimationActive={false} connectNulls />)}
+                                    {/* Mode 2: 今日实时线(v0)为 1.5px，其余历史线为 1px */}
+                                    {theme.lineColors.map((color, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={color} strokeWidth={i === 0 ? 1.5 : 1} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
                             )}
                         </ResponsiveContainer>
