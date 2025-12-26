@@ -49,7 +49,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
 
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-  // 强化暗黑模式检测：观察者模式 + 媒体查询双保险
   useEffect(() => {
     const checkDark = () => {
         const isHtmlDark = document.documentElement.classList.contains('dark');
@@ -94,16 +93,14 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
   const formattedRate = `${totalDailyProfitRate >= 0 ? '+' : ''}${totalDailyProfitRate.toFixed(2)}%`;
   const formattedIndex = indexData ? `${indexData.value.toFixed(2)} ${indexData.change >= 0 ? '+' : ''}${indexData.change.toFixed(2)} ${indexData.changePercent >= 0 ? '+' : ''}${indexData.changePercent.toFixed(2)}%` : '';
 
-  // 颜色配置深度适配：Mode 2 成交额采用指数级衰减
   const theme = useMemo(() => {
       if (isDark) {
           return {
-              main: '#ffffff', // 纯白主线
-              sub: '#94a3b8',  // slate-400 辅助线
+              main: '#ffffff', 
+              sub: '#475569',  
               ref: 'rgba(255, 255, 255, 0.2)',
               refThin: 'rgba(255, 255, 255, 0.08)',
               refThick: 'rgba(255, 255, 255, 0.3)',
-              // 指数衰减透明度：1.0 -> 0.55 -> 0.28 -> 0.12 -> 0.05
               lineColors: [
                   'rgba(255, 255, 255, 1.00)', 
                   'rgba(255, 255, 255, 0.55)', 
@@ -114,12 +111,11 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           };
       }
       return {
-          main: '#000000', // 纯黑主线
-          sub: '#64748b',  // slate-500 辅助线
+          main: '#000000', 
+          sub: '#cbd5e1',  
           ref: 'rgba(0, 0, 0, 0.12)',
           refThin: 'rgba(0, 0, 0, 0.06)',
           refThick: 'rgba(0, 0, 0, 0.18)',
-          // 指数衰减透明度：1.0 -> 0.50 -> 0.22 -> 0.08 -> 0.03
           lineColors: [
               'rgba(0, 0, 0, 1.00)', 
               'rgba(0, 0, 0, 0.50)', 
@@ -151,8 +147,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           const dayStartIdx = iData.length;
           if (dayStartIdx > 0) dayIdxArr.push(dayStartIdx);
           
-          dayRefLines.push(dayStartIdx + 15);  // 09:30
-          dayRefLines.push(dayStartIdx + 135); // 11:30
+          dayRefLines.push(dayStartIdx + 15);  
+          dayRefLines.push(dayStartIdx + 135); 
 
           const sorted = [...points].sort((a,b) => a.t.localeCompare(b.t));
 
@@ -292,7 +288,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     {dayIndices.map(idx => <ReferenceLine key={`day-${idx}`} x={idx} stroke={theme.refThick} strokeWidth={1} />)}
                                     {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke={theme.refThin} strokeDasharray="3 3" strokeWidth={1} />)}
-                                    {theme.lineColors.map((color, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
+                                    {theme.lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
                                     <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : chartMode === 1 ? (
@@ -301,8 +297,10 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     <ReferenceLine x={15} stroke={theme.ref} strokeWidth={1} />
                                     <ReferenceLine x={135} stroke={theme.ref} strokeWidth={1} />
-                                    <Line type="linear" dataKey="v0" stroke={theme.lineColors[1]} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
-                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
+                                    {/* 反转层级：Zigzag 线在下方，宽度设为 1 */}
+                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
+                                    {/* 反转层级：指数线在上方，作为主体显示 */}
+                                    <Line type="linear" dataKey="v0" stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : (
                                 <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
