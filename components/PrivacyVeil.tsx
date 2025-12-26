@@ -243,7 +243,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                     {distributionDots.length > 0 && (
                         <div className="w-[6px] h-full relative ml-[2px] bg-gray-50 dark:bg-gray-800/20 overflow-hidden shrink-0">
                             {distributionDots.map((pos, i) => (
-                                <div key={i} className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[2px] rounded-none" style={{ bottom: `calc(${pos * 100}% - ${pos * 4}px)`, backgroundColor: lineColors[i] || 'rgba(0,0,0,0.1)', zIndex: lineColors.length - i }} />
+                                <div key={i} className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[3px] rounded-none" style={{ bottom: `calc(${pos * 100}% - ${pos * 4}px)`, backgroundColor: lineColors[i] || 'rgba(0,0,0,0.1)', zIndex: lineColors.length - i }} />
                             ))}
                         </div>
                     )}
