@@ -230,6 +230,7 @@ export async function fetchIndexData(): Promise<IndexData | null> {
             return { value: latest, change: latest - first, changePercent: first > 0 ? ((latest - first) / first) * 100 : 0 };
         }
         const ts = Date.now();
+        // iscr=1 关键：获取 09:15 后的竞价数据
         const url = `https://push2delay.eastmoney.com/api/qt/stock/trends2/get?secid=1.000001&fields1=f1,f2,f3&fields2=f51,f52&ndays=1&iscr=1&_=${ts}`;
         const resp = await fetch(url, { cache: 'no-store' });
         if (!resp.ok) throw new Error('SSE index fetch failed');
@@ -316,7 +317,7 @@ export async function fetchTotalTurnover(): Promise<TurnoverResult | null> {
 
         for (const shP of shPoints) {
             const szVal = szMap.get(shP.t) || 0;
-            // 9:15 - 9:30: 强制成交额补 0，即便 API 可能返回了少量竞价额
+            // 9:15 - 9:30: 强制成交额补 0，确保曲线起点正确
             const totalTurnover = shP.t < "09:30" ? 0 : (shP.val + szVal);
             combinedPoints.push({ t: shP.t, val: totalTurnover, ind: shP.ind });
         }
@@ -324,8 +325,10 @@ export async function fetchTotalTurnover(): Promise<TurnoverResult | null> {
         const totalToday = combinedPoints.reduce((acc, p) => acc + p.val, 0);
         const latestTime = combinedPoints[combinedPoints.length - 1].t;
         
-        // 保存历史记录：只要是 15:00 之后的数据，或者是收盘后的最终数据
-        if (latestTime >= "15:00") saveLocalMarketHistory(todayDate, combinedPoints);
+        // 15:00 后且数据量充足（包含竞价段）保存到本地
+        if (latestTime >= "15:00" && combinedPoints.length > 200) {
+            saveLocalMarketHistory(todayDate, combinedPoints);
+        }
 
         const history = getLocalMarketHistory();
         const historyDates = Object.keys(history).filter(d => d !== todayDate).sort();

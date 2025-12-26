@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, XAxis, ReferenceLine } from 'recharts';
 import { IndexData, MarketDataPoint } from '../types';
 import { getLocalMarketHistory } from '../services/fundService';
+import { calculateZigzag } from '../services/chartUtils';
 
 const DinoIcon: React.FC = () => (
     <svg className="dino-icon fill-current text-slate-700 dark:text-gray-500" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="1731" height="44" width="44"><path d="M982.92737207 56.98146258h-41.97086855V3.85500886H561.50493039V50.57912671H513.29340118v307.92648747h-46.72411785v48.21152925h-69.84366408v44.26665562h-71.33107543v50.18396602h-49.18158015v46.23909239h-93.96559618V501.65279054h-47.20914328v-47.20914332h-47.20914331v-95.93803304h-46.72411789v282.34947904h45.26904153v48.21152922h49.18158014v47.7265038h46.72411783v47.2091433h47.20914335v45.75406693h46.72411781v190.35631962h95.93803304v-48.69655464h-47.72650379v-46.72411784h47.20914334v-47.20914331h47.20914328v-46.72411791h47.72650379v46.72411791H512v142.66215084h94.77397194v-48.21152925h-45.75406699v-188.41621783h45.75406699v-47.72650374h48.69655468V664.94469029h46.23909242v-165.23200157h48.21152918v45.75406698h45.75406698v-92.47818481h-93.44823571v-94.93564712h187.89885738v-47.20914332h-140.20468865l-0.48502541-51.8007175h233.49124926v-202.06160037z m-328.03887603 65.47843509h-47.20914327v-47.20914332h47.20914327v47.20914332z" p-id="1732"></path></svg>
@@ -19,6 +20,23 @@ interface PrivacyVeilProps {
   marketTurnover: string | null;
   todayTurnoverPoints?: MarketDataPoint[];
 }
+
+/**
+ * 将交易时间映射为 0-256 的索引
+ * 09:15 -> 0
+ * 11:30 -> 135
+ * 13:00 -> 136
+ * 15:00 -> 256
+ */
+const timeToIndex = (t: string) => {
+    const hhmm = t.includes(' ') ? t.split(' ')[1] : t;
+    const [h, m] = hhmm.split(':').map(Number);
+    const mins = h * 60 + m;
+    if (mins <= 11 * 60 + 30) {
+        return Math.max(0, mins - (9 * 60 + 15));
+    }
+    return 136 + Math.max(0, mins - 13 * 60);
+};
 
 const PrivacyVeil: React.FC<PrivacyVeilProps> = ({ 
     onRefresh, 
@@ -46,8 +64,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
   };
 
   const handleMouseEnter = () => { setIsHovering(true); resetIdleTimer(); };
-  const handleMouseMove = () => { if (!isHovering) setIsHovering(true); resetIdleTimer(); };
-  const handleMouseLeave = () => {
+  const handleMouseMoveMain = () => { if (!isHovering) setIsHovering(true); resetIdleTimer(); };
+  const handleMouseLeaveMain = () => {
       setIsHovering(false);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       if (!isMobile) window.location.href = 'feishu://';
@@ -59,8 +77,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
   const formattedRate = `${totalDailyProfitRate >= 0 ? '+' : ''}${totalDailyProfitRate.toFixed(2)}%`;
   const formattedIndex = indexData ? `${indexData.value.toFixed(2)} ${indexData.change >= 0 ? '+' : ''}${indexData.change.toFixed(2)} ${indexData.changePercent >= 0 ? '+' : ''}${indexData.changePercent.toFixed(2)}%` : '';
 
-  const hoverContent = [formattedProfit, formattedRate, summaryProfitCaused != null ? `${summaryProfitCaused >= 0 ? '+' : ''}${summaryProfitCaused.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '', summaryOperationEffect != null ? `${summaryOperationEffect >= 0 ? '+' : ''}${summaryOperationEffect.toFixed(2)}%` : '', formattedIndex, marketTurnover].filter(Boolean).join(' ');
-
   const { turnoverChartData, indexChartData, todayOnlyIndexData, dayIndices, distributionDots } = useMemo(() => {
       if (!isHovering) return { turnoverChartData: [], indexChartData: [], todayOnlyIndexData: [], dayIndices: [], distributionDots: [] };
       
@@ -71,32 +87,64 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       const isMarketClosed = now.getHours() >= 15;
       const allDates = (isMarketClosed || historicalDates.includes(todayDate)) ? historicalDates.slice(-5) : [...historicalDates.filter(d => d !== todayDate).slice(-4), todayDate].filter(Boolean);
 
-      // --- Mode 0: 连续历史指数 ---
+      // --- Mode 0: 连续历史指数 & Zigzag 骨架 (0.1% 阈值) ---
       const iData: any[] = [];
       const dayIdxArr: number[] = [];
+      const continuousPoints: any[] = [];
+
       allDates.forEach((date, dIdx) => {
           const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
           if (points.length === 0) return;
           if (iData.length > 0) dayIdxArr.push(iData.length);
-          [...points].sort((a,b) => a.t.localeCompare(b.t)).forEach((p, pIdx, arr) => {
+          const sorted = [...points].sort((a,b) => a.t.localeCompare(b.t));
+
+          sorted.forEach((p, pIdx) => {
               const currentIdx = iData.length;
-              const obj: any = { idx: currentIdx };
+              const obj: any = { idx: currentIdx, t: p.t, val: p.ind };
               const key = `v${allDates.length - 1 - dIdx}`;
-              if (p.ind > 0) obj[key] = p.ind;
-              if (pIdx === arr.length - 1 && dIdx < allDates.length - 1) {
+              if (p.ind > 0) {
+                  obj[key] = p.ind;
+                  continuousPoints.push({ unitNAV: p.ind, t: p.t, idx: currentIdx });
+              }
+              
+              if (pIdx === sorted.length - 1 && dIdx < allDates.length - 1) {
                   obj[`v${allDates.length - 1 - (dIdx + 1)}`] = p.ind;
               }
               iData.push(obj);
           });
       });
 
-      // --- Mode 1: 今日实时指数（确保从 09:15 顶格） ---
-      const tOnlyData = todayTurnoverPoints.map((p, i) => ({
-          idx: i,
-          v0: p.ind > 0 ? p.ind : null
+      if (continuousPoints.length > 0) {
+          const pivots = calculateZigzag(continuousPoints, 0.1);
+          pivots.forEach(pivot => {
+              const target = iData[pivot.idx];
+              if (target) target.zz = pivot.unitNAV;
+          });
+      }
+
+      // --- Mode 1: 今日实时指数 & Zigzag 骨架 (0.1% 阈值) ---
+      const tOnlyData = todayTurnoverPoints.map((p) => ({
+          idx: timeToIndex(p.t),
+          t: p.t,
+          val: p.ind,
+          v0: p.ind > 0 ? p.ind : null,
+          zz: undefined as number | undefined
       }));
 
-      // --- Mode 2: 两市成交额（确保从 09:30 顶格） ---
+      if (todayTurnoverPoints.length > 0) {
+          const mode1Points = todayTurnoverPoints.map(p => ({
+              unitNAV: p.ind,
+              t: p.t,
+              idx: timeToIndex(p.t)
+          }));
+          const mode1Pivots = calculateZigzag(mode1Points, 0.1);
+          mode1Pivots.forEach(pivot => {
+              const target = tOnlyData.find(d => d.idx === pivot.idx);
+              if (target) target.zz = pivot.unitNAV;
+          });
+      }
+
+      // --- Mode 2: 两市成交额 ---
       const turnoverMaps = allDates.map(date => {
           const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
           const map = new Map<string, number>();
@@ -111,15 +159,19 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       }))).sort();
 
       const tData = validTimes.map((t, i) => {
-          const obj: any = { idx: i };
+          const obj: any = { idx: i, t };
           turnoverMaps.forEach((map, dIdx) => {
               const val = map.get(t);
-              if (val !== undefined) obj[`v${allDates.length - 1 - dIdx}`] = val;
+              if (val !== undefined) {
+                  obj[`v${allDates.length - 1 - dIdx}`] = val;
+                  if (dIdx === (allDates.indexOf(todayDate) !== -1 ? allDates.indexOf(todayDate) : 0)) {
+                      obj.val = val;
+                  }
+              }
           });
           return obj;
       });
 
-      // 垂直分布点
       let dots: number[] = [];
       if (todayTurnoverPoints.length > 0) {
           const curT = todayTurnoverPoints[todayTurnoverPoints.length - 1].t;
@@ -135,6 +187,15 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
 
   const lineColors = ['#000000', 'rgba(0, 0, 0, 0.5)', 'rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.18)', 'rgba(0, 0, 0, 0.11)'];
 
+  const footerContent = [
+    formattedProfit, 
+    formattedRate, 
+    summaryProfitCaused != null ? `${summaryProfitCaused >= 0 ? '+' : ''}${summaryProfitCaused.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '', 
+    summaryOperationEffect != null ? `${summaryOperationEffect >= 0 ? '+' : ''}${summaryOperationEffect.toFixed(2)}%` : '', 
+    formattedIndex, 
+    marketTurnover
+  ].filter(Boolean).join(' ');
+
   return (
     <div
       className="fixed inset-0 bg-white dark:bg-gray-900 z-[200] flex flex-col justify-center items-center text-slate-700 dark:text-gray-400 font-sans p-8 select-none"
@@ -142,8 +203,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       onDoubleClick={onRefresh}
       onClick={() => setChartMode(p => (p + 1) % 3)}
       onMouseEnter={handleMouseEnter}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
+      onMouseMove={handleMouseMoveMain}
+      onMouseLeave={handleMouseLeaveMain}
     >
         <div className="w-full max-w-3xl text-left">
             <div className="flex items-end gap-3 w-full">
@@ -156,19 +217,25 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     {dayIndices.map(idx => <ReferenceLine key={idx} x={idx} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />)}
-                                    {lineColors.map((color, i) => <Line key={i} type="monotone" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
+                                    {/* 指数线调为浅灰色 (#a0a0a0) */}
+                                    {lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke="#a0a0a0" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
+                                    {/* 骨架线渲染在最后，确保黑色 (#000000) 位于顶层 */}
+                                    <Line type="linear" dataKey="zz" stroke="#000000" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : chartMode === 1 ? (
                                 <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                    <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
+                                    <XAxis dataKey="idx" type="number" hide domain={[0, 256]} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    <Line type="monotone" dataKey="v0" stroke="#000000" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
+                                    {/* 今日指数线调为浅灰色 (#a0a0a0) */}
+                                    <Line type="linear" dataKey="v0" stroke="#a0a0a0" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
+                                    {/* 今日 Zigzag 骨架线渲染在最后，确保黑色 (#000000) 位于顶层 */}
+                                    <Line type="linear" dataKey="zz" stroke="#000000" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : (
                                 <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    {lineColors.map((color, i) => <Line key={i} type="monotone" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
+                                    {lineColors.map((color, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
                             )}
                         </ResponsiveContainer>
@@ -176,7 +243,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                     {distributionDots.length > 0 && (
                         <div className="w-[6px] h-full relative ml-[2px] bg-gray-50 dark:bg-gray-800/20 overflow-hidden shrink-0">
                             {distributionDots.map((pos, i) => (
-                                <div key={i} className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[6px] rounded-full" style={{ bottom: `calc(${pos * 100}% - ${pos * 6}px)`, backgroundColor: lineColors[i] || 'rgba(0,0,0,0.1)', zIndex: lineColors.length - i }} />
+                                <div key={i} className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[2px] rounded-none" style={{ bottom: `calc(${pos * 100}% - ${pos * 4}px)`, backgroundColor: lineColors[i] || 'rgba(0,0,0,0.1)', zIndex: lineColors.length - i }} />
                             ))}
                         </div>
                     )}
@@ -188,7 +255,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                 <li>检查网线、调制解调器和路由器</li>
                 <li>重新连接到 Wi-Fi 网络</li>
             </ul>
-            <p className="text-base text-slate-500 dark:text-gray-500 min-h-[1.5em]">{isHovering ? <span>{hoverContent}</span> : '-'}</p>
+            <p className="text-base text-slate-500 dark:text-gray-500 min-h-[1.5em]">{isHovering ? <span>{footerContent}</span> : '-'}</p>
             <p className="text-base text-slate-500 dark:text-gray-500">ERR_INTERNET_DISCONNECTED</p>
             <div className="text-lg mt-20">未连接到互联网 {lastRefreshTime}</div>
         </div>

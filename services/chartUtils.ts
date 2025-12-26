@@ -7,13 +7,15 @@ import { FundDataPoint } from '../types';
  * @param deviation The minimum percentage change required to define a trend reversal.
  * @returns An array of points representing the Zigzag line.
  */
-export function calculateZigzag(data: Partial<FundDataPoint>[], deviation: number): Partial<FundDataPoint>[] {
-  const zigzagPoints: Partial<FundDataPoint>[] = [];
+// FIX: Make calculateZigzag generic to preserve additional properties (like 'idx') on data points.
+// This ensures that utility functions don't drop extra metadata required by specific components.
+export function calculateZigzag<T extends Partial<FundDataPoint>>(data: T[], deviation: number): T[] {
+  const zigzagPoints: T[] = [];
   if (data.length < 2 || deviation <= 0) {
     return [];
   }
 
-  const getNav = (p: Partial<FundDataPoint> | undefined): number => p?.unitNAV ?? 0;
+  const getNav = (p: T | undefined): number => p?.unitNAV ?? 0;
 
   zigzagPoints.push(data[0]);
 
