@@ -282,34 +282,34 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                 <LineChart data={indexChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    {/* 实线和虚线统一使用 theme.ref 颜色 */}
-                                    {dayIndices.map(idx => <ReferenceLine key={`day-${idx}`} x={idx} stroke={theme.ref} strokeWidth={1} />)}
-                                    {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />)}
-                                    <Line key="v_all" type="linear" dataKey="val" stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
-                                    {theme.lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
-                                    {/* Mode 0 Zigzag 线宽调整为 1.5 */}
-                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
+                                    {/* 实线和虚线统一使用 theme.ref 颜色，线宽适配缩放 */}
+                                    {dayIndices.map(idx => <ReferenceLine key={`day-${idx}`} x={idx} stroke={theme.ref} strokeWidth={1.33} />)}
+                                    {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />)}
+                                    <Line key="v_all" type="linear" dataKey="val" stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
+                                    {theme.lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />)}
+                                    {/* Mode 0 Zigzag 线宽调整为 2 */}
+                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : chartMode === 1 ? (
                                 <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={[0, 256]} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     {/* 标记线：保持为虚线 */}
-                                    <ReferenceLine x={15} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />
-                                    <ReferenceLine x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />
+                                    <ReferenceLine x={15} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />
+                                    <ReferenceLine x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />
                                     {/* 调换层级：v0（背景）在前，zz（骨架线）在后 */}
-                                    <Line type="linear" dataKey="v0" stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
-                                    {/* Mode 1 Zigzag 线宽调整为 1.5 */}
-                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
+                                    <Line type="linear" dataKey="v0" stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
+                                    {/* Mode 1 Zigzag 线宽调整为 2 */}
+                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : (
                                 <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={turnoverDomain} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     {/* 虚线统一使用 theme.ref 颜色 */}
-                                    <ReferenceLine x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />
-                                    {/* Mode 2: 今日实时线(v0)为 1.5px，其余历史线为 1px */}
-                                    {theme.lineColors.map((color, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={color} strokeWidth={i === 0 ? 1.5 : 1} dot={false} isAnimationActive={false} connectNulls />)}
+                                    <ReferenceLine x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />
+                                    {/* Mode 2: 今日实时线(v0)为 2px，其余历史线为 1.33px */}
+                                    {theme.lineColors.map((color, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={color} strokeWidth={i === 0 ? 2 : 1.33} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
                             )}
                         </ResponsiveContainer>

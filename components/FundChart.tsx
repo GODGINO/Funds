@@ -100,7 +100,6 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
         return (
             <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-1.5 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 text-[10px] leading-tight min-w-[150px] pointer-events-none">
                 <div className="flex flex-col space-y-0.5">
-                    {/* Header - 移除了 border-b 以保持风格一致 */}
                     {isBaselineActive && !isBaselinePoint ? (
                          <div className="flex justify-between items-center gap-1 mb-0.5">
                             <span className="text-blue-600 dark:text-blue-400 font-semibold">{displayBaselineDate}</span>
@@ -116,7 +115,6 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
                         </div>
                     )}
                     
-                    {/* Basic Market Info */}
                     <div className="flex justify-between items-baseline gap-4">
                         <span className="text-gray-500 dark:text-gray-400">当日涨跌:</span>
                         <span className={`font-mono font-bold ${isGrowthPositive ? 'text-red-500' : 'text-green-600'}`}>
@@ -144,7 +142,6 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
                         </div>
                     )}
 
-                    {/* Trade Info */}
                     {tradeRecord && (
                         <div className="flex justify-between items-baseline gap-4 pt-0.5">
                             <span className={`font-semibold ${getTransactionLabelColorClass(tradeRecord.type)}`}>
@@ -177,7 +174,6 @@ const FundChart: React.FC<FundChartProps> = ({
   navPercentile,
   tradingRecords,
 }) => {
-  // 定义局部基准点状态
   const [localBaselineDate, setLocalBaselineDate] = useState<string | null>(null);
     
   const confirmedTradingRecords = useMemo(() => {
@@ -189,7 +185,6 @@ const FundChart: React.FC<FundChartProps> = ({
     const tradeMap = new Map(confirmedTradingRecords?.map(r => [r.date, r]));
     const latestNAV = baseChartData.length > 0 ? (baseChartData[baseChartData.length - 1].unitNAV ?? 0) : 0;
     
-    // 找到当前选定基准日的净值
     const baselinePoint = localBaselineDate ? baseChartData.find(p => p.date === localBaselineDate) : null;
     const baselineNAV = baselinePoint?.unitNAV ?? null;
 
@@ -213,7 +208,6 @@ const FundChart: React.FC<FundChartProps> = ({
             changeSinceDate = ((latestNAV - p.unitNAV) / p.unitNAV) * 100;
         }
 
-        // 计算相对于基准点的变动
         if (baselineNAV && baselineNAV > 0 && p.unitNAV !== undefined) {
             changeFromBaseline = ((p.unitNAV - baselineNAV) / baselineNAV) * 100;
         }
@@ -254,7 +248,6 @@ const FundChart: React.FC<FundChartProps> = ({
     return 'text-yellow-600 dark:text-yellow-400';
   }, [navPercentile]);
 
-  // 处理图表点击设置/取消基准
   const handleChartClick = (state: any) => {
     if (state && state.activeLabel) {
       const clickedDate = state.activeLabel;
@@ -283,7 +276,7 @@ const FundChart: React.FC<FundChartProps> = ({
 
           <Tooltip 
             content={<CustomTooltip localBaselineDate={localBaselineDate} />} 
-            cursor={{ stroke: '#a0a0a0', strokeWidth: 1, strokeDasharray: '3 3' }} 
+            cursor={{ stroke: '#a0a0a0', strokeWidth: 1.33, strokeDasharray: '3 3' }} 
             wrapperStyle={{ zIndex: 100 }} 
           />
           
@@ -302,11 +295,10 @@ const FundChart: React.FC<FundChartProps> = ({
                   x={lastPivotDate} 
                   stroke="#a0a0a0" 
                   strokeDasharray="3 3" 
-                  strokeWidth={1} 
+                  strokeWidth={1.33} 
               />
           )}
 
-          {/* 渲染局部基准日参考线 */}
           {localBaselineDate && (
               <ReferenceLine 
                   x={localBaselineDate} 
@@ -320,7 +312,7 @@ const FundChart: React.FC<FundChartProps> = ({
             <ReferenceLine 
               y={costPrice} 
               stroke="#ef4444" 
-              strokeWidth={1} 
+              strokeWidth={1.33} 
               label={showLabels ? { value: `成本: ${costPrice.toFixed(4)}`, position: 'insideTopLeft', fill: '#ef4444', fontSize: 10, dy: -2 } : undefined}
             />
           )}
@@ -330,7 +322,7 @@ const FundChart: React.FC<FundChartProps> = ({
               y={actualCostPrice} 
               stroke="#6b7280" 
               strokeDasharray="3 3" 
-              strokeWidth={1}
+              strokeWidth={1.33}
               label={showLabels ? { value: `实际: ${actualCostPrice.toFixed(4)}`, position: 'insideTopLeft', fill: '#374151', fontSize: 10, dy: -2 } : undefined}
             />
           )}
@@ -339,7 +331,7 @@ const FundChart: React.FC<FundChartProps> = ({
             type="linear"
             dataKey="unitNAV"
             stroke="#3b82f6"
-            strokeWidth={1}
+            strokeWidth={1.33}
             dot={false}
             isAnimationActive={false}
           />
@@ -348,7 +340,7 @@ const FundChart: React.FC<FundChartProps> = ({
             dataKey="zigzagNAV"
             connectNulls
             stroke="#a0a0a0"
-            strokeWidth={1}
+            strokeWidth={1.33}
             dot={false}
             isAnimationActive={false}
           />
@@ -360,7 +352,7 @@ const FundChart: React.FC<FundChartProps> = ({
               r={4}
               fill={getTransactionColor(record.type)}
               stroke="#ffffff"
-              strokeWidth={1}
+              strokeWidth={1.33}
             />
           ))}
         </LineChart>
