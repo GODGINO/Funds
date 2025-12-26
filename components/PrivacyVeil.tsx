@@ -98,9 +98,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           return {
               main: '#ffffff', 
               sub: '#64748b',  
-              ref: 'rgba(255, 255, 255, 0.2)',
-              refThin: 'rgba(255, 255, 255, 0.08)',
-              refThick: 'rgba(255, 255, 255, 0.3)',
+              ref: 'rgba(255, 255, 255, 0.18)', 
               lineColors: [
                   'rgba(255, 255, 255, 1.00)', 
                   'rgba(255, 255, 255, 0.55)', 
@@ -113,9 +111,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       return {
           main: '#000000', 
           sub: '#94a3b8',  
-          ref: 'rgba(0, 0, 0, 0.12)',
-          refThin: 'rgba(0, 0, 0, 0.06)',
-          refThick: 'rgba(0, 0, 0, 0.18)',
+          ref: 'rgba(0, 0, 0, 0.12)', 
           lineColors: [
               'rgba(0, 0, 0, 1.00)', 
               'rgba(0, 0, 0, 0.50)', 
@@ -286,9 +282,11 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                 <LineChart data={indexChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    {dayIndices.map(idx => <ReferenceLine key={`day-${idx}`} x={idx} stroke={theme.refThick} strokeWidth={1} />)}
-                                    {/* 盘中参考线：统一使用 refThick 颜色 */}
-                                    {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke={theme.refThick} strokeDasharray="3 3" strokeWidth={1} />)}
+                                    {/* 日间分割线：恢复为实线 */}
+                                    {dayIndices.map(idx => <ReferenceLine key={`day-${idx}`} x={idx} stroke={theme.ref} strokeWidth={1} />)}
+                                    {/* 盘中标记线：保持为虚线 */}
+                                    {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />)}
+                                    <Line key="v_all" type="linear" dataKey="val" stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                     {theme.lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
                                     <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
@@ -296,18 +294,18 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                 <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={[0, 256]} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    <ReferenceLine x={15} stroke={theme.ref} strokeWidth={1} />
-                                    <ReferenceLine x={135} stroke={theme.ref} strokeWidth={1} />
-                                    {/* 骨架线：位于指数线下方 */}
+                                    {/* 标记线：保持为虚线 */}
+                                    <ReferenceLine x={15} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />
+                                    <ReferenceLine x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />
                                     <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
-                                    {/* 指数线：位于上方覆盖骨架线 */}
                                     <Line type="linear" dataKey="v0" stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : (
                                 <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={turnoverDomain} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    <ReferenceLine x={135} stroke={theme.ref} strokeWidth={1} />
+                                    {/* 标记线：保持为虚线 */}
+                                    <ReferenceLine x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />
                                     {theme.lineColors.map((color, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={color} strokeWidth={1.2} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
                             )}
