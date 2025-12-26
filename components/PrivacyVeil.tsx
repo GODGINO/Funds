@@ -24,6 +24,7 @@ interface PrivacyVeilProps {
 /**
  * 将交易时间映射为 0-256 的索引
  * 09:15 -> 0
+ * 09:30 -> 15
  * 11:30 -> 135
  * 13:00 -> 136
  * 15:00 -> 256
@@ -144,7 +145,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           });
       }
 
-      // --- Mode 2: 两市成交额 ---
+      // --- Mode 2: 两市成交额 (显示滚动窗口或全天) ---
       const turnoverMaps = allDates.map(date => {
           const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
           const map = new Map<string, number>();
@@ -153,10 +154,24 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           return map;
       });
 
+      // 计算起始时间：15:00 后展示全天 (09:30 开始)，交易时段展示最近 5 分钟
+      const latestPoint = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[todayTurnoverPoints.length - 1] : null;
+      let startTimeLimit = "09:30";
+      if (latestPoint && !isMarketClosed) {
+          const [h, m] = latestPoint.t.split(':').map(Number);
+          const lastMins = h * 60 + m;
+          const openMins = 9 * 60 + 30;
+          const startMins = Math.max(openMins, lastMins - 5);
+          startTimeLimit = `${String(Math.floor(startMins / 60)).padStart(2, '0')}:${String(startMins % 60).padStart(2, '0')}`;
+      }
+
       const validTimes = Array.from(new Set(allDates.flatMap(d => {
           const points = d === todayDate ? todayTurnoverPoints : (history[d] || []);
-          return points.filter(p => p.t >= "09:30").map(p => p.t);
-      }))).sort();
+          // 仅保留起始时间限制以后的点
+          return points.filter(p => p.t >= startTimeLimit).map(p => p.t);
+      })))
+      .sort()
+      .filter(t => latestPoint ? t <= latestPoint.t : true);
 
       const tData = validTimes.map((t, i) => {
           const obj: any = { idx: i, t };
@@ -226,6 +241,9 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                 <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={[0, 256]} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
+                                    {/* 09:30 和 11:30 的灰色竖线 */}
+                                    <ReferenceLine x={15} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
+                                    <ReferenceLine x={135} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
                                     {/* 今日指数线调为浅灰色 (#a0a0a0) */}
                                     <Line type="linear" dataKey="v0" stroke="#a0a0a0" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                     {/* 今日 Zigzag 骨架线渲染在最后，确保黑色 (#000000) 位于顶层 */}
