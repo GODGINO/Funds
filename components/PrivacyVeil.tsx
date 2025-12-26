@@ -6,7 +6,7 @@ import { getLocalMarketHistory } from '../services/fundService';
 import { calculateZigzag } from '../services/chartUtils';
 
 const DinoIcon: React.FC = () => (
-    <svg className="dino-icon fill-current text-slate-700 dark:text-gray-500" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="1731" height="44" width="44"><path d="M982.92737207 56.98146258h-41.97086855V3.85500886H561.50493039V50.57912671H513.29340118v307.92648747h-46.72411785v48.21152925h-69.84366408v44.26665562h-71.33107543v50.18396602h-49.18158015v46.23909239h-93.96559618V501.65279054h-47.20914328v-47.20914332h-47.20914331v-95.93803304h-46.72411789v282.34947904h45.26904153v48.21152922h49.18158014v47.7265038h46.72411783v47.2091433h47.20914335v45.75406693h46.72411781v190.35631962h95.93803304v-48.69655464h-47.72650379v-46.72411784h47.20914334v-47.20914331h47.20914328v-46.72411791h47.72650379v46.72411791H512v142.66215084h94.77397194v-48.21152925h-45.75406699v-188.41621783h45.75406699v-47.72650374h48.69655468V664.94469029h46.23909242v-165.23200157h48.21152918v45.75406698h45.75406698v-92.47818481h-93.44823571v-94.93564712h187.89885738v-47.20914332h-140.20468865l-0.48502541-51.8007175h233.49124926v-202.06160037z m-328.03887603 65.47843509h-47.20914327v-47.20914332h47.20914327v47.20914332z" p-id="1732"></path></svg>
+    <svg className="dino-icon fill-current text-slate-700 dark:text-slate-300" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="1731" height="44" width="44"><path d="M982.92737207 56.98146258h-41.97086855V3.85500886H561.50493039V50.57912671H513.29340118v307.92648747h-46.72411785v48.21152925h-69.84366408v44.26665562h-71.33107543v50.18396602h-49.18158015v46.23909239h-93.96559618V501.65279054h-47.20914328v-47.20914332h-47.20914331v-95.93803304h-46.72411789v282.34947904h45.26904153v48.21152922h49.18158014v47.7265038h46.72411783v47.2091433h47.20914335v45.75406693h46.72411781v190.35631962h95.93803304v-48.69655464h-47.72650379v-46.72411784h47.20914334v-47.20914331h47.20914328v-46.72411791h47.72650379v46.72411791H512v142.66215084h94.77397194v-48.21152925h-45.75406699v-188.41621783h45.75406699v-47.72650374h48.69655468V664.94469029h46.23909242v-165.23200157h48.21152918v45.75406698h45.75406698v-92.47818481h-93.44823571v-94.93564712h187.89885738v-47.20914332h-140.20468865l-0.48502541-51.8007175h233.49124926v-202.06160037z m-328.03887603 65.47843509h-47.20914327v-47.20914332h47.20914327v47.20914332z" p-id="1732"></path></svg>
 );
 
 interface PrivacyVeilProps {
@@ -21,14 +21,6 @@ interface PrivacyVeilProps {
   todayTurnoverPoints?: MarketDataPoint[];
 }
 
-/**
- * 将交易时间映射为 0-256 的索引
- * 09:15 -> 0
- * 09:30 -> 15
- * 11:30 -> 135
- * 13:00 -> 136
- * 15:00 -> 256
- */
 const timeToIndex = (t: string) => {
     const hhmm = t.includes(' ') ? t.split(' ')[1] : t;
     const [h, m] = hhmm.split(':').map(Number);
@@ -52,9 +44,33 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
 }) => {
   const [isHovering, setIsHovering] = useState(false);
   const [chartMode, setChartMode] = useState(0);
+  const [isDark, setIsDark] = useState(false);
   const idleTimerRef = useRef<number | null>(null);
 
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  // 强化暗黑模式检测：观察者模式 + 媒体查询双保险
+  useEffect(() => {
+    const checkDark = () => {
+        const isHtmlDark = document.documentElement.classList.contains('dark');
+        const isBodyDark = document.body.classList.contains('dark');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        setIsDark(isHtmlDark || isBodyDark || prefersDark);
+    };
+    checkDark();
+    
+    const observer = new MutationObserver(checkDark);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', checkDark);
+
+    return () => {
+        observer.disconnect();
+        mediaQuery.removeEventListener('change', checkDark);
+    };
+  }, []);
 
   const resetIdleTimer = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
@@ -78,6 +94,30 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
   const formattedRate = `${totalDailyProfitRate >= 0 ? '+' : ''}${totalDailyProfitRate.toFixed(2)}%`;
   const formattedIndex = indexData ? `${indexData.value.toFixed(2)} ${indexData.change >= 0 ? '+' : ''}${indexData.change.toFixed(2)} ${indexData.changePercent >= 0 ? '+' : ''}${indexData.changePercent.toFixed(2)}%` : '';
 
+  // 颜色配置深度适配：暗黑模式下弃用 rgba，使用高亮度 Slate 调色板，确保实色渲染
+  const theme = useMemo(() => {
+      if (isDark) {
+          return {
+              main: '#ffffff', // 纯白主线
+              sub: '#94a3b8',  // slate-400 辅助线
+              ref: 'rgba(255, 255, 255, 0.3)',
+              refThin: 'rgba(255, 255, 255, 0.12)',
+              refThick: 'rgba(255, 255, 255, 0.4)',
+              // 越新越白：White -> Slate-200 -> Slate-400 -> Slate-500 -> Slate-600
+              lineColors: ['#ffffff', '#e2e8f0', '#94a3b8', '#64748b', '#475569']
+          };
+      }
+      return {
+          main: '#000000', // 纯黑主线
+          sub: '#64748b',  // slate-500 辅助线
+          ref: 'rgba(0, 0, 0, 0.15)',
+          refThin: 'rgba(0, 0, 0, 0.08)',
+          refThick: 'rgba(0, 0, 0, 0.2)',
+          // 越新越黑：Black -> Slate-700 -> Slate-500 -> Slate-400 -> Slate-300
+          lineColors: ['#000000', '#334155', '#64748b', '#94a3b8', '#cbd5e1']
+      };
+  }, [isDark]);
+
   const { turnoverChartData, indexChartData, todayOnlyIndexData, dayIndices, intraDayRefIndices, distributionDots, turnoverDomain } = useMemo(() => {
       if (!isHovering) return { turnoverChartData: [], indexChartData: [], todayOnlyIndexData: [], dayIndices: [], intraDayRefIndices: [], distributionDots: [], turnoverDomain: [15, 256] };
       
@@ -88,7 +128,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       const isMarketClosed = now.getHours() >= 15;
       const allDates = (isMarketClosed || historicalDates.includes(todayDate)) ? historicalDates.slice(-5) : [...historicalDates.filter(d => d !== todayDate).slice(-4), todayDate].filter(Boolean);
 
-      // --- Mode 0: 连续历史指数 & Zigzag 骨架 (0.15% 阈值) ---
       const iData: any[] = [];
       const dayIdxArr: number[] = [];
       const dayRefLines: number[] = [];
@@ -100,7 +139,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           const dayStartIdx = iData.length;
           if (dayStartIdx > 0) dayIdxArr.push(dayStartIdx);
           
-          // 添加日内参考线坐标 (基于 dayStartIdx)
           dayRefLines.push(dayStartIdx + 15);  // 09:30
           dayRefLines.push(dayStartIdx + 135); // 11:30
 
@@ -130,7 +168,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           });
       }
 
-      // --- Mode 1: 今日实时指数 & Zigzag 骨架 (0.1% 阈值) ---
       const tOnlyData = todayTurnoverPoints.map((p) => ({
           idx: timeToIndex(p.t),
           t: p.t,
@@ -152,7 +189,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           });
       }
 
-      // --- Mode 2: 两市成交额 (动态窗口) ---
       const turnoverMaps = allDates.map(date => {
           const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
           const map = new Map<string, number>();
@@ -161,9 +197,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           return map;
       });
 
-      // 计算起始时间：15:00 后固定 09:30，交易时段动态计算起点 (当前-5分)
       const latestPoint = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[todayTurnoverPoints.length - 1] : null;
-      let startIdx = 15; // 默认 09:30
+      let startIdx = 15; 
       if (latestPoint && !isMarketClosed) {
           const [h, m] = latestPoint.t.split(':').map(Number);
           const lastMins = h * 60 + m;
@@ -214,8 +249,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       };
   }, [isHovering, todayTurnoverPoints]);
 
-  const lineColors = ['#000000', 'rgba(0, 0, 0, 0.5)', 'rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.18)', 'rgba(0, 0, 0, 0.11)'];
-
   const footerContent = [
     formattedProfit, 
     formattedRate, 
@@ -227,7 +260,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-white dark:bg-gray-900 z-[200] flex flex-col justify-center items-center text-slate-700 dark:text-gray-400 font-sans p-8 select-none"
+      className="fixed inset-0 bg-white dark:bg-gray-900 z-[200] flex flex-col justify-center items-center text-slate-700 dark:text-slate-300 font-sans p-8 select-none"
       onContextMenu={(e) => e.preventDefault()}
       onDoubleClick={onRefresh}
       onClick={() => setChartMode(p => (p + 1) % 3)}
@@ -245,28 +278,26 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                 <LineChart data={indexChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    {/* 跨天分界线 */}
-                                    {dayIndices.map(idx => <ReferenceLine key={`day-${idx}`} x={idx} stroke="rgba(0,0,0,0.15)" strokeWidth={1} />)}
-                                    {/* 日内参考线 (09:30/11:30) */}
-                                    {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke="rgba(0,0,0,0.08)" strokeDasharray="3 3" strokeWidth={1} />)}
-                                    {lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke="#a0a0a0" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
-                                    <Line type="linear" dataKey="zz" stroke="#000000" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
+                                    {dayIndices.map(idx => <ReferenceLine key={`day-${idx}`} x={idx} stroke={theme.refThick} strokeWidth={1} />)}
+                                    {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke={theme.refThin} strokeDasharray="3 3" strokeWidth={1} />)}
+                                    {theme.lineColors.map((color, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
+                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : chartMode === 1 ? (
                                 <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={[0, 256]} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    <ReferenceLine x={15} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
-                                    <ReferenceLine x={135} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
-                                    <Line type="linear" dataKey="v0" stroke="#a0a0a0" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
-                                    <Line type="linear" dataKey="zz" stroke="#000000" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
+                                    <ReferenceLine x={15} stroke={theme.ref} strokeWidth={1} />
+                                    <ReferenceLine x={135} stroke={theme.ref} strokeWidth={1} />
+                                    <Line type="linear" dataKey="v0" stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
+                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : (
                                 <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={turnoverDomain} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    <ReferenceLine x={135} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
-                                    {lineColors.map((color, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
+                                    <ReferenceLine x={135} stroke={theme.ref} strokeWidth={1} />
+                                    {theme.lineColors.map((color, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={color} strokeWidth={1.2} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
                             )}
                         </ResponsiveContainer>
@@ -274,20 +305,20 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                     {distributionDots.length > 0 && (
                         <div className="w-[6px] h-full relative ml-[2px] bg-white dark:bg-gray-900 overflow-hidden shrink-0">
                             {distributionDots.map((pos, i) => (
-                                <div key={i} className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[4px] rounded-none" style={{ bottom: `calc(${pos * 100}% - ${pos * 4}px)`, backgroundColor: lineColors[i] || 'rgba(0,0,0,0.1)', zIndex: lineColors.length - i }} />
+                                <div key={i} className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[4px] rounded-none" style={{ bottom: `calc(${pos * 100}% - ${pos * 4}px)`, backgroundColor: theme.lineColors[i], zIndex: theme.lineColors.length - i }} />
                             ))}
                         </div>
                     )}
                 </div>
             </div>
-            <h1 className="text-3xl font-semibold mt-4 mb-2">未连接到互联网</h1>
+            <h1 className="text-3xl font-semibold mt-4 mb-2 text-slate-800 dark:text-white">未连接到互联网</h1>
             <p className="text-lg mb-2">请试试以下办法：</p>
-            <ul className="list-disc list-inside space-y-1 text-lg text-slate-600 dark:text-gray-400 mb-1">
+            <ul className="list-disc list-inside space-y-1 text-lg text-slate-600 dark:text-slate-400 mb-1">
                 <li>检查网线、调制解调器和路由器</li>
                 <li>重新连接到 Wi-Fi 网络</li>
             </ul>
-            <p className="text-base text-slate-500 dark:text-gray-500 min-h-[1.5em]">{isHovering ? <span>{footerContent}</span> : '-'}</p>
-            <p className="text-base text-slate-500 dark:text-gray-500">ERR_INTERNET_DISCONNECTED</p>
+            <p className="text-base text-slate-500 dark:text-slate-500 min-h-[1.5em]">{isHovering ? <span>{footerContent}</span> : '-'}</p>
+            <p className="text-base text-slate-500 dark:text-slate-500">ERR_INTERNET_DISCONNECTED</p>
             <div className="text-lg mt-20">未连接到互联网 {lastRefreshTime}</div>
         </div>
     </div>
