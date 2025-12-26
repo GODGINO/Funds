@@ -78,8 +78,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
   const formattedRate = `${totalDailyProfitRate >= 0 ? '+' : ''}${totalDailyProfitRate.toFixed(2)}%`;
   const formattedIndex = indexData ? `${indexData.value.toFixed(2)} ${indexData.change >= 0 ? '+' : ''}${indexData.change.toFixed(2)} ${indexData.changePercent >= 0 ? '+' : ''}${indexData.changePercent.toFixed(2)}%` : '';
 
-  const { turnoverChartData, indexChartData, todayOnlyIndexData, dayIndices, distributionDots } = useMemo(() => {
-      if (!isHovering) return { turnoverChartData: [], indexChartData: [], todayOnlyIndexData: [], dayIndices: [], distributionDots: [] };
+  const { turnoverChartData, indexChartData, todayOnlyIndexData, dayIndices, distributionDots, turnoverDomain } = useMemo(() => {
+      if (!isHovering) return { turnoverChartData: [], indexChartData: [], todayOnlyIndexData: [], dayIndices: [], distributionDots: [], turnoverDomain: [15, 256] };
       
       const history = getLocalMarketHistory();
       const todayDate = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[0].t.split(' ')[0] : '';
@@ -145,7 +145,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           });
       }
 
-      // --- Mode 2: 两市成交额 (显示滚动窗口或全天) ---
+      // --- Mode 2: 两市成交额 (动态窗口) ---
       const turnoverMaps = allDates.map(date => {
           const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
           const map = new Map<string, number>();
@@ -154,27 +154,26 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           return map;
       });
 
-      // 计算起始时间：15:00 后展示全天 (09:30 开始)，交易时段展示最近 5 分钟
+      // 计算起始时间：15:00 后固定 09:30，交易时段动态计算起点 (当前-5分)
       const latestPoint = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[todayTurnoverPoints.length - 1] : null;
-      let startTimeLimit = "09:30";
+      let startIdx = 15; // 默认 09:30
       if (latestPoint && !isMarketClosed) {
           const [h, m] = latestPoint.t.split(':').map(Number);
           const lastMins = h * 60 + m;
           const openMins = 9 * 60 + 30;
-          const startMins = Math.max(openMins, lastMins - 5);
-          startTimeLimit = `${String(Math.floor(startMins / 60)).padStart(2, '0')}:${String(startMins % 60).padStart(2, '0')}`;
+          const currentStartMins = Math.max(openMins, lastMins - 5);
+          startIdx = timeToIndex(`${String(Math.floor(currentStartMins / 60)).padStart(2, '0')}:${String(currentStartMins % 60).padStart(2, '0')}`);
       }
 
       const validTimes = Array.from(new Set(allDates.flatMap(d => {
           const points = d === todayDate ? todayTurnoverPoints : (history[d] || []);
-          // 仅保留起始时间限制以后的点
-          return points.filter(p => p.t >= startTimeLimit).map(p => p.t);
+          return points.map(p => p.t);
       })))
       .sort()
-      .filter(t => latestPoint ? t <= latestPoint.t : true);
+      .filter(t => timeToIndex(t) >= startIdx && timeToIndex(t) <= 256); // 终点固定 15:00
 
-      const tData = validTimes.map((t, i) => {
-          const obj: any = { idx: i, t };
+      const tData = validTimes.map((t) => {
+          const obj: any = { idx: timeToIndex(t), t };
           turnoverMaps.forEach((map, dIdx) => {
               const val = map.get(t);
               if (val !== undefined) {
@@ -197,7 +196,14 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           }
       }
 
-      return { turnoverChartData: tData, indexChartData: iData, todayOnlyIndexData: tOnlyData, dayIndices: dayIdxArr, distributionDots: dots };
+      return { 
+          turnoverChartData: tData, 
+          indexChartData: iData, 
+          todayOnlyIndexData: tOnlyData, 
+          dayIndices: dayIdxArr, 
+          distributionDots: dots,
+          turnoverDomain: [startIdx, 256] // 终点永远是 256 (15:00)
+      };
   }, [isHovering, todayTurnoverPoints]);
 
   const lineColors = ['#000000', 'rgba(0, 0, 0, 0.5)', 'rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.18)', 'rgba(0, 0, 0, 0.11)'];
@@ -232,26 +238,22 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     {dayIndices.map(idx => <ReferenceLine key={idx} x={idx} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />)}
-                                    {/* 指数线调为浅灰色 (#a0a0a0) */}
                                     {lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke="#a0a0a0" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
-                                    {/* 骨架线渲染在最后，确保黑色 (#000000) 位于顶层 */}
                                     <Line type="linear" dataKey="zz" stroke="#000000" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : chartMode === 1 ? (
                                 <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={[0, 256]} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
-                                    {/* 09:30 和 11:30 的灰色竖线 */}
+                                    {/* 09:30 和 11:30 的参考线 */}
                                     <ReferenceLine x={15} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
                                     <ReferenceLine x={135} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
-                                    {/* 今日指数线调为浅灰色 (#a0a0a0) */}
                                     <Line type="linear" dataKey="v0" stroke="#a0a0a0" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
-                                    {/* 今日 Zigzag 骨架线渲染在最后，确保黑色 (#000000) 位于顶层 */}
                                     <Line type="linear" dataKey="zz" stroke="#000000" strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : (
                                 <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                    <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
+                                    <XAxis dataKey="idx" type="number" hide domain={turnoverDomain} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     {lineColors.map((color, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
