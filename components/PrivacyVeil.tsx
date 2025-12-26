@@ -94,27 +94,39 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
   const formattedRate = `${totalDailyProfitRate >= 0 ? '+' : ''}${totalDailyProfitRate.toFixed(2)}%`;
   const formattedIndex = indexData ? `${indexData.value.toFixed(2)} ${indexData.change >= 0 ? '+' : ''}${indexData.change.toFixed(2)} ${indexData.changePercent >= 0 ? '+' : ''}${indexData.changePercent.toFixed(2)}%` : '';
 
-  // 颜色配置深度适配：暗黑模式下弃用 rgba，使用高亮度 Slate 调色板，确保实色渲染
+  // 颜色配置深度适配：Mode 2 成交额采用指数级衰减
   const theme = useMemo(() => {
       if (isDark) {
           return {
               main: '#ffffff', // 纯白主线
               sub: '#94a3b8',  // slate-400 辅助线
-              ref: 'rgba(255, 255, 255, 0.3)',
-              refThin: 'rgba(255, 255, 255, 0.12)',
-              refThick: 'rgba(255, 255, 255, 0.4)',
-              // 越新越白：White -> Slate-200 -> Slate-400 -> Slate-500 -> Slate-600
-              lineColors: ['#ffffff', '#e2e8f0', '#94a3b8', '#64748b', '#475569']
+              ref: 'rgba(255, 255, 255, 0.2)',
+              refThin: 'rgba(255, 255, 255, 0.08)',
+              refThick: 'rgba(255, 255, 255, 0.3)',
+              // 指数衰减透明度：1.0 -> 0.55 -> 0.28 -> 0.12 -> 0.05
+              lineColors: [
+                  'rgba(255, 255, 255, 1.00)', 
+                  'rgba(255, 255, 255, 0.55)', 
+                  'rgba(255, 255, 255, 0.28)', 
+                  'rgba(255, 255, 255, 0.12)', 
+                  'rgba(255, 255, 255, 0.05)'
+              ]
           };
       }
       return {
           main: '#000000', // 纯黑主线
           sub: '#64748b',  // slate-500 辅助线
-          ref: 'rgba(0, 0, 0, 0.15)',
-          refThin: 'rgba(0, 0, 0, 0.08)',
-          refThick: 'rgba(0, 0, 0, 0.2)',
-          // 越新越黑：Black -> Slate-700 -> Slate-500 -> Slate-400 -> Slate-300
-          lineColors: ['#000000', '#334155', '#64748b', '#94a3b8', '#cbd5e1']
+          ref: 'rgba(0, 0, 0, 0.12)',
+          refThin: 'rgba(0, 0, 0, 0.06)',
+          refThick: 'rgba(0, 0, 0, 0.18)',
+          // 指数衰减透明度：1.0 -> 0.50 -> 0.22 -> 0.08 -> 0.03
+          lineColors: [
+              'rgba(0, 0, 0, 1.00)', 
+              'rgba(0, 0, 0, 0.50)', 
+              'rgba(0, 0, 0, 0.22)', 
+              'rgba(0, 0, 0, 0.08)', 
+              'rgba(0, 0, 0, 0.03)'
+          ]
       };
   }, [isDark]);
 
@@ -289,7 +301,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     <ReferenceLine x={15} stroke={theme.ref} strokeWidth={1} />
                                     <ReferenceLine x={135} stroke={theme.ref} strokeWidth={1} />
-                                    <Line type="linear" dataKey="v0" stroke={theme.sub} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
+                                    <Line type="linear" dataKey="v0" stroke={theme.lineColors[1]} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
                                     <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : (
