@@ -255,6 +255,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                 <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={turnoverDomain} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
+                                    {/* Mode 2 增加 11:30 的参考线 */}
+                                    <ReferenceLine x={135} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
                                     {lineColors.map((color, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={color} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />)}
                                 </LineChart>
                             )}
