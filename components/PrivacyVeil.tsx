@@ -129,8 +129,22 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       const todayDate = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[0].t.split(' ')[0] : '';
       const historicalDates = Object.keys(history).sort();
       const now = new Date();
-      const isMarketClosed = now.getHours() >= 15;
-      const allDates = (isMarketClosed || historicalDates.includes(todayDate)) ? historicalDates.slice(-5) : [...historicalDates.filter(d => d !== todayDate).slice(-4), todayDate].filter(Boolean);
+      const h = now.getHours();
+      const m = now.getMinutes();
+      const currentTime = h * 60 + m;
+      
+      // 时间判定阈值
+      const isTradingSession = currentTime >= (9 * 60 + 15) && h < 15;
+      const isMarketClosed = h >= 15;
+
+      // 核心逻辑：09:15前和15:00后展示5个历史，09:15-15:00展示4个历史+1个实时
+      let allDates: string[];
+      if (isTradingSession && todayDate) {
+          const historicalOnly = historicalDates.filter(d => d !== todayDate);
+          allDates = [...historicalOnly.slice(-4), todayDate].filter(Boolean);
+      } else {
+          allDates = historicalDates.slice(-5);
+      }
 
       const iData: any[] = [];
       const dayIdxArr: number[] = [];
@@ -138,7 +152,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       const continuousPoints: any[] = [];
 
       allDates.forEach((date, dIdx) => {
-          const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
+          // 在 09:15-15:00 期间，最后一个日期使用实时点，否则全用历史点
+          const points = (isTradingSession && dIdx === allDates.length - 1 && date === todayDate) ? todayTurnoverPoints : (history[date] || []);
           if (points.length === 0) return;
           const dayStartIdx = iData.length;
           if (dayStartIdx > 0) dayIdxArr.push(dayStartIdx);
@@ -193,8 +208,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           });
       }
 
-      const turnoverMaps = allDates.map(date => {
-          const points = date === todayDate ? todayTurnoverPoints : (history[date] || []);
+      const turnoverMaps = allDates.map((date, dIdx) => {
+          const points = (isTradingSession && dIdx === allDates.length - 1 && date === todayDate) ? todayTurnoverPoints : (history[date] || []);
           const map = new Map<string, number>();
           let sum = 0;
           [...points].sort((a,b) => a.t.localeCompare(b.t)).forEach(p => { sum += p.val; map.set(p.t, sum); });
@@ -203,7 +218,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
 
       const latestPoint = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[todayTurnoverPoints.length - 1] : null;
       let startIdx = 15; 
-      if (latestPoint && !isMarketClosed) {
+      if (latestPoint && isTradingSession) {
           const [h, m] = latestPoint.t.split(':').map(Number);
           const lastMins = h * 60 + m;
           const openMins = 9 * 60 + 30;
@@ -211,8 +226,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           startIdx = timeToIndex(`${String(Math.floor(currentStartMins / 60)).padStart(2, '0')}:${String(currentStartMins % 60).padStart(2, '0')}`);
       }
 
-      const validTimes = Array.from(new Set(allDates.flatMap(d => {
-          const points = d === todayDate ? todayTurnoverPoints : (history[d] || []);
+      const validTimes = Array.from(new Set(allDates.flatMap((d, dIdx) => {
+          const points = (isTradingSession && dIdx === allDates.length - 1 && d === todayDate) ? todayTurnoverPoints : (history[d] || []);
           return points.map(p => p.t);
       })))
       .sort()
@@ -279,7 +294,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                     <div className="flex-1 h-full relative">
                         <ResponsiveContainer width="100%" height="100%">
                             {chartMode === 0 ? (
-                                <LineChart data={indexChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                <LineChart data={indexChartData} margin={{ top: 1, right: 1, left: 1, bottom: 1 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     {/* 实线和虚线统一使用 theme.ref 颜色，线宽适配缩放 */}
@@ -291,7 +306,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : chartMode === 1 ? (
-                                <LineChart data={todayOnlyIndexData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                <LineChart data={todayOnlyIndexData} margin={{ top: 1, right: 1, left: 1, bottom: 1 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={[0, 256]} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     {/* 标记线：保持为虚线 */}
@@ -303,7 +318,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : (
-                                <LineChart data={turnoverChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                <LineChart data={turnoverChartData} margin={{ top: 1, right: 1, left: 1, bottom: 1 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={turnoverDomain} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     {/* 虚线统一使用 theme.ref 颜色 */}
