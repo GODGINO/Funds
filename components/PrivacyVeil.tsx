@@ -1,12 +1,11 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { LineChart, Line, ResponsiveContainer, YAxis, XAxis, ReferenceLine } from 'recharts';
+import { LineChart, Line, ResponsiveContainer, YAxis, XAxis, ReferenceLine, ComposedChart, Bar } from 'recharts';
 import { IndexData, MarketDataPoint } from '../types';
 import { getLocalMarketHistory } from '../services/fundService';
 import { calculateZigzag } from '../services/chartUtils';
 
 const DinoIcon: React.FC = () => (
-    <svg className="dino-icon fill-current text-slate-700 dark:text-slate-300" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="1731" height="44" width="44"><path d="M982.92737207 56.98146258h-41.97086855V3.85500886H561.50493039V50.57912671H513.29340118v307.92648747h-46.72411785v48.21152925h-69.84366408v44.26665562h-71.33107543v50.18396602h-49.18158015v46.23909239h-93.96559618V501.65279054h-47.20914328v-47.20914332h-47.20914331v-95.93803304h-46.72411789v282.34947904h45.26904153v48.21152922h49.18158014v47.7265038h46.72411783v47.2091433h47.20914335v45.75406693h46.72411781v190.35631962h95.93803304v-48.69655464h-47.72650379v-46.72411784h47.20914334v-47.20914331h47.20914328v-46.72411791h47.72650379v46.72411791H512v142.66215084h94.77397194v-48.21152925h-45.75406699v-188.41621783h45.75406699v-47.72650374h48.69655468V664.94469029h46.23909242v-165.23200157h48.21152918v45.75406698h45.75406698v-92.47818481h-93.44823571v-94.93564712h187.89885738v-47.20914332h-140.20468865l-0.48502541-51.8007175h233.49124926v-202.06160037z m-328.03887603 65.47843509h-47.20914327v-47.20914332h47.20914327v47.20914332z" p-id="1732"></path></svg>
+    <svg className="dino-icon fill-current text-slate-700 dark:text-slate-300" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="1731" height="44" width="44"><path d="M982.92737207 56.98146258h-41.97086855V3.85500886H561.50493039V50.57912671H513.29340118v307.92648747h-46.72411785v48.21152925h-69.84366408v44.26665562h-71.33107543v50.18396602h-49.18158015v46.23909239h-93.96559618V501.65279054h-47.20914328v-47.20914332h-47.20914331v-95.93803304h-46.72411789v282.34947904h45.26904153v48.21152922h49.18158014v47.7265038h46.72411783v47.2091433h47.20914335v45.75406693h46.72411781v190.35631962h95.93803304v-48.69655464h-47.72650379v-46.72411784h-47.20914334v-47.20914331h47.20914328v-46.72411791h47.72650379v-46.72411791H512v142.66215084h94.77397194v-48.21152925h-45.75406699v-188.41621783h45.75406699v-47.72650374h48.69655468V664.94469029h46.23909242v-165.23200157h48.21152918v45.75406698h45.75406698v-92.47818481h-93.44823571v-94.93564712h187.89885738v-47.20914332h-140.20468865l-0.48502541-51.8007175h233.49124926v-202.06160037z m-328.03887603 65.47843509h-47.20914327v-47.20914332h47.20914327v47.20914332z" p-id="1732"></path></svg>
 );
 
 interface PrivacyVeilProps {
@@ -192,6 +191,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           t: p.t,
           val: p.ind,
           v0: p.ind > 0 ? p.ind : null,
+          turnoverVal: p.val, // 存储分钟成交额，用于 Mode 1 柱状图
           zz: undefined as number | undefined
       }));
 
@@ -306,17 +306,22 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
                                 </LineChart>
                             ) : chartMode === 1 ? (
-                                <LineChart data={todayOnlyIndexData} margin={{ top: 1, right: 1, left: 1, bottom: 1 }}>
+                                <ComposedChart data={todayOnlyIndexData} margin={{ top: 1, right: 1, left: 1, bottom: 1 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={[0, 256]} padding={{ left: 0, right: 0 }} />
-                                    <YAxis hide domain={['dataMin', 'dataMax']} />
+                                    <YAxis yAxisId="price" hide domain={['dataMin', 'dataMax']} />
+                                    <YAxis yAxisId="volume" hide domain={['dataMin', 'dataMax']} />
                                     {/* 标记线：保持为虚线 */}
-                                    <ReferenceLine x={15} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />
-                                    <ReferenceLine x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />
+                                    <ReferenceLine yAxisId="price" x={15} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />
+                                    <ReferenceLine yAxisId="price" x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />
+                                    
+                                    {/* 背景柱状图：成交额，透明度微调：浅色模式加深至 0.55，暗黑模式降低至 0.2 以平衡可视性与背景感 */}
+                                    <Bar yAxisId="volume" dataKey="turnoverVal" fill={theme.sub} opacity={isDark ? 0.2 : 0.55} isAnimationActive={false} />
+
                                     {/* 调换层级：v0（背景）在前，zz（骨架线）在后 */}
-                                    <Line type="linear" dataKey="v0" stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
+                                    <Line yAxisId="price" type="linear" dataKey="v0" stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
                                     {/* Mode 1 Zigzag 线宽调整为 2 */}
-                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
-                                </LineChart>
+                                    <Line yAxisId="price" type="linear" dataKey="zz" stroke={theme.main} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+                                </ComposedChart>
                             ) : (
                                 <LineChart data={turnoverChartData} margin={{ top: 1, right: 1, left: 1, bottom: 1 }}>
                                     <XAxis dataKey="idx" type="number" hide domain={turnoverDomain} padding={{ left: 0, right: 0 }} />
