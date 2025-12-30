@@ -1,5 +1,4 @@
-
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, XAxis, ReferenceArea, Tooltip, ReferenceDot } from 'recharts';
 import { FundDataPoint, TradingRecord, TransactionType } from '../types';
 
@@ -14,7 +13,7 @@ interface ChartDataPoint {
   zigzagNAV?: number;
   dailyProfit?: number;
   changeSinceDate?: number; 
-  changeFromBaseline?: number; // 相对于局部基准点的变动
+  changeFromBaseline?: number; 
   tradeRecord?: TradingRecord; 
 }
 
@@ -69,7 +68,6 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
 
         if (!date) return null;
 
-        // 统一处理日期，去掉具体的时分
         const displayDate = date.split(' ')[0];
         const displayBaselineDate = localBaselineDate ? localBaselineDate.split(' ')[0] : '';
 
@@ -82,14 +80,11 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
         const daysAgoText = diffDays === 0 ? '今天' : `${diffDays}天前`;
 
         const isGrowthPositive = dailyGrowthRate ? !dailyGrowthRate.startsWith('-') : true;
-
-        // 判断是否处于锚点模式
         const isBaselineActive = !!localBaselineDate;
         const relChangeValue = isBaselineActive ? changeFromBaseline : changeSinceDate;
         const relChangeLabel = isBaselineActive ? "较基准涨跌:" : "距今涨跌:";
         const isBaselinePoint = isBaselineActive && date === localBaselineDate;
 
-        // 计算基准日与当前点的天数差
         let diffDaysBetween = 0;
         if (isBaselineActive) {
             const bDate = new Date(displayBaselineDate);
@@ -114,14 +109,12 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
                             <span className="text-gray-400 dark:text-gray-500 whitespace-nowrap scale-90 origin-right">{daysAgoText}</span>
                         </div>
                     )}
-                    
                     <div className="flex justify-between items-baseline gap-4">
                         <span className="text-gray-500 dark:text-gray-400">当日涨跌:</span>
                         <span className={`font-mono font-bold ${isGrowthPositive ? 'text-red-500' : 'text-green-600'}`}>
                             {dailyGrowthRate || '0.00%'}
                         </span>
                     </div>
-
                     {dailyProfit !== undefined && (
                         <div className="flex justify-between items-baseline gap-4">
                             <span className="text-gray-500 dark:text-gray-400">当日收益:</span>
@@ -130,7 +123,6 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
                             </span>
                         </div>
                     )}
-
                     {relChangeValue !== undefined && (
                         <div className="flex justify-between items-baseline gap-4">
                             <span className={isBaselineActive ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-500 dark:text-gray-400'}>
@@ -141,7 +133,6 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
                             </span>
                         </div>
                     )}
-
                     {tradeRecord && (
                         <div className="flex justify-between items-baseline gap-4 pt-0.5">
                             <span className={`font-semibold ${getTransactionLabelColorClass(tradeRecord.type)}`}>
@@ -175,19 +166,28 @@ const FundChart: React.FC<FundChartProps> = ({
   tradingRecords,
 }) => {
   const [localBaselineDate, setLocalBaselineDate] = useState<string | null>(null);
+  const [hoveredNAV, setHoveredNAV] = useState<number | null>(null);
     
   const confirmedTradingRecords = useMemo(() => {
     return tradingRecords?.filter(r => r.nav !== undefined);
   }, [tradingRecords]);
+
+  const localBaselineNAV = useMemo(() => {
+    if (!localBaselineDate) return null;
+    return baseChartData.find(p => p.date === localBaselineDate)?.unitNAV ?? null;
+  }, [localBaselineDate, baseChartData]);
+
+  // 查找趋势起点的净值，用于绘制水平虚线
+  const lastPivotNAV = useMemo(() => {
+    if (!lastPivotDate) return null;
+    return zigzagPoints.find(p => p.date === lastPivotDate)?.unitNAV ?? null;
+  }, [lastPivotDate, zigzagPoints]);
 
   const chartDataForRender = useMemo(() => {
     const zigzagMap = new Map(zigzagPoints.map(p => [p.date, p.unitNAV]));
     const tradeMap = new Map(confirmedTradingRecords?.map(r => [r.date, r]));
     const latestNAV = baseChartData.length > 0 ? (baseChartData[baseChartData.length - 1].unitNAV ?? 0) : 0;
     
-    const baselinePoint = localBaselineDate ? baseChartData.find(p => p.date === localBaselineDate) : null;
-    const baselineNAV = baselinePoint?.unitNAV ?? null;
-
     return baseChartData.map((p, index, arr) => {
         const zigzagNAV = zigzagMap.get(p.date);
         const tradeRecord = p.date ? tradeMap.get(p.date.split(' ')[0]) : undefined;
@@ -203,18 +203,15 @@ const FundChart: React.FC<FundChartProps> = ({
                  dailyProfit = (currentNav - prevNav) * shares;
             }
         }
-
         if (p.unitNAV && p.unitNAV > 0 && latestNAV > 0) {
             changeSinceDate = ((latestNAV - p.unitNAV) / p.unitNAV) * 100;
         }
-
-        if (baselineNAV && baselineNAV > 0 && p.unitNAV !== undefined) {
-            changeFromBaseline = ((p.unitNAV - baselineNAV) / baselineNAV) * 100;
+        if (localBaselineNAV && localBaselineNAV > 0 && p.unitNAV !== undefined) {
+            changeFromBaseline = ((p.unitNAV - localBaselineNAV) / localBaselineNAV) * 100;
         }
-        
         return { ...p, zigzagNAV, dailyProfit, changeSinceDate, changeFromBaseline, tradeRecord };
     });
-  }, [baseChartData, zigzagPoints, shares, confirmedTradingRecords, localBaselineDate]);
+  }, [baseChartData, zigzagPoints, shares, confirmedTradingRecords, localBaselineNAV]);
 
   const yAxisDomain = useMemo(() => {
     const navValues = baseChartData.map(p => p.unitNAV).filter((v): v is number => typeof v === 'number' && !isNaN(v));
@@ -222,20 +219,14 @@ const FundChart: React.FC<FundChartProps> = ({
     if (costPrice && costPrice > 0) allValues.push(costPrice);
     if (actualCostPrice && actualCostPrice > 0) allValues.push(actualCostPrice);
     
-    if (allValues.length < 1) {
-        return ['auto', 'auto'];
-    }
+    if (allValues.length < 1) return ['auto', 'auto'];
 
     const min = Math.min(...allValues);
     const max = Math.max(...allValues);
-
-    if (min === max) {
-      return [min * 0.995, max * 1.005];
-    }
+    if (min === max) return [min * 0.995, max * 1.005];
     
     const range = max - min;
     const padding = range * 0.05;
-    
     return [min - padding, max + padding];
   }, [baseChartData, costPrice, actualCostPrice]);
 
@@ -248,12 +239,23 @@ const FundChart: React.FC<FundChartProps> = ({
     return 'text-yellow-600 dark:text-yellow-400';
   }, [navPercentile]);
 
-  const handleChartClick = (state: any) => {
+  const handleChartClick = useCallback((state: any) => {
     if (state && state.activeLabel) {
       const clickedDate = state.activeLabel;
       setLocalBaselineDate(prev => prev === clickedDate ? null : clickedDate);
     }
-  };
+  }, []);
+
+  const handleMouseMove = useCallback((state: any) => {
+    if (state && state.activeTooltipIndex !== undefined) {
+      const point = chartDataForRender[state.activeTooltipIndex];
+      if (point && typeof point.unitNAV === 'number') {
+        setHoveredNAV(point.unitNAV);
+        return;
+      }
+    }
+    setHoveredNAV(null);
+  }, [chartDataForRender]);
 
 
   return (
@@ -263,6 +265,8 @@ const FundChart: React.FC<FundChartProps> = ({
           data={chartDataForRender} 
           margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
           onClick={handleChartClick}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setHoveredNAV(null)}
           style={{ cursor: 'pointer' }}
         >
           <defs>
@@ -272,16 +276,17 @@ const FundChart: React.FC<FundChartProps> = ({
             </linearGradient>
           </defs>
           <XAxis dataKey="date" type="category" hide />
-          <YAxis hide domain={yAxisDomain} />
+          <YAxis hide domain={yAxisDomain} yAxisId="main" />
 
           <Tooltip 
             content={<CustomTooltip localBaselineDate={localBaselineDate} />} 
             cursor={{ stroke: '#a0a0a0', strokeWidth: 1.33, strokeDasharray: '3 3' }} 
-            wrapperStyle={{ zIndex: 100 }} 
+            wrapperStyle={{ zIndex: 100, pointerEvents: 'none' }} 
           />
-          
+
           {costPrice && costPrice > 0 && (
             <ReferenceArea 
+              yAxisId="main"
               y1={0} 
               y2={costPrice} 
               fill={`url(#${gradientId})`} 
@@ -290,9 +295,20 @@ const FundChart: React.FC<FundChartProps> = ({
             />
           )}
           
+          {/* 趋势起点十字准星 (静态灰色) */}
           {lastPivotDate && (
               <ReferenceLine 
+                  yAxisId="main"
                   x={lastPivotDate} 
+                  stroke="#a0a0a0" 
+                  strokeDasharray="3 3" 
+                  strokeWidth={1.33} 
+              />
+          )}
+          {lastPivotNAV !== null && (
+              <ReferenceLine 
+                  yAxisId="main"
+                  y={lastPivotNAV} 
                   stroke="#a0a0a0" 
                   strokeDasharray="3 3" 
                   strokeWidth={1.33} 
@@ -301,6 +317,7 @@ const FundChart: React.FC<FundChartProps> = ({
 
           {localBaselineDate && (
               <ReferenceLine 
+                  yAxisId="main"
                   x={localBaselineDate} 
                   stroke="#3b82f6" 
                   strokeDasharray="5 5" 
@@ -310,6 +327,7 @@ const FundChart: React.FC<FundChartProps> = ({
 
           {costPrice && costPrice > 0 && (
             <ReferenceLine 
+              yAxisId="main"
               y={costPrice} 
               stroke="#ef4444" 
               strokeWidth={1.33} 
@@ -319,6 +337,7 @@ const FundChart: React.FC<FundChartProps> = ({
           
           {actualCostPrice && actualCostPrice > 0 && actualCostPrice.toFixed(4) !== costPrice?.toFixed(4) && (
             <ReferenceLine 
+              yAxisId="main"
               y={actualCostPrice} 
               stroke="#6b7280" 
               strokeDasharray="3 3" 
@@ -328,6 +347,7 @@ const FundChart: React.FC<FundChartProps> = ({
           )}
           
           <Line
+            yAxisId="main"
             type="linear"
             dataKey="unitNAV"
             stroke="#3b82f6"
@@ -336,6 +356,7 @@ const FundChart: React.FC<FundChartProps> = ({
             isAnimationActive={false}
           />
           <Line
+            yAxisId="main"
             type="linear"
             dataKey="zigzagNAV"
             connectNulls
@@ -346,6 +367,7 @@ const FundChart: React.FC<FundChartProps> = ({
           />
           {confirmedTradingRecords?.map(record => (
             <ReferenceDot 
+              yAxisId="main"
               key={record.date} 
               x={record.date} 
               y={record.nav!} 
@@ -355,6 +377,30 @@ const FundChart: React.FC<FundChartProps> = ({
               strokeWidth={1.33}
             />
           ))}
+
+          {/* Hover Horizontal Line (Render last for top-most z-index) */}
+          {hoveredNAV !== null && (
+              <ReferenceLine 
+                yAxisId="main"
+                y={hoveredNAV} 
+                stroke="#a0a0a0" 
+                strokeDasharray="3 3" 
+                strokeWidth={1.33}
+                ifOverflow="visible"
+              />
+          )}
+
+          {/* Clicked Horizontal Line (Render last for top-most z-index) */}
+          {localBaselineNAV !== null && (
+              <ReferenceLine 
+                  yAxisId="main"
+                  y={localBaselineNAV} 
+                  stroke="#3b82f6" 
+                  strokeDasharray="5 5" 
+                  strokeWidth={2}
+                  ifOverflow="visible"
+              />
+          )}
         </LineChart>
       </ResponsiveContainer>
       {navPercentile !== null && navPercentile !== undefined && (
