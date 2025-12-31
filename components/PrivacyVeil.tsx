@@ -321,13 +321,11 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                             )}
                         </ResponsiveContainer>
                     </div>
-                    {distributionDots.length > 0 && (
-                        <div className="w-[6px] h-full relative ml-[2px] bg-white dark:bg-gray-900 overflow-hidden shrink-0">
-                            {distributionDots.map((pos, i) => (
-                                <div key={i} className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[4px] rounded-none" style={{ bottom: `calc(${pos * 100}% - ${pos * 4}px)`, backgroundColor: theme.lineColors[i], zIndex: theme.lineColors.length - i }} />
-                            ))}
-                        </div>
-                    )}
+                    <div className="w-[6px] h-full relative ml-[2px] bg-transparent overflow-hidden shrink-0">
+                        {distributionDots.map((pos, i) => (
+                            <div key={i} className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[4px] rounded-none" style={{ bottom: `calc(${pos * 100}% - ${pos * 4}px)`, backgroundColor: theme.lineColors[i], zIndex: theme.lineColors.length - i }} />
+                        ))}
+                    </div>
                 </div>
             </div>
             <h1 className="text-3xl font-semibold mt-4 mb-2 text-slate-800 dark:text-white">未连接到互联网</h1>
