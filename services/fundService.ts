@@ -1,5 +1,5 @@
-
 import { FundDataPoint, RealTimeData, IndexData, MarketDataPoint, TurnoverResult } from '../types';
+import { updateGistFiles, MARKET_HISTORY_FILENAME } from './gistService';
 
 function parseHtmlTable(htmlContent: string): FundDataPoint[] {
     const data: FundDataPoint[] = [];
@@ -259,6 +259,8 @@ export async function fetchIndexData(): Promise<IndexData | null> {
 }
 
 const MARKET_HISTORY_KEY = 'ginos_market_history_v1';
+const MARKET_PUSH_LOG_KEY = 'ginos_market_last_push_date';
+
 export function getLocalMarketHistory(): Record<string, MarketDataPoint[]> {
     try { return JSON.parse(localStorage.getItem(MARKET_HISTORY_KEY) || '{}'); } catch { return {}; }
 }
@@ -266,11 +268,14 @@ function saveLocalMarketHistory(date: string, data: MarketDataPoint[]) {
     const history = getLocalMarketHistory();
     history[date] = data;
     const dates = Object.keys(history).sort();
+    const finalHistory: any = {};
     if (dates.length > 5) {
-        const newHistory: any = {};
-        dates.slice(-5).forEach(d => newHistory[d] = history[d]);
-        localStorage.setItem(MARKET_HISTORY_KEY, JSON.stringify(newHistory));
-    } else { localStorage.setItem(MARKET_HISTORY_KEY, JSON.stringify(history)); }
+        dates.slice(-5).forEach(d => finalHistory[d] = history[d]);
+    } else {
+        Object.assign(finalHistory, history);
+    }
+    localStorage.setItem(MARKET_HISTORY_KEY, JSON.stringify(finalHistory));
+    return finalHistory;
 }
 
 export async function fetchTotalTurnover(): Promise<TurnoverResult | null> {
@@ -327,7 +332,24 @@ export async function fetchTotalTurnover(): Promise<TurnoverResult | null> {
         
         // 15:00 后且数据量充足（包含竞价段）保存到本地
         if (latestTime >= "15:00" && combinedPoints.length > 200) {
-            saveLocalMarketHistory(todayDate, combinedPoints);
+            const finalHistory = saveLocalMarketHistory(todayDate, combinedPoints);
+            
+            // --- 自动推送到 Gist 逻辑 ---
+            const token = localStorage.getItem('GITHUB_TOKEN');
+            const lastPushDate = localStorage.getItem(MARKET_PUSH_LOG_KEY);
+            if (token && lastPushDate !== todayDate) {
+                console.log(`[Turnover] Closing time reached. Syncing market history to Gist...`);
+                updateGistFiles(token, {
+                    [MARKET_HISTORY_FILENAME]: {
+                        content: JSON.stringify(finalHistory, null, 2)
+                    }
+                }).then(() => {
+                    console.log(`[Turnover] Gist sync successful.`);
+                    localStorage.setItem(MARKET_PUSH_LOG_KEY, todayDate);
+                }).catch(e => {
+                    console.error(`[Turnover] Gist sync failed:`, e);
+                });
+            }
         }
 
         const history = getLocalMarketHistory();

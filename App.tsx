@@ -407,7 +407,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const loadSavedData = async () => {
-      // Logic: Pull from Gist on start if Token exists
+      // Logic: Pull from Gist on start
       const token = localStorage.getItem('GITHUB_TOKEN');
       const isAutoSync = localStorage.getItem('AUTO_SYNC_ENABLED') === 'true';
 
@@ -418,28 +418,43 @@ const App: React.FC = () => {
           localStorage.setItem('GINOS_DEVICE_ID', deviceId);
       }
 
-      if (token) {
-         try {
-             // Block loading to ensure we start with the latest cloud data if available
-             const { fundData, metadata } = await fetchGistData(token);
-             
-             // 2. Master-Slave identity check (Startup only)
-             if (metadata && metadata.masterId !== deviceId) {
-                 if (isAutoSync) {
-                     console.log("[Startup] Device ID mismatch. Degrading to Slave mode.");
-                     localStorage.setItem('AUTO_SYNC_ENABLED', 'false');
-                     setIsAutoSyncEnabled(false);
-                 }
-             }
+      try {
+          // Block loading to ensure we start with the latest cloud data if available
+          // Fetch from public gist doesn't strictly need a token but we pass it if available
+          const { fundData, metadata, marketHistory } = await fetchGistData(token || undefined);
+          
+          // 2. Master-Slave identity check (Startup only)
+          if (metadata && metadata.masterId !== deviceId) {
+              if (isAutoSync) {
+                  console.log("[Startup] Device ID mismatch. Degrading to Slave mode.");
+                  localStorage.setItem('AUTO_SYNC_ENABLED', 'false');
+                  setIsAutoSyncEnabled(false);
+              }
+          }
 
-             if (fundData && fundData.trim()) {
-                 localStorage.setItem('userFundPortfolio', fundData);
-                 console.log("[Startup] Successfully pulled data from Gist.");
-             }
-         } catch (e) {
-             console.warn("[Startup] Failed to pull from Gist. Falling back to local data.", e);
-             // Swallowing error to allow offline usage
-         }
+          if (fundData && fundData.trim()) {
+              localStorage.setItem('userFundPortfolio', fundData);
+              console.log("[Startup] Successfully pulled portfolio data from Gist.");
+          }
+
+          // 3. Merge Market History (Unrestricted by master/slave)
+          if (marketHistory) {
+              try {
+                  const cloudHistory = JSON.parse(marketHistory);
+                  const localHistory = JSON.parse(localStorage.getItem('ginos_market_history_v1') || '{}');
+                  const merged = { ...cloudHistory, ...localHistory };
+                  const sortedDates = Object.keys(merged).sort();
+                  const finalHistory: any = {};
+                  // Keep latest 5 days as per fundService requirement
+                  sortedDates.slice(-5).forEach(d => finalHistory[d] = merged[d]);
+                  localStorage.setItem('ginos_market_history_v1', JSON.stringify(finalHistory));
+                  console.log("[Startup] Merged market history from Gist.");
+              } catch (e) {
+                  console.warn("[Startup] Failed to parse/merge market history", e);
+              }
+          }
+      } catch (e) {
+          console.warn("[Startup] Failed to pull from Gist. Falling back to local data.", e);
       }
 
       try {
