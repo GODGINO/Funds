@@ -298,30 +298,30 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                                 <th className="p-2 text-right">成交净值</th>
                                                 <th className="p-2 text-right">
                                                     <div>份额变化</div>
-                                                    <div className="font-mono text-[10px] text-gray-500">{Math.round(tradingHistorySummary.totalSharesChange)}</div>
+                                                    <div className="font-mono text-[10px] text-gray-500">{tradingHistorySummary.totalSharesChange.toFixed(2)}</div>
                                                 </th>
                                                 <th className="p-2 text-right">
                                                     <div>金额/分红</div>
-                                                    <div className="font-mono text-[10px] text-gray-500">{Math.round(tradingHistorySummary.totalAmount)}</div>
+                                                    <div className="font-mono text-[10px] text-gray-500">{tradingHistorySummary.totalAmount.toFixed(2)}</div>
                                                 </th>
                                                 <th className="p-2 text-right">
                                                     <div>浮盈</div>
                                                     <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalFloatingProfit)}`}>
-                                                        {Math.round(tradingHistorySummary.totalFloatingProfit)}
+                                                        {tradingHistorySummary.totalFloatingProfit.toFixed(2)}
                                                         {Math.abs(tradingHistorySummary.totalAmount) > 0 && `|${((tradingHistorySummary.totalFloatingProfit / Math.abs(tradingHistorySummary.totalAmount)) * 100).toFixed(1)}%`}
                                                     </div>
                                                 </th>
                                                 <th className="p-2 text-right">
                                                     <div>机会收益</div>
                                                     <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalOpportunityProfit)}`}>
-                                                        {Math.round(tradingHistorySummary.totalOpportunityProfit)}
+                                                        {tradingHistorySummary.totalOpportunityProfit.toFixed(2)}
                                                         {Math.abs(tradingHistorySummary.totalAmount) > 0 && `|${((tradingHistorySummary.totalOpportunityProfit / Math.abs(tradingHistorySummary.totalAmount)) * 100).toFixed(1)}%`}
                                                     </div>
                                                 </th>
                                                 <th className="p-2 text-right">
                                                     <div>落袋收益</div>
                                                     <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalRealizedProfit)}`}>
-                                                        {Math.round(tradingHistorySummary.totalRealizedProfit)}
+                                                        {tradingHistorySummary.totalRealizedProfit.toFixed(2)}
                                                         {Math.abs(tradingHistorySummary.totalAmount) > 0 && `|${((tradingHistorySummary.totalRealizedProfit / Math.abs(tradingHistorySummary.totalAmount)) * 100).toFixed(1)}%`}
                                                     </div>
                                                 </th>
@@ -364,6 +364,13 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                                     }
                                                 }
 
+                                                // Denominator for row percentage
+                                                const rowAmountForPercent = (record.type === 'buy' || record.type === 'sell') 
+                                                    ? Math.abs(record.amount || 0) 
+                                                    : (record.type === 'dividend-cash' 
+                                                        ? Math.abs(record.realizedProfitChange || 0) 
+                                                        : (record.nav && record.sharesChange ? record.nav * record.sharesChange : 0));
+
                                                 return (
                                                 <tr key={record.date} className="border-t dark:border-gray-700">
                                                     <td className="p-2 font-mono">{record.date}</td>
@@ -380,17 +387,28 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                                         )}
                                                     </td>
                                                     <td className={`p-2 text-right font-mono ${floatingProfit != null ? getProfitColor(floatingProfit) : ''}`}>
-                                                        {floatingProfit != null ? `${floatingProfit > 0 ? '+' : ''}${floatingProfit.toFixed(2)}` : '-'}
+                                                        {floatingProfit != null ? (
+                                                            <>
+                                                                {floatingProfit > 0 ? '+' : ''}{floatingProfit.toFixed(2)}
+                                                                {rowAmountForPercent > 0 && <span className="text-[10px] opacity-70">|{((floatingProfit / rowAmountForPercent) * 100).toFixed(1)}%</span>}
+                                                            </>
+                                                        ) : '-'}
                                                     </td>
                                                     <td className={`p-2 text-right font-mono ${opportunityProfit != null ? getProfitColor(opportunityProfit) : ''}`}>
-                                                        {opportunityProfit != null ? `${opportunityProfit > 0 ? '+' : ''}${opportunityProfit.toFixed(2)}` : '-'}
+                                                        {opportunityProfit != null ? (
+                                                            <>
+                                                                {opportunityProfit > 0 ? '+' : ''}{opportunityProfit.toFixed(2)}
+                                                                {rowAmountForPercent > 0 && <span className="text-[10px] opacity-70">|{((opportunityProfit / rowAmountForPercent) * 100).toFixed(1)}%</span>}
+                                                            </>
+                                                        ) : '-'}
                                                     </td>
                                                     <td className={`p-2 text-right font-mono ${record.realizedProfitChange && record.realizedProfitChange !== 0 ? getProfitColor(record.realizedProfitChange) : ''}`}>
-                                                        {record.type === 'dividend-cash' ? (
-                                                            <span className="text-yellow-600">+{record.realizedProfitChange?.toFixed(2)}</span>
-                                                        ) : (
-                                                            record.realizedProfitChange != null ? record.realizedProfitChange.toFixed(2) : '-'
-                                                        )}
+                                                        {record.realizedProfitChange != null ? (
+                                                            <>
+                                                                {record.type === 'dividend-cash' ? '+' : ''}{record.realizedProfitChange.toFixed(2)}
+                                                                {rowAmountForPercent > 0 && <span className="text-[10px] opacity-70">|{((record.realizedProfitChange / rowAmountForPercent) * 100).toFixed(1)}%</span>}
+                                                            </>
+                                                        ) : '-'}
                                                     </td>
                                                 </tr>
                                             )})}
