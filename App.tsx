@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
-import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData, TransactionType, SortByType, MarketDataPoint } from './types';
+import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData, TransactionType, SortByType, MarketDataPoint, SyncMetadata } from './types';
 import { fetchFundData, fetchFundDetails, fetchIndexData, fetchTotalTurnover } from './services/fundService';
 import { updateGistData, fetchGistData } from './services/gistService';
 import FundInputForm from './components/FundInputForm';
@@ -407,17 +407,34 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const loadSavedData = async () => {
-      // Logic: Pull from Gist on start if Token exists AND Auto-Sync is OFF
+      // Logic: Pull from Gist on start if Token exists
       const token = localStorage.getItem('GITHUB_TOKEN');
       const isAutoSync = localStorage.getItem('AUTO_SYNC_ENABLED') === 'true';
 
-      if (token && !isAutoSync) {
+      // 1. Ensure persistent device ID
+      let deviceId = localStorage.getItem('GINOS_DEVICE_ID');
+      if (!deviceId) {
+          deviceId = self.crypto.randomUUID();
+          localStorage.setItem('GINOS_DEVICE_ID', deviceId);
+      }
+
+      if (token) {
          try {
              // Block loading to ensure we start with the latest cloud data if available
-             const gistContent = await fetchGistData(token);
-             if (gistContent && gistContent.trim()) {
-                 localStorage.setItem('userFundPortfolio', gistContent);
-                 console.log("[Startup] Successfully pulled data from Gist (Manual Sync Mode).");
+             const { fundData, metadata } = await fetchGistData(token);
+             
+             // 2. Master-Slave identity check (Startup only)
+             if (metadata && metadata.masterId !== deviceId) {
+                 if (isAutoSync) {
+                     console.log("[Startup] Device ID mismatch. Degrading to Slave mode.");
+                     localStorage.setItem('AUTO_SYNC_ENABLED', 'false');
+                     setIsAutoSyncEnabled(false);
+                 }
+             }
+
+             if (fundData && fundData.trim()) {
+                 localStorage.setItem('userFundPortfolio', fundData);
+                 console.log("[Startup] Successfully pulled data from Gist.");
              }
          } catch (e) {
              console.warn("[Startup] Failed to pull from Gist. Falling back to local data.", e);
@@ -1715,7 +1732,19 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
   const handleToggleAutoSync = useCallback((enabled: boolean) => {
     setIsAutoSyncEnabled(enabled);
     localStorage.setItem('AUTO_SYNC_ENABLED', String(enabled));
-  }, []);
+    
+    // When enabling, immediately claim master status
+    if (enabled) {
+        const token = localStorage.getItem('GITHUB_TOKEN');
+        const deviceId = localStorage.getItem('GINOS_DEVICE_ID');
+        if (token && deviceId) {
+            console.log('Claiming master status and syncing...');
+            updateGistData(token, currentPortfolioJSON, { masterId: deviceId, lastActive: Date.now() })
+               .then(() => console.log('Master claim successful'))
+               .catch(e => console.error("Master claim failed", e));
+        }
+    }
+  }, [currentPortfolioJSON]);
   
   // Auto-Sync Effect
   useEffect(() => {

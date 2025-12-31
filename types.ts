@@ -157,3 +157,8 @@ export interface PortfolioSnapshot {
   totalSellOpportunityProfit?: number;
   totalSellRealizedProfit?: number;
 }
+
+export interface SyncMetadata {
+  masterId: string;
+  lastActive: number;
+}

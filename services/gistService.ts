@@ -1,8 +1,10 @@
+import { SyncMetadata } from '../types';
 
 export const GIST_ID = '32c1c67e4610e63f15aa68041282cad7';
 export const GIST_FILENAME = 'fund_data.json';
+export const METADATA_FILENAME = 'sync_metadata.json';
 
-export async function fetchGistData(token: string): Promise<string> {
+export async function fetchGistData(token: string): Promise<{ fundData: string; metadata: SyncMetadata | null }> {
     const headers: HeadersInit = {};
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
@@ -15,29 +17,50 @@ export async function fetchGistData(token: string): Promise<string> {
     }
     
     const data = await response.json();
-    const file = data.files ? (data.files[GIST_FILENAME] || Object.values(data.files)[0]) : null;
+    
+    const fundDataFile = data.files ? data.files[GIST_FILENAME] : null;
+    const metadataFile = data.files ? data.files[METADATA_FILENAME] : null;
 
-    if (file && file.content) {
-        return file.content;
-    } else {
-        throw new Error('Gist 中未找到有效文件内容。');
+    let fundData = '';
+    if (fundDataFile && fundDataFile.content) {
+        fundData = fundDataFile.content;
+    } else if (data.files && Object.values(data.files).length > 0) {
+        // Fallback to first file if GIST_FILENAME is not matched
+        fundData = (Object.values(data.files)[0] as any).content || '';
     }
+
+    let metadata: SyncMetadata | null = null;
+    if (metadataFile && metadataFile.content) {
+        try {
+            metadata = JSON.parse(metadataFile.content);
+        } catch (e) {
+            console.warn("Failed to parse sync metadata from Gist", e);
+        }
+    }
+
+    return { fundData, metadata };
 }
 
-export async function updateGistData(token: string, content: string): Promise<void> {
+export async function updateGistData(token: string, content: string, metadata?: SyncMetadata): Promise<void> {
+      const files: any = {
+          [GIST_FILENAME]: {
+              content: content
+          }
+      };
+
+      if (metadata) {
+          files[METADATA_FILENAME] = {
+              content: JSON.stringify(metadata, null, 2)
+          };
+      }
+
       const response = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
           method: 'PATCH',
           headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-              files: {
-                  [GIST_FILENAME]: {
-                      content: content
-                  }
-              }
-          })
+          body: JSON.stringify({ files })
       });
 
       if (!response.ok) {

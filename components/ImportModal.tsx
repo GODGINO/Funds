@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Fund, ProcessedFund } from '../types';
 import { fetchGistData, updateGistData } from '../services/gistService';
@@ -96,8 +95,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, cu
       try {
           // For pulling public gists, token is optional but helps with rate limits.
           // If the gist is private, token is required.
-          const content = await fetchGistData(githubToken);
-          setJsonInput(content);
+          const { fundData } = await fetchGistData(githubToken);
+          setJsonInput(fundData);
 
       } catch (err) {
           setError(err instanceof Error ? `拉取失败: ${err.message}` : '拉取 Gist 失败。');
