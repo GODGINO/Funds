@@ -152,6 +152,45 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
 
     const showActualCost = metrics.actualCost && metrics.actualCost > 0 && metrics.actualCost.toFixed(4) !== numericCost.toFixed(4);
 
+    const tradingHistorySummary = useMemo(() => {
+        const records = fund.userPosition?.tradingRecords || [];
+        let totalSharesChange = 0;
+        let totalAmount = 0;
+        let totalFloatingProfit = 0;
+        let totalOpportunityProfit = 0;
+        let totalRealizedProfit = 0;
+
+        records.forEach(record => {
+            if (record.nav === undefined) return;
+
+            totalSharesChange += record.sharesChange || 0;
+
+            if (record.type === 'dividend-cash') {
+                totalAmount += record.realizedProfitChange || 0;
+            } else {
+                totalAmount += record.amount || 0;
+            }
+
+            if (latestNAV > 0 && record.nav) {
+                if (record.type === 'buy' || record.type === 'dividend-reinvest') {
+                    totalFloatingProfit += (latestNAV - record.nav) * (record.sharesChange || 0);
+                } else if (record.type === 'sell') {
+                    totalOpportunityProfit += (record.nav - latestNAV) * Math.abs(record.sharesChange || 0);
+                }
+            }
+
+            totalRealizedProfit += record.realizedProfitChange || 0;
+        });
+
+        return {
+            totalSharesChange,
+            totalAmount,
+            totalFloatingProfit,
+            totalOpportunityProfit,
+            totalRealizedProfit
+        };
+    }, [fund.userPosition?.tradingRecords, latestNAV]);
+
     return (
         <>
             <div 
@@ -185,9 +224,9 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                         </button>
                     </div>
 
-                    {/* Modal Body */}
-                    <div className="p-6 overflow-y-auto">
-                        <div className="h-[250px] mb-6">
+                    {/* Modal Body - Fixed Padding for Sticky Header Alignment */}
+                    <div className="px-6 pb-6 overflow-y-auto flex-1">
+                        <div className="h-[250px] mt-6 mb-6">
                             <FundChart 
                                 baseChartData={baseChartData}
                                 zigzagPoints={zigzagPoints}
@@ -252,14 +291,31 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">交易历史</h3>
                                 <div className="border rounded-md dark:border-gray-700">
                                     <table className="w-full text-xs text-left">
-                                        <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0">
+                                        <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10">
                                             <tr>
                                                 <th className="p-2">日期</th>
                                                 <th className="p-2">类型</th>
                                                 <th className="p-2 text-right">成交净值</th>
-                                                <th className="p-2 text-right">份额变化</th>
-                                                <th className="p-2 text-right">金额/分红</th>
-                                                <th className="p-2 text-right">落袋收益</th>
+                                                <th className="p-2 text-right">
+                                                    <div>份额变化</div>
+                                                    <div className="font-mono text-[10px] text-gray-500">{Math.round(tradingHistorySummary.totalSharesChange)}</div>
+                                                </th>
+                                                <th className="p-2 text-right">
+                                                    <div>金额/分红</div>
+                                                    <div className="font-mono text-[10px] text-gray-500">{Math.round(tradingHistorySummary.totalAmount)}</div>
+                                                </th>
+                                                <th className="p-2 text-right">
+                                                    <div>浮盈</div>
+                                                    <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalFloatingProfit)}`}>{Math.round(tradingHistorySummary.totalFloatingProfit)}</div>
+                                                </th>
+                                                <th className="p-2 text-right">
+                                                    <div>机会收益</div>
+                                                    <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalOpportunityProfit)}`}>{Math.round(tradingHistorySummary.totalOpportunityProfit)}</div>
+                                                </th>
+                                                <th className="p-2 text-right">
+                                                    <div>落袋收益</div>
+                                                    <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalRealizedProfit)}`}>{Math.round(tradingHistorySummary.totalRealizedProfit)}</div>
+                                                </th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -287,6 +343,18 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                                 // Safe access to sharesChange
                                                 const sharesChange = record.sharesChange ?? 0;
 
+                                                // Calculate Buy Floating Profit and Sell Opportunity Profit relative to CURRENT market
+                                                let floatingProfit: number | null = null;
+                                                let opportunityProfit: number | null = null;
+
+                                                if (latestNAV > 0 && record.nav) {
+                                                    if (record.type === 'buy' || record.type === 'dividend-reinvest') {
+                                                        floatingProfit = (latestNAV - record.nav) * sharesChange;
+                                                    } else if (record.type === 'sell') {
+                                                        opportunityProfit = (record.nav - latestNAV) * Math.abs(sharesChange);
+                                                    }
+                                                }
+
                                                 return (
                                                 <tr key={record.date} className="border-t dark:border-gray-700">
                                                     <td className="p-2 font-mono">{record.date}</td>
@@ -301,6 +369,12 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                                         ) : (
                                                             record.amount ? record.amount.toFixed(2) : '-'
                                                         )}
+                                                    </td>
+                                                    <td className={`p-2 text-right font-mono ${floatingProfit != null ? getProfitColor(floatingProfit) : ''}`}>
+                                                        {floatingProfit != null ? `${floatingProfit > 0 ? '+' : ''}${floatingProfit.toFixed(2)}` : '-'}
+                                                    </td>
+                                                    <td className={`p-2 text-right font-mono ${opportunityProfit != null ? getProfitColor(opportunityProfit) : ''}`}>
+                                                        {opportunityProfit != null ? `${opportunityProfit > 0 ? '+' : ''}${opportunityProfit.toFixed(2)}` : '-'}
                                                     </td>
                                                     <td className={`p-2 text-right font-mono ${record.realizedProfitChange && record.realizedProfitChange !== 0 ? getProfitColor(record.realizedProfitChange) : ''}`}>
                                                         {record.type === 'dividend-cash' ? (
