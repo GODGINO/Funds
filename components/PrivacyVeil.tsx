@@ -9,22 +9,6 @@ const DinoIcon: React.FC = () => (
     <svg className="dino-icon fill-current text-slate-700 dark:text-slate-300" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="1731" height="44" width="44"><path d="M982.92737207 56.98146258h-41.97086855V3.85500886H561.50493039V50.57912671H513.29340118v307.92648747h-46.72411785v48.21152925h-69.84366408v44.26665562h-71.33107543v50.18396602h-49.18158015v46.23909239h-93.96559618V501.65279054h-47.20914328v-47.20914332h-47.20914331v-95.93803304h-46.72411789v282.34947904h45.26904153v48.21152922h49.18158014v47.7265038h46.72411783v47.2091433h47.20914335v45.75406693h46.72411781v190.35631962h95.93803304v-48.69655464h-47.72650379v-46.72411784h-47.20914334v-47.20914331h47.20914328v-46.72411791h47.72650379v-46.72411791H512v142.66215084h94.77397194v-48.21152925h-45.75406699v-188.41621783h45.75406699v-47.72650374h48.69655468V664.94469029h46.23909242v-165.23200157h48.21152918v45.75406698h45.75406698v-92.47818481h-93.44823571v-94.93564712h187.89885738v-47.20914332h-140.20468865l-0.48502541-51.8007175h233.49124926v-202.06160037z m-328.03887603 65.47843509h-47.20914327v-47.20914332h47.20914327v47.20914332z" p-id="1732"></path></svg>
 );
 
-const FlameEffect: React.FC = () => {
-    return (
-        <svg 
-            className="absolute left-[-10px] top-[-55px] w-[130%] h-[220%] pointer-events-none z-50 overflow-visible"
-            viewBox="0 0 727 208"
-            preserveAspectRatio="none"
-            style={{ mixBlendMode: 'difference' }}
-        >
-            <path 
-                d="M0 113L6 95.5V80.5L18 70L46.5 58L139 23.5V53L283.5 23.5L230.5 49L432.5 0L424 35.5L614 15.5L557.5 49L673 35.5L645.5 74L709.5 80.5L593.5 95.5L726.5 104L587.5 122L700 138.5L645.5 144L691 173L570.5 153.5L645.5 200L493.5 173L524.5 207.5L373.5 162L432.5 207.5L210.5 162L245.5 200L130 173L148.5 200L64 173L85 188L18 162L2.5 144L0 129.5V113Z" 
-                fill="white"
-            />
-        </svg>
-    );
-};
-
 interface PrivacyVeilProps {
   onRefresh: () => void;
   lastRefreshTime: string | null;
@@ -305,7 +289,6 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                 <div className="flex-shrink-0 mb-1 relative z-[60]"><DinoIcon /></div>
                 <div className="h-[88px] flex-1 flex items-end overflow-visible relative" style={{ opacity: isHovering ? 1 : 0 }}>
                     <div className="flex-1 h-full relative overflow-visible">
-                        <FlameEffect />
                         <ResponsiveContainer width="100%" height="100%">
                             {chartMode === 0 ? (
                                 <LineChart data={indexChartData} margin={{ top: 1, right: 1, left: 1, bottom: 1 }}>
