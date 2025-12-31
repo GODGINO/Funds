@@ -432,12 +432,13 @@ const App: React.FC = () => {
               }
           }
 
-          if (fundData && fundData.trim()) {
+          // 3. Portfolio Sync (Read-only for guest, overwrite ONLY if token present)
+          if (token && fundData && fundData.trim()) {
               localStorage.setItem('userFundPortfolio', fundData);
-              console.log("[Startup] Successfully pulled portfolio data from Gist.");
+              console.log("[Startup] Successfully pulled portfolio data from Gist (Authenticated).");
           }
 
-          // 3. Merge Market History (Unrestricted by master/slave)
+          // 4. Merge Market History (Unrestricted by token - everyone gets it)
           if (marketHistory) {
               try {
                   const cloudHistory = JSON.parse(marketHistory);
@@ -448,7 +449,7 @@ const App: React.FC = () => {
                   // Keep latest 5 days as per fundService requirement
                   sortedDates.slice(-5).forEach(d => finalHistory[d] = merged[d]);
                   localStorage.setItem('ginos_market_history_v1', JSON.stringify(finalHistory));
-                  console.log("[Startup] Merged market history from Gist.");
+                  console.log("[Startup] Merged market history from Gist (Public).");
               } catch (e) {
                   console.warn("[Startup] Failed to parse/merge market history", e);
               }
@@ -1767,7 +1768,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
      const token = localStorage.getItem('GITHUB_TOKEN');
      if (!token) return;
 
-     // Debounce the sync to avoid API rate limits on rapid edits
+     // Debounce the sync to avoid API rate limits on presidential edits
      const timer = setTimeout(() => {
          console.log('Auto-syncing to Gist...');
          updateGistData(token, currentPortfolioJSON)
