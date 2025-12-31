@@ -306,15 +306,24 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                                 </th>
                                                 <th className="p-2 text-right">
                                                     <div>浮盈</div>
-                                                    <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalFloatingProfit)}`}>{Math.round(tradingHistorySummary.totalFloatingProfit)}</div>
+                                                    <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalFloatingProfit)}`}>
+                                                        {Math.round(tradingHistorySummary.totalFloatingProfit)}
+                                                        {Math.abs(tradingHistorySummary.totalAmount) > 0 && `|${((tradingHistorySummary.totalFloatingProfit / Math.abs(tradingHistorySummary.totalAmount)) * 100).toFixed(1)}%`}
+                                                    </div>
                                                 </th>
                                                 <th className="p-2 text-right">
                                                     <div>机会收益</div>
-                                                    <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalOpportunityProfit)}`}>{Math.round(tradingHistorySummary.totalOpportunityProfit)}</div>
+                                                    <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalOpportunityProfit)}`}>
+                                                        {Math.round(tradingHistorySummary.totalOpportunityProfit)}
+                                                        {Math.abs(tradingHistorySummary.totalAmount) > 0 && `|${((tradingHistorySummary.totalOpportunityProfit / Math.abs(tradingHistorySummary.totalAmount)) * 100).toFixed(1)}%`}
+                                                    </div>
                                                 </th>
                                                 <th className="p-2 text-right">
                                                     <div>落袋收益</div>
-                                                    <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalRealizedProfit)}`}>{Math.round(tradingHistorySummary.totalRealizedProfit)}</div>
+                                                    <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalRealizedProfit)}`}>
+                                                        {Math.round(tradingHistorySummary.totalRealizedProfit)}
+                                                        {Math.abs(tradingHistorySummary.totalAmount) > 0 && `|${((tradingHistorySummary.totalRealizedProfit / Math.abs(tradingHistorySummary.totalAmount)) * 100).toFixed(1)}%`}
+                                                    </div>
                                                 </th>
                                             </tr>
                                         </thead>
