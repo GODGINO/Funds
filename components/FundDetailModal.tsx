@@ -220,6 +220,11 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
         };
     }, [fund.userPosition, baselinePosition, latestNAV, includeBaseline]);
 
+    // Determine if we should show the trading history table
+    const hasTradingRecords = (fund.userPosition?.tradingRecords?.length ?? 0) > 0;
+    const hasBaselineShares = (baselinePosition?.shares ?? 0) > 0;
+    const shouldShowHistory = hasTradingRecords || hasBaselineShares;
+
     return (
         <>
             <div 
@@ -309,13 +314,13 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                         </div>
 
                         {/* Tag Input */}
-                        <div>
+                        <div className="mb-2">
                            <label className="block text-xs text-gray-500">标签</label>
                            <input type="text" value={tag} onChange={e => setTag(e.target.value)} placeholder="☀️新能源, ⬆️, 等下跌" className="mt-1 w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded focus:ring-primary-500 focus:border-primary-500"/>
                         </div>
 
                         {/* Trading History */}
-                        {((fund.userPosition?.tradingRecords && fund.userPosition.tradingRecords.length > 0) || (baselinePosition?.shares && baselinePosition.shares > 0)) && (
+                        {shouldShowHistory && (
                             <div className="my-6">
                                 <div className="flex items-center justify-between mb-2">
                                     <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">交易历史</h3>
