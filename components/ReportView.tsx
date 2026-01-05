@@ -32,7 +32,7 @@ const ReportView: React.FC<ReportViewProps> = ({ isAppLoading, totalDailyProfit,
       {!isAppLoading && lastRefreshTime && (
         <div className="absolute bottom-10 left-0 right-0 text-center">
           <div className="text-gray-400 dark:text-gray-600 font-mono text-xs tracking-widest uppercase opacity-60">
-            Last updated at {lastRefreshTime}
+            {lastRefreshTime}
           </div>
         </div>
       )}
