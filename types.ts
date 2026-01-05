@@ -156,6 +156,7 @@ export interface PortfolioSnapshot {
   totalSellAmount?: number;
   totalSellOpportunityProfit?: number;
   totalSellRealizedProfit?: number;
+  totalDailyActionValue?: number;
 }
 
 export interface SyncMetadata {

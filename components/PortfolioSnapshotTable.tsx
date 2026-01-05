@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot } from 'recharts';
 import { PortfolioSnapshot, ProcessedFund } from '../types';
@@ -177,10 +178,10 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
             {renderCell('netAmountChange', isBaselineRow ? null : snapshot.netAmountChange, formatInteger, isBaselineRow ? undefined : getProfitColor)}
             {renderCell('marketValueChange', snapshot.marketValueChange, formatInteger, (v) => getProfitColor(v))}
             <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${snapshot.operationProfit ? getProfitColor(snapshot.operationProfit) : ''} ${getCellHighlightClass('operationProfit', snapshot.operationProfit)}`} style={getBar_style(snapshot.operationProfit, maxAbsValues.operationProfit ?? 0, minAbsValues.operationProfit ?? 0)}>
-                <div className="relative">{snapshot.operationProfit != null ? `${snapshot.operationProfit >= 0 ? '+' : ''}${formatInteger(snapshot.operationProfit)}|${snapshot.profitPerHundred?.toFixed(1)}%` : '-'}</div>
+                <div className="relative">{snapshot.operationProfit != null ? `${snapshot.operationProfit >= 0 ? '+' : ''}${formatInteger(snapshot.operationProfit)}|${(snapshot.profitPerHundred ?? 0).toFixed(1)}%` : '-'}</div>
             </td>
             <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${snapshot.profitCaused ? getProfitColor(snapshot.profitCaused) : ''} ${getCellHighlightClass('profitCaused', snapshot.profitCaused)}`} style={getBar_style(snapshot.profitCaused, maxAbsValues.profitCaused ?? 0, minAbsValues.profitCaused ?? 0)}>
-                <div className="relative">{snapshot.profitCaused != null ? `${snapshot.profitCaused >= 0 ? '+' : ''}${formatInteger(snapshot.profitCaused)}|${snapshot.profitCausedPerHundred?.toFixed(1)}%` : '-'}</div>
+                <div className="relative">{snapshot.profitCaused != null ? `${snapshot.profitCaused >= 0 ? '+' : ''}${formatInteger(snapshot.profitCaused)}|${(snapshot.profitCausedPerHundred ?? 0).toFixed(1)}%` : '-'}</div>
             </td>
             {renderCell('operationEffect', snapshot.operationEffect, (v) => v.toFixed(2) + '%', (v) => getProfitColor(v))}
         </tr>
@@ -228,12 +229,25 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
     if (!snapshots || snapshots.length < 2) return null;
     const operationalSnapshots = snapshots.filter(s => s.snapshotDate !== '基准持仓');
     if (!operationalSnapshots.length) return null;
-    const sums = { netAmountChange: 0, marketValueChange: 0, operationProfit: 0, totalBuyAmount: 0, totalBuyFloatingProfit: 0, totalSellAmount: 0, totalSellOpportunityProfit: 0, totalSellRealizedProfit: 0, profitCaused: 0 };
+    
+    const sums = { netAmountChange: 0, marketValueChange: 0, operationProfit: 0, totalBuyAmount: 0, totalBuyFloatingProfit: 0, totalSellAmount: 0, totalSellOpportunityProfit: 0, totalSellRealizedProfit: 0, profitCaused: 0, totalDailyActionValue: 0 };
     operationalSnapshots.forEach(s => Object.keys(sums).forEach(k => (sums as any)[k] += (s as any)[k] || 0));
+    
     const latest = snapshots.find(s => s.snapshotDate !== '待成交') || snapshots[0];
     const baseline = snapshots[snapshots.length - 1];
     const effect = Math.abs(baseline.dailyProfit) > 1e-6 ? ((latest.dailyProfit - baseline.dailyProfit) / Math.abs(baseline.dailyProfit)) * 100 : 100;
-    return { ...sums, profitPerHundred: Math.abs(sums.netAmountChange) > 1e-6 ? (sums.operationProfit / Math.abs(sums.netAmountChange)) * 100 : 0, profitCausedPerHundred: Math.abs(sums.netAmountChange) > 1e-6 ? (sums.profitCaused / Math.abs(sums.netAmountChange)) * 100 : 0, operationEffect: effect, floatingProfitPercent: sums.totalBuyAmount > 1e-6 ? (sums.totalBuyFloatingProfit / sums.totalBuyAmount) * 100 : 0, opportunityProfitPercent: sums.totalSellAmount > 1e-6 ? (sums.totalSellOpportunityProfit / sums.totalSellAmount) * 100 : 0, realizedProfitPercent: sums.totalSellAmount > 1e-6 ? (sums.totalSellRealizedProfit / sums.totalSellAmount) * 100 : 0 };
+    
+    const actionBase = sums.totalDailyActionValue || Math.abs(sums.netAmountChange);
+
+    return { 
+        ...sums, 
+        profitPerHundred: actionBase > 1e-6 ? (sums.operationProfit / actionBase) * 100 : 0, 
+        profitCausedPerHundred: actionBase > 1e-6 ? (sums.profitCaused / actionBase) * 100 : 0, 
+        operationEffect: effect, 
+        floatingProfitPercent: sums.totalBuyAmount > 1e-6 ? (sums.totalBuyFloatingProfit / sums.totalBuyAmount) * 100 : 0, 
+        opportunityProfitPercent: sums.totalSellAmount > 1e-6 ? (sums.totalSellOpportunityProfit / sums.totalSellAmount) * 100 : 0, 
+        realizedProfitPercent: sums.totalSellAmount > 1e-6 ? (sums.totalSellRealizedProfit / sums.totalSellAmount) * 100 : 0 
+    };
   }, [snapshots]);
 
   const sparklineColumns: { key: keyof PortfolioSnapshot; title: string; }[] = [{ key: 'totalCostBasis', title: '总成本' }, { key: 'currentMarketValue', title: '持有总值' }, { key: 'holdingProfit', title: '持有收益' }, { key: 'totalProfit', title: '累计收益' }, { key: 'profitRate', title: '累计收益率' }, { key: 'dailyProfit', title: '日收益' }, { key: 'dailyProfitRate', title: '日收益率' }];

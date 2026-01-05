@@ -123,9 +123,9 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                 }));
             return { 
                 detailedBuyRecords: [],
-                buyTotals: { floatingProfit: 0, amount: 0 }, 
+                buyTotals: { floatingProfit: 0, amount: 0, profitCaused: 0 }, 
                 detailedSellRecords: [],
-                sellTotals: { opportunityProfit: 0, realizedProfit: 0, amount: 0 },
+                sellTotals: { opportunityProfit: 0, realizedProfit: 0, amount: 0, profitCaused: 0 },
                 initialHoldings: holdings 
             };
         }
@@ -133,21 +133,23 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
         const snapshotDate = snapshot.snapshotDate;
         const isPendingSnapshot = snapshotDate === '待成交';
         const latestNavMap = new Map(funds.map(f => [f.code, f.baseChartData[f.baseChartData.length - 1]?.unitNAV ?? 0]));
+        const yesterdayNavMap = new Map(funds.map(f => [f.code, f.baseChartData.length > 1 ? f.baseChartData[f.baseChartData.length - 2]?.unitNAV ?? 0 : 0]));
 
         const detailedBuys: any[] = [];
         const detailedSells: any[] = [];
         
         let totalBuyFloatingProfit = 0;
         let totalBuyAmount = 0;
+        let totalBuyProfitCaused = 0;
         let totalSellOpportunityProfit = 0;
         let totalSellRealizedProfit = 0;
         let totalSellAmount = 0;
+        let totalSellProfitCaused = 0;
 
         funds.forEach(fund => {
             const position = fund.userPosition;
             if (!position?.tradingRecords) return;
 
-            // Select records based on snapshot type
             const recordsOnDate = isPendingSnapshot
                 ? position.tradingRecords.filter(r => r.nav === undefined)
                 : position.tradingRecords.filter(r => r.date === snapshotDate);
@@ -159,8 +161,6 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
             let prevShares: number = fund.initialUserPosition?.shares ?? 0;
             let prevTotalCost: number = (fund.initialUserPosition?.shares ?? 0) * (fund.initialUserPosition?.cost ?? 0);
 
-            // Replay all transactions BEFORE the snapshot date to get the state at the start of the day.
-            // For pending snapshot, we replay ALL confirmed transactions.
             const recordsBeforeDate = (position.tradingRecords)
                 .filter(r => isPendingSnapshot ? r.nav !== undefined : new Date(r.date).getTime() < new Date(snapshotDate).getTime())
                 .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -172,27 +172,26 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                 } else if (record.type === 'sell') { 
                     const costBasisPerShareBeforeSell = prevShares > 0 ? prevTotalCost / prevShares : 0;
                     prevTotalCost -= costBasisPerShareBeforeSell * Math.abs(record.sharesChange ?? 0);
-                    prevShares += record.sharesChange ?? 0; // sharesChange is negative for sell
+                    prevShares += record.sharesChange ?? 0;
                     if ((prevShares as number) < 1e-6) {
                         prevShares = 0;
                         prevTotalCost = 0;
                     }
                 }
-                // dividend-cash does not change shares or cost basis (it only changes realized profit)
             }
             
             const prevAvgCost = prevShares > 0 ? prevTotalCost / prevShares : 0;
 
             recordsOnDate.forEach(record => {
                 const latestNAV = latestNavMap.get(fund.code) ?? 0;
+                const yesterdayNAV = yesterdayNavMap.get(fund.code) ?? 0;
+                const dailyProfitPerShare = (latestNAV > 0 && yesterdayNAV > 0) ? (latestNAV - yesterdayNAV) : 0;
                 
-                // Group 'dividend-reinvest' with 'buy' (Inflow/Share Increase)
                 if (record.type === 'buy' || record.type === 'dividend-reinvest') {
                     let sChange = record.sharesChange ?? 0;
                     let rAmount = record.amount ?? 0;
                     let rNav = record.nav ?? 0;
 
-                    // Simulation logic for Pending Snapshot
                     if (isPendingSnapshot && record.nav === undefined) {
                         const val = record.value || 0;
                         const price = fund.realTimeData?.estimatedNAV || fund.latestNAV || 0;
@@ -201,9 +200,8 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                             sChange = price > 0 ? val / price : 0;
                             rNav = price;
                         } else if (record.type === 'dividend-reinvest') {
-                            sChange = val; // value is shares
+                            sChange = val;
                             rNav = price;
-                            // rAmount remains 0
                         }
                     }
 
@@ -215,14 +213,15 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     const costChangePercent = prevAvgCost > 0 ? (costChange / prevAvgCost) * 100 : 0;
                     const sharesChangePercent = (prevShares as number) > 0 ? (sChange / (prevShares as number)) * 100 : 100;
                     const floatingProfit = latestNAV > 0 ? (latestNAV - rNav) * sChange : 0;
+                    const profitCaused = dailyProfitPerShare * sChange;
                     
-                    // For Reinvest, amount is 0, so floatingProfitPercent would be Infinity/NaN if we divide by amount.
-                    // Instead, calculate profit percent based on the value of shares obtained (rNav * sChange).
                     const tradeValue = rAmount > 0 ? rAmount : (rNav * sChange);
                     const floatingProfitPercent = tradeValue > 0 ? (floatingProfit / tradeValue) * 100 : 0;
+                    const profitCausedPercent = tradeValue > 0 ? (profitCaused / tradeValue) * 100 : 0;
 
                     totalBuyFloatingProfit += floatingProfit;
                     totalBuyAmount += rAmount;
+                    totalBuyProfitCaused += profitCaused;
 
                     detailedBuys.push({
                         fundCode: fund.code,
@@ -232,17 +231,14 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                         costChange, costChangePercent,
                         sharesChange: sChange, sharesChangePercent,
                         floatingProfit, floatingProfitPercent,
+                        profitCaused, profitCausedPercent,
                         amount: rAmount
                     });
 
                 } else if (record.type === 'sell' || record.type === 'dividend-cash') { 
-                    // Group 'dividend-cash' with 'sell' (Outflow/Payout)
                     let sChange = record.sharesChange ?? 0;
                     let rNav = record.nav ?? 0;
                     
-                    // Determine amount for display (Cash Flow)
-                    // For Sell: record.amount is negative (outflow of value from market).
-                    // For Dividend: record.amount is 0, but we want to show realizedProfitChange as cash received.
                     let rAmount = record.amount ?? 0; 
                     if (record.type === 'dividend-cash') {
                         rAmount = -(record.realizedProfitChange ?? 0); 
@@ -250,22 +246,18 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     
                     let realizedProfit = record.realizedProfitChange ?? 0;
 
-                    // Simulation logic for Pending Snapshot
                     if (isPendingSnapshot && record.nav === undefined) {
                         const val = record.value || 0;
                         const price = fund.realTimeData?.estimatedNAV || fund.latestNAV || 0;
                         
                         if (record.type === 'sell') {
-                            sChange = -val; // value is shares
+                            sChange = -val;
                             rNav = price;
                             const cashIn = val * price;
                             rAmount = -cashIn;
-                            
-                            // Calc estimated realized profit
                             realizedProfit = (price - prevAvgCost) * val;
                         } else if (record.type === 'dividend-cash') {
-                            // value is cash amount
-                            rNav = price; // Just as reference
+                            rNav = price;
                             realizedProfit = val;
                             rAmount = -val;
                         }
@@ -273,19 +265,19 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
                     const sharesChangePercent = (prevShares as number) > 0 ? (sChange / (prevShares as number)) * 100 : 0;
                     const opportunityProfit = latestNAV > 0 ? (rNav - latestNAV) * Math.abs(sChange) : 0;
+                    const profitCaused = dailyProfitPerShare * sChange;
                     
-                    // For opportunity profit percent: 
-                    // Sell: based on price difference vs trade nav.
-                    // Cash Div: sChange is 0, so opportunity profit is 0.
                     const opportunityProfitPercent = (record.type === 'sell' && rNav > 0) ? ((rNav - latestNAV) / rNav) * 100 : 0;
+                    const profitCausedPercent = Math.abs(rAmount) > 0 ? (profitCaused / Math.abs(rAmount)) * 100 : 0;
                         
                     const realizedProfitPercent = (record.type === 'sell' && prevAvgCost > 0) 
                         ? ((rNav - prevAvgCost) / prevAvgCost) * 100 
-                        : 0; // For cash dividend, calculating a "yield" percent against cost basis is complex here, keeping it simple 0 for now.
+                        : 0;
 
                     totalSellOpportunityProfit += opportunityProfit;
                     totalSellRealizedProfit += realizedProfit;
                     totalSellAmount += Math.abs(rAmount);
+                    totalSellProfitCaused += profitCaused;
 
                     detailedSells.push({
                         fundCode: fund.code,
@@ -295,14 +287,13 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                         sharesChange: sChange, sharesChangePercent,
                         opportunityProfit, opportunityProfitPercent,
                         realizedProfit, realizedProfitPercent,
+                        profitCaused, profitCausedPercent,
                         amount: Math.abs(rAmount)
                     });
                 }
             });
         });
 
-        // Calculate percentages and sort by amount descending
-        // For Reinvest/CashDiv where amount might be 0, this sort might push them to bottom, which is fine.
         detailedBuys.forEach(r => {
             r.amountPercent = totalBuyAmount > 0 ? (r.amount / totalBuyAmount) * 100 : 0;
         });
@@ -315,9 +306,9 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
         return { 
             detailedBuyRecords: detailedBuys,
-            buyTotals: { floatingProfit: totalBuyFloatingProfit, amount: totalBuyAmount },
+            buyTotals: { floatingProfit: totalBuyFloatingProfit, amount: totalBuyAmount, profitCaused: totalBuyProfitCaused },
             detailedSellRecords: detailedSells,
-            sellTotals: { opportunityProfit: totalSellOpportunityProfit, realizedProfit: totalSellRealizedProfit, amount: totalSellAmount },
+            sellTotals: { opportunityProfit: totalSellOpportunityProfit, realizedProfit: totalSellRealizedProfit, amount: totalSellAmount, profitCaused: totalSellProfitCaused },
             initialHoldings: [] 
         };
 
@@ -345,7 +336,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
     const hasBuys = detailedBuyRecords.length > 0;
     const hasSells = detailedSellRecords.length > 0;
     const hasOnlyOneType = (hasBuys && !hasSells) || (!hasBuys && hasSells);
-    const modalMaxWidthClass = hasOnlyOneType ? 'max-w-xl' : 'max-w-6xl';
+    const modalMaxWidthClass = hasOnlyOneType ? 'max-w-2xl' : 'max-w-7xl';
 
 
     const renderBuyHeader = () => (
@@ -386,6 +377,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                         <th className="p-2 whitespace-nowrap">基金名称</th>
                         <th className="p-2 text-right whitespace-nowrap">份额变化</th>
                         <th className="p-2 text-right whitespace-nowrap">成本变化</th>
+                        <th className="p-2 text-right whitespace-nowrap">造成今日盈亏</th>
                         <th className="p-2 text-right whitespace-nowrap">{snapshot.snapshotDate === '待成交' ? '预估浮盈' : '浮盈'}</th>
                         <th className="p-2 text-right whitespace-nowrap">买入</th>
                     </tr>
@@ -413,6 +405,10 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                                 <div className={`${getProfitColor(record.costChange * -1)} text-xs`}>{`${record.costChangePercent > 0 ? '+' : ''}${record.costChangePercent.toFixed(2)}%`}</div>
                             </td>
                             <td className="p-2 text-right font-mono">
+                                <div className={getProfitColor(record.profitCaused)}>{record.profitCaused >= 0 ? '+' : ''}{record.profitCaused.toFixed(2)}</div>
+                                <div className={`${getProfitColor(record.profitCaused)} text-xs`}>{`${record.profitCausedPercent >= 0 ? '+' : ''}${record.profitCausedPercent.toFixed(2)}%`}</div>
+                            </td>
+                            <td className="p-2 text-right font-mono">
                                 <div className={getProfitColor(record.floatingProfit)}>{record.floatingProfit.toFixed(2)}</div>
                                 <div className={`${getProfitColor(record.floatingProfit)} text-xs`}>{`${record.floatingProfitPercent > 0 ? '+' : ''}${record.floatingProfitPercent.toFixed(2)}%`}</div>
                             </td>
@@ -422,14 +418,23 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                             </td>
                         </tr>
                     ))}
-                    {/* Spacer Row to push Footer down */}
                     <tr className="border-none bg-transparent">
-                        <td colSpan={5} className="p-0 border-none h-full"></td>
+                        <td colSpan={6} className="p-0 border-none h-full"></td>
                     </tr>
                 </tbody>
                 <tfoot className="h-fit">
                     <tr className="border-t dark:border-gray-600 font-bold">
-                        <td className="p-2 text-left" colSpan={3}>汇总</td>
+                        <td className="p-2 text-left" colSpan={2}>汇总</td>
+                        <td className="p-2 text-right font-mono"></td>
+                        <td className="p-2 text-right font-mono">
+                            <div className={getProfitColor(buyTotals.profitCaused)}>{buyTotals.profitCaused >= 0 ? '+' : ''}{buyTotals.profitCaused.toFixed(2)}</div>
+                            <div className={`${getProfitColor(buyTotals.profitCaused)} text-xs font-normal`}>
+                                {buyTotals.amount > 0 
+                                    ? `${((buyTotals.profitCaused / buyTotals.amount) * 100) > 0 ? '+' : ''}${((buyTotals.profitCaused / buyTotals.amount) * 100).toFixed(2)}%`
+                                    : '0.00%'
+                                }
+                            </div>
+                        </td>
                         <td className="p-2 text-right font-mono">
                             <div className={getProfitColor(buyTotals.floatingProfit)}>{buyTotals.floatingProfit.toFixed(2)}</div>
                             <div className={`${getProfitColor(buyTotals.floatingProfit)} text-xs font-normal`}>
@@ -453,6 +458,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     <tr>
                         <th className="p-2 whitespace-nowrap">基金名称</th>
                         <th className="p-2 text-right whitespace-nowrap">份额变化</th>
+                        <th className="p-2 text-right whitespace-nowrap">造成今日盈亏</th>
                         <th className="p-2 text-right whitespace-nowrap">{snapshot.snapshotDate === '待成交' ? '预估机会收益' : '机会收益'}</th>
                         <th className="p-2 text-right whitespace-nowrap">{snapshot.snapshotDate === '待成交' ? '预估落袋' : '落袋'}</th>
                         <th className="p-2 text-right whitespace-nowrap">到账</th>
@@ -473,8 +479,12 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                                 )}
                             </td>
                             <td className="p-2 text-right font-mono">
-                                <div className={getProfitColor(-1)}>{record.sharesChange.toFixed(2)}</div>
-                                <div className={`${getProfitColor(-1)} text-xs`}>{record.sharesChangePercent.toFixed(2)}%</div>
+                                <div className={getProfitColor(record.sharesChange)}>{record.sharesChange.toFixed(2)}</div>
+                                <div className={`${getProfitColor(record.sharesChange)} text-xs`}>{record.sharesChangePercent.toFixed(2)}%</div>
+                            </td>
+                            <td className="p-2 text-right font-mono">
+                                <div className={getProfitColor(record.profitCaused)}>{record.profitCaused >= 0 ? '+' : ''}{record.profitCaused.toFixed(2)}</div>
+                                <div className={`${getProfitColor(record.profitCaused)} text-xs`}>{`${record.profitCausedPercent >= 0 ? '+' : ''}${record.profitCausedPercent.toFixed(2)}%`}</div>
                             </td>
                             <td className="p-2 text-right font-mono">
                                 <div className={getProfitColor(record.opportunityProfit)}>{`${record.opportunityProfit > 0 ? '+' : ''}${record.opportunityProfit.toFixed(2)}`}</div>
@@ -482,7 +492,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                             </td>
                             <td className="p-2 text-right font-mono">
                                 <div className={getProfitColor(record.realizedProfit)}>{record.realizedProfit.toFixed(2)}</div>
-                                <div className={`${getProfitColor(record.realizedProfit)} text-xs`}>{`${record.realizedProfitPercent > 0 ? '+' : ''}${record.realizedProfitPercent.toFixed(2)}%`}</div>
+                                <div className={`${[getProfitColor(record.realizedProfit)]} text-xs`}>{`${record.realizedProfitPercent > 0 ? '+' : ''}${record.realizedProfitPercent.toFixed(2)}%`}</div>
                             </td>
                             <td className="p-2 text-right font-mono">
                                 <div>{record.amount.toFixed(2)}</div>
@@ -490,14 +500,22 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                             </td>
                         </tr>
                     ))}
-                    {/* Spacer Row to push Footer down */}
                     <tr className="border-none bg-transparent">
-                        <td colSpan={5} className="p-0 border-none h-full"></td>
+                        <td colSpan={6} className="p-0 border-none h-full"></td>
                     </tr>
                 </tbody>
                 <tfoot className="h-fit">
                     <tr className="border-t dark:border-gray-600 font-bold">
                         <td className="p-2 text-left" colSpan={2}>汇总</td>
+                        <td className="p-2 text-right font-mono">
+                            <div className={getProfitColor(sellTotals.profitCaused)}>{sellTotals.profitCaused >= 0 ? '+' : ''}{sellTotals.profitCaused.toFixed(2)}</div>
+                            <div className={`${getProfitColor(sellTotals.profitCaused)} text-xs font-normal`}>
+                                {sellTotals.amount > 0 
+                                    ? `${((sellTotals.profitCaused / sellTotals.amount) * 100) > 0 ? '+' : ''}${((sellTotals.profitCaused / sellTotals.amount) * 100).toFixed(2)}%`
+                                    : '0.00%'
+                                }
+                            </div>
+                        </td>
                         <td className="p-2 text-right font-mono">
                             <div className={getProfitColor(sellTotals.opportunityProfit)}>{`${sellTotals.opportunityProfit > 0 ? '+' : ''}${sellTotals.opportunityProfit.toFixed(2)}`}</div>
                             <div className={`${getProfitColor(sellTotals.opportunityProfit)} text-xs font-normal`}>
@@ -526,7 +544,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
     const renderTransactionTables = () => {
         if (hasOnlyOneType) {
              return (
-                 <div className="mx-auto w-full max-w-xl flex flex-col h-full">
+                 <div className="mx-auto w-full max-w-2xl flex flex-col h-full">
                      {hasBuys ? renderBuyHeader() : renderSellHeader()}
                      <div className="flex-1 mt-0">
                          {hasBuys ? renderBuyTable() : renderSellTable()}
@@ -537,22 +555,18 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
         return (
             <div className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-[auto_1fr] gap-x-6 gap-y-0 h-full">
-                {/* Buy Header - Order 1 on mobile, Col 1 Row 1 on desktop */}
                 <div className="order-1 md:order-none md:col-start-1 md:row-start-1">
                     {renderBuyHeader()}
                 </div>
                 
-                {/* Buy Table - Order 2 on mobile, Col 1 Row 2 on desktop */}
                 <div className="order-2 md:order-none md:col-start-1 md:row-start-2 overflow-x-auto h-full mb-6 md:mb-0">
                      {renderBuyTable()}
                 </div>
 
-                {/* Sell Header - Order 3 on mobile, Col 2 Row 1 on desktop */}
                 <div className="order-3 md:order-none md:col-start-2 md:row-start-1">
                     {renderSellHeader()}
                 </div>
 
-                {/* Sell Table - Order 4 on mobile, Col 2 Row 2 on desktop */}
                 <div className="order-4 md:order-none md:col-start-2 md:row-start-2 overflow-x-auto h-full">
                     {renderSellTable()}
                 </div>

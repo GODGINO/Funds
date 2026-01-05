@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 // FIX: Import ProcessedFund for better type safety
 import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData, TransactionType, SortByType, MarketDataPoint, SyncMetadata } from './types';
@@ -1510,6 +1511,7 @@ const App: React.FC = () => {
         return null;
     }
     
+    // FIX: String objects don't have getTime. Convert to Date objects first.
     const sortedDates = Array.from(allDates).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
     return sortedDates[0] || null;
 
@@ -1809,6 +1811,9 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
             let totalSellAmountOnDate = 0;
             let totalSellOpportunityProfitOnDate = 0;
             let totalSellRealizedProfitOnDate = 0;
+            
+            // Total action value used as denominator for percentages (mimics rowAmountForPercent in detail modal)
+            let totalDailyActionValue = 0;
 
             funds.forEach(fund => {
                 const position = fund.userPosition;
@@ -1823,29 +1828,35 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
                     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
                 
                 for (const record of relevantRecords) {
+                    const latestNAV = latestNavMap.get(fund.code) ?? 0;
+
                     if (record.date === snapshotDate) {
                         netAmountChangeOnDate += (record.amount || 0); // Dividend has amount 0
                         
-                        const latestNAV = latestNavMap.get(fund.code) ?? 0;
                         if (record.type === 'buy') {
                             const floatingProfit = latestNAV > 0 ? (latestNAV - record.nav!) * record.sharesChange! : 0;
                             totalBuyFloatingProfitOnDate += floatingProfit;
                             totalBuyAmountOnDate += record.amount!;
+                            totalDailyActionValue += Math.abs(record.amount!);
                         } else if (record.type === 'sell') {
                             const opportunityProfit = latestNAV > 0 ? (record.nav! - latestNAV) * Math.abs(record.sharesChange!) : 0;
                             totalSellOpportunityProfitOnDate += opportunityProfit;
                             totalSellRealizedProfitOnDate += record.realizedProfitChange ?? 0;
                             totalSellAmountOnDate += Math.abs(record.amount!);
+                            totalDailyActionValue += Math.abs(record.amount!);
                         } else if (record.type === 'dividend-cash') {
                             // Fix: Cash dividend reduces net amount change (money out)
-                            // record.amount is 0/undefined, subtract realizedProfitChange which is dividend amount
                             netAmountChangeOnDate -= (record.realizedProfitChange || 0);
-                            
-                            // Fix: Cash dividend counts as realized profit for that day's snapshot
                             totalSellRealizedProfitOnDate += (record.realizedProfitChange || 0);
-                            
-                            // Fix: Treat as cash outflow (Sell Amount) for summary stats
                             totalSellAmountOnDate += (record.realizedProfitChange || 0);
+                            totalDailyActionValue += Math.abs(record.realizedProfitChange || 0);
+                        } else if (record.type === 'dividend-reinvest') {
+                            // Reinvestment: virtual inflow value for denominator
+                            const reinvestValue = record.nav! * record.sharesChange!;
+                            totalBuyAmountOnDate += reinvestValue;
+                            const floatingProfit = latestNAV > 0 ? (latestNAV - record.nav!) * record.sharesChange! : 0;
+                            totalBuyFloatingProfitOnDate += floatingProfit;
+                            totalDailyActionValue += reinvestValue;
                         }
                     }
 
@@ -1919,6 +1930,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
                 totalSellAmount: totalSellAmountOnDate,
                 totalSellOpportunityProfit: totalSellOpportunityProfitOnDate,
                 totalSellRealizedProfit: totalSellRealizedProfitOnDate,
+                totalDailyActionValue, // Added as reference for percentages
             };
         });
 
@@ -1982,6 +1994,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
         profitRate: baselineTotalCostBasis > 0 ? (baselineTotalProfit / baselineTotalCostBasis) * 100 : 0,
         dailyProfit: baselineDailyProfit,
         dailyProfitRate: baselineYesterdayMarketValue > 0 ? (baselineDailyProfit / baselineYesterdayMarketValue) * 100 : 0,
+        totalDailyActionValue: 0,
     };
 
     const allSnapshots = [...historicalSnapshots, baselineSnapshot];
@@ -2000,6 +2013,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
         let pendingTotalBuyAmount = 0;
         let pendingTotalSellAmount = 0;
         let pendingTotalSellRealizedProfit = 0; // Delta for this "snapshot"
+        let pendingTotalDailyActionValue = 0;
 
         funds.forEach(fund => {
             // Base state from processedFunds (which reflects confirmed state)
@@ -2025,6 +2039,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
                     totalCost += val;
                     pendingNetAmountChange += val;
                     pendingTotalBuyAmount += val;
+                    pendingTotalDailyActionValue += val;
                 } else if (r.type === 'sell') {
                     // val is shares
                     const sChange = val; 
@@ -2040,13 +2055,18 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
                     pendingNetAmountChange -= cash;
                     pendingTotalSellAmount += cash;
                     pendingTotalSellRealizedProfit += profit;
+                    pendingTotalDailyActionValue += cash;
                 } else if (r.type === 'dividend-cash') {
                     realized += val;
                     pendingNetAmountChange -= val;
                     pendingTotalSellAmount += val; 
                     pendingTotalSellRealizedProfit += val;
+                    pendingTotalDailyActionValue += val;
                 } else if (r.type === 'dividend-reinvest') {
                     shares += val;
+                    const reinvestValue = price * val;
+                    pendingTotalBuyAmount += reinvestValue;
+                    pendingTotalDailyActionValue += reinvestValue;
                 }
                 if (shares < 1e-6) { shares = 0; totalCost = 0; }
             });
@@ -2077,6 +2097,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
             totalSellAmount: pendingTotalSellAmount,
             totalSellOpportunityProfit: undefined, // Execution at market price -> 0 opp
             totalSellRealizedProfit: pendingTotalSellRealizedProfit,
+            totalDailyActionValue: pendingTotalDailyActionValue,
         };
         
         allSnapshots.unshift(pendingSnapshot);
@@ -2097,11 +2118,14 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
                   operationEffect: undefined
               };
           }
+          
+          const actionBase = snapshot.totalDailyActionValue || Math.abs(snapshot.netAmountChange ?? 0);
+          
           const operationProfit = marketValueChange - (snapshot.netAmountChange ?? 0);
-          const profitPerHundred = (snapshot.netAmountChange ?? 0) !== 0 ? (operationProfit / Math.abs(snapshot.netAmountChange ?? 0)) * 100 : undefined;
+          const profitPerHundred = actionBase > 1e-6 ? (operationProfit / actionBase) * 100 : undefined;
           
           const profitCaused = snapshot.dailyProfit - previousSnapshot.dailyProfit;
-          const profitCausedPerHundred = (snapshot.netAmountChange ?? 0) !== 0 ? (profitCaused / Math.abs(snapshot.netAmountChange ?? 0)) * 100 : undefined;
+          const profitCausedPerHundred = actionBase > 1e-6 ? (profitCaused / actionBase) * 100 : undefined;
           
           const operationEffect = Math.abs(previousSnapshot.dailyProfit as number) > 1e-6
               ? (profitCaused / Math.abs(previousSnapshot.dailyProfit as number)) * 100 

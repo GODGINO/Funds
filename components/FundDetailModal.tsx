@@ -167,12 +167,14 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
         const initialRealizedProfit = baselinePosition?.realizedProfit ?? 0;
 
         const initialAmount = initialShares * initialCost;
+        const dailyProfitPerShare = (latestNAV > 0 && yesterdayNAV > 0) ? (latestNAV - yesterdayNAV) : 0;
 
         let totalSharesChange = includeBaseline ? initialShares : 0;
         let totalAmount = includeBaseline ? initialAmount : 0;
         let totalFloatingProfit = (includeBaseline && latestNAV > 0 && initialShares > 0) ? (latestNAV - initialCost) * initialShares : 0;
         let totalOpportunityProfit = 0;
         let totalRealizedProfit = includeBaseline ? initialRealizedProfit : 0;
+        let totalProfitCaused = includeBaseline ? (dailyProfitPerShare * initialShares) : 0;
         
         // 分母计算
         let sumPositiveAmount = includeBaseline ? initialAmount : 0;
@@ -184,8 +186,10 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
             totalSharesChange += record.sharesChange || 0;
 
             if (record.type === 'dividend-cash') {
-                totalAmount += record.realizedProfitChange || 0;
+                // Fix: 现金分红是资金回流，应减少账面净投入
+                totalAmount -= record.realizedProfitChange || 0;
             } else {
+                // 买入(+) 或 卖出(-)
                 totalAmount += record.amount || 0;
             }
 
@@ -198,6 +202,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
             }
 
             totalRealizedProfit += record.realizedProfitChange || 0;
+            totalProfitCaused += (dailyProfitPerShare * (record.sharesChange || 0));
 
             // 分母逻辑
             if (record.type === 'buy') {
@@ -215,10 +220,11 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
             totalFloatingProfit,
             totalOpportunityProfit,
             totalRealizedProfit,
+            totalProfitCaused,
             sumPositiveAmount,
             sumNegativeAmount
         };
-    }, [fund.userPosition, baselinePosition, latestNAV, includeBaseline]);
+    }, [fund.userPosition, baselinePosition, latestNAV, yesterdayNAV, includeBaseline]);
 
     // Determine if we should show the trading history table
     const hasTradingRecords = (fund.userPosition?.tradingRecords?.length ?? 0) > 0;
@@ -233,7 +239,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                 aria-modal="true"
                 role="dialog"
             >
-                <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-3xl m-4 transform transition-all max-h-[90vh] flex flex-col">
+                <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-4xl m-4 transform transition-all max-h-[90vh] flex flex-col">
                     {/* Modal Header */}
                     <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700 flex-shrink-0">
                         <div className="flex items-center gap-4">
@@ -350,6 +356,13 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                                     <div className="font-mono text-[10px] text-gray-500">{tradingHistorySummary.totalAmount.toFixed(2)}</div>
                                                 </th>
                                                 <th className="p-2 text-right">
+                                                    <div>造成今日盈亏</div>
+                                                    <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalProfitCaused)}`}>
+                                                        {tradingHistorySummary.totalProfitCaused.toFixed(2)}
+                                                        {Math.abs(tradingHistorySummary.totalAmount) > 0 && `|${((tradingHistorySummary.totalProfitCaused / Math.abs(tradingHistorySummary.totalAmount)) * 100).toFixed(1)}%`}
+                                                    </div>
+                                                </th>
+                                                <th className="p-2 text-right">
                                                     <div>浮盈</div>
                                                     <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalFloatingProfit)}`}>
                                                         {tradingHistorySummary.totalFloatingProfit.toFixed(2)}
@@ -396,6 +409,8 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
 
                                                 // Safe access to sharesChange
                                                 const sharesChange = record.sharesChange ?? 0;
+                                                const dailyProfitPerShare = (latestNAV > 0 && yesterdayNAV > 0) ? (latestNAV - yesterdayNAV) : 0;
+                                                const profitCaused = dailyProfitPerShare * sharesChange;
 
                                                 // Calculate Buy Floating Profit and Sell Opportunity Profit relative to CURRENT market
                                                 let floatingProfit: number | null = null;
@@ -418,8 +433,8 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
 
                                                 return (
                                                 <tr key={record.date} className="border-t dark:border-gray-700">
-                                                    <td className="p-2 font-mono">{record.date}</td>
-                                                    <td className={`p-2 font-semibold ${typeClass}`}>{typeLabel}</td>
+                                                    <td className="p-2 font-mono whitespace-nowrap">{record.date}</td>
+                                                    <td className={`p-2 font-semibold whitespace-nowrap ${typeClass}`}>{typeLabel}</td>
                                                     <td className="p-2 text-right font-mono">{record.nav!.toFixed(4)}</td>
                                                     <td className={`p-2 text-right font-mono ${sharesChange > 0 ? 'text-red-500' : (sharesChange < 0 ? 'text-green-600' : 'text-gray-400')}`}>
                                                         {sharesChange > 0 ? '+' : ''}{sharesChange !== 0 ? sharesChange.toFixed(2) : '-'}
@@ -430,6 +445,14 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                                         ) : (
                                                             record.amount ? record.amount.toFixed(2) : '-'
                                                         )}
+                                                    </td>
+                                                    <td className={`p-2 text-right font-mono ${getProfitColor(profitCaused)}`}>
+                                                        {profitCaused !== 0 ? (
+                                                            <>
+                                                                {profitCaused > 0 ? '+' : ''}{profitCaused.toFixed(2)}
+                                                                {rowAmountForPercent > 0 && <span className="text-[10px] opacity-70">|{((profitCaused / rowAmountForPercent) * 100).toFixed(1)}%</span>}
+                                                            </>
+                                                        ) : '-'}
                                                     </td>
                                                     <td className={`p-2 text-right font-mono ${floatingProfit != null ? getProfitColor(floatingProfit) : ''}`}>
                                                         {floatingProfit != null ? (
@@ -460,11 +483,16 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                             {/* Baseline Position Row */}
                                             {baselinePosition && baselinePosition.shares > 0 && (
                                                 <tr className={`border-t-2 border-gray-300 dark:border-gray-600 font-semibold transition-all duration-300 ${includeBaseline ? 'bg-gray-50 dark:bg-gray-800/50' : 'bg-gray-100 dark:bg-gray-950 opacity-40 grayscale'}`}>
-                                                    <td className="p-2">原始持仓</td>
-                                                    <td className={`p-2 ${includeBaseline ? 'text-red-500' : 'text-gray-500'}`}>初始</td>
+                                                    <td className="p-2 whitespace-nowrap">原始持仓</td>
+                                                    <td className={`p-2 whitespace-nowrap ${includeBaseline ? 'text-red-500' : 'text-gray-500'}`}>初始</td>
                                                     <td className="p-2 text-right font-mono">{baselinePosition.cost.toFixed(4)}</td>
                                                     <td className={`p-2 text-right font-mono ${includeBaseline ? 'text-red-500' : 'text-gray-500'}`}>+{baselinePosition.shares.toFixed(2)}</td>
                                                     <td className="p-2 text-right font-mono">{(baselinePosition.shares * baselinePosition.cost).toFixed(2)}</td>
+                                                    <td className={`p-2 text-right font-mono ${includeBaseline ? getProfitColor((latestNAV - yesterdayNAV) * baselinePosition.shares) : 'text-gray-500'}`}>
+                                                        {((latestNAV - yesterdayNAV) * baselinePosition.shares) > 0 ? '+' : ''}
+                                                        {((latestNAV - yesterdayNAV) * baselinePosition.shares).toFixed(2)}
+                                                        {baselinePosition.cost > 0 && <span className="text-[10px] opacity-70">|{(((latestNAV - yesterdayNAV) / baselinePosition.cost) * 100).toFixed(1)}%</span>}
+                                                    </td>
                                                     <td className={`p-2 text-right font-mono ${includeBaseline ? getProfitColor((latestNAV - baselinePosition.cost) * baselinePosition.shares) : 'text-gray-500'}`}>
                                                         {((latestNAV - baselinePosition.cost) * baselinePosition.shares) > 0 ? '+' : ''}
                                                         {((latestNAV - baselinePosition.cost) * baselinePosition.shares).toFixed(2)}
