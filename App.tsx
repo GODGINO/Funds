@@ -20,6 +20,7 @@ import GeminiAdvisorModal from './components/GeminiAdvisorModal';
 import { generatePortfolioAdvice } from './services/geminiService';
 import TerminalModal from './components/TerminalModal';
 import { processTerminalCommand } from './services/terminalService';
+import ReportView from './components/ReportView';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042'];
 
@@ -139,6 +140,8 @@ const App: React.FC = () => {
     return localStorage.getItem('AUTO_SYNC_ENABLED') === 'true';
   });
 
+  const [isReportMode, setIsReportMode] = useState(() => localStorage.getItem('GINOS_REPORT_MODE') === 'true');
+
   const inactivityTimer = useRef<number | null>(null);
   const longPressTimer = useRef<number | null>(null);
   const appLoaded = useRef<boolean>(false);
@@ -179,13 +182,27 @@ const App: React.FC = () => {
     }
   }, [isAppLoading, getCurrentTimeString]);
 
-  // Effect to capture Token from URL and clean it up
+  // Effect to capture Token and Report mode from URL and clean it up
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const tokenFromUrl = urlParams.get('token');
+    const reportFromUrl = urlParams.get('report');
+    let shouldClean = false;
+
     if (tokenFromUrl) {
       localStorage.setItem('GITHUB_TOKEN', tokenFromUrl);
       urlParams.delete('token');
+      shouldClean = true;
+    }
+
+    if (reportFromUrl === 'true') {
+        localStorage.setItem('GINOS_REPORT_MODE', 'true');
+        setIsReportMode(true);
+        urlParams.delete('report');
+        shouldClean = true;
+    }
+
+    if (shouldClean) {
       const newSearch = urlParams.toString();
       const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
       window.history.replaceState({}, document.title, newUrl);
@@ -226,7 +243,7 @@ const App: React.FC = () => {
 
   // Effect for Privacy Mode
   useEffect(() => {
-    if (!isPrivacyModeEnabled) {
+    if (!isPrivacyModeEnabled || isReportMode) {
       if (isVeiled) setIsVeiled(false); // Unveil if mode is disabled
       return;
     }
@@ -303,7 +320,7 @@ const App: React.FC = () => {
         clearTimeout(longPressTimer.current);
       }
     };
-  }, [isPrivacyModeEnabled, isVeiled]);
+  }, [isPrivacyModeEnabled, isVeiled, isReportMode]);
 
   // Effect to redirect to Feishu when veiled (Boss Key)
   useEffect(() => {
@@ -2204,6 +2221,16 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
      return processTerminalCommand(cmd, processedFunds, setFunds, { recordCount, zigzagThreshold }, portfolioSnapshots);
   }, [processedFunds, setFunds, recordCount, zigzagThreshold, portfolioSnapshots]);
 
+
+  if (isReportMode) {
+      return (
+          <ReportView 
+              isAppLoading={isAppLoading}
+              totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit}
+              totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate}
+          />
+      );
+  }
 
   return (
     <div className="min-h-screen w-fit min-w-full bg-gray-100 text-gray-800 dark:bg-gray-950 dark:text-gray-200 font-sans p-4">
