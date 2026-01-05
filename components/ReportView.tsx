@@ -12,7 +12,7 @@ interface ReportViewProps {
 const ReportView: React.FC<ReportViewProps> = ({ isAppLoading, totalDailyProfit, totalDailyProfitRate, lastRefreshTime, onRefresh }) => {
   return (
     <div 
-      className="fixed inset-0 flex flex-col items-center justify-center bg-white dark:bg-black transition-colors duration-500 select-none cursor-default"
+      className={`fixed inset-0 flex flex-col items-center justify-center bg-white dark:bg-black transition-colors duration-500 select-none ${isAppLoading ? 'cursor-wait' : 'cursor-default'}`}
       onDoubleClick={onRefresh}
     >
       <div className="text-center font-mono">
