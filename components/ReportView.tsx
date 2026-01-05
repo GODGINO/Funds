@@ -2,25 +2,38 @@
 import React from 'react';
 
 interface ReportViewProps {
-  isAppLoading: boolean;
+  isAppLoading: boolean;   // 初始启动加载
+  isRefreshing: boolean;   // 后续数据刷新
   totalDailyProfit: number;
   totalDailyProfitRate: number;
   lastRefreshTime: string | null;
   onRefresh: () => void;
 }
 
-const ReportView: React.FC<ReportViewProps> = ({ isAppLoading, totalDailyProfit, totalDailyProfitRate, lastRefreshTime, onRefresh }) => {
+const ReportView: React.FC<ReportViewProps> = ({ 
+  isAppLoading, 
+  isRefreshing,
+  totalDailyProfit, 
+  totalDailyProfitRate, 
+  lastRefreshTime, 
+  onRefresh 
+}) => {
+  // 任何一种加载状态下都显示等待光标
+  const showWaitCursor = isAppLoading || isRefreshing;
+
   return (
     <div 
-      className={`fixed inset-0 flex flex-col items-center justify-center bg-white dark:bg-black transition-colors duration-500 select-none ${isAppLoading ? 'cursor-wait' : 'cursor-default'}`}
+      className={`fixed inset-0 flex flex-col items-center justify-center bg-white dark:bg-black transition-colors duration-500 select-none ${showWaitCursor ? 'cursor-wait' : 'cursor-default'}`}
       onDoubleClick={onRefresh}
     >
       <div className="text-center font-mono">
         {isAppLoading ? (
+          /* 仅在初始进入应用加载数据时显示脉冲 loading */
           <div className="text-gray-400 dark:text-gray-600 animate-pulse text-2xl tracking-widest uppercase">
             loading...
           </div>
         ) : (
+          /* 刷新过程中保持数值显示 */
           <div className="flex flex-col items-center">
             <div className="text-black dark:text-white text-2xl tracking-widest tabular-nums">
               {totalDailyProfit >= 0 ? '+' : ''}{totalDailyProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
