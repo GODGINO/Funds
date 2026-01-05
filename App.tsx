@@ -2229,6 +2229,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
               totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit}
               totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate}
               lastRefreshTime={lastRefreshTime}
+              onRefresh={handleRefresh}
           />
       );
   }
