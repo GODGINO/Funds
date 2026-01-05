@@ -16,10 +16,8 @@ const ReportView: React.FC<ReportViewProps> = ({ isAppLoading, totalDailyProfit 
             loading...
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-2">
-            <div className="text-6xl md:text-9xl font-bold text-black dark:text-white tabular-nums tracking-tighter">
-              {totalDailyProfit >= 0 ? '+' : ''}{totalDailyProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
+          <div className="text-black dark:text-white text-2xl tracking-widest tabular-nums">
+            {totalDailyProfit >= 0 ? '+' : ''}{totalDailyProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         )}
       </div>
