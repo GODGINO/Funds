@@ -161,9 +161,9 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
             {renderCell('currentMarketValue', snapshot.currentMarketValue, formatInteger)}
             {renderCell('holdingProfit', snapshot.holdingProfit, formatInteger, getProfitColor)}
             {renderCell('totalProfit', snapshot.totalProfit, formatInteger, getProfitColor)}
-            {renderCell('profitRate', snapshot.profitRate, (v) => v.toFixed(2) + '%', getProfitColor)}
+            {renderCell('profitRate', snapshot.profitRate, (v) => v.toFixed(4) + '%', getProfitColor)}
             {renderCell('dailyProfit', snapshot.dailyProfit, formatInteger, getProfitColor)}
-            {renderCell('dailyProfitRate', snapshot.dailyProfitRate, (v) => v.toFixed(2) + '%', getProfitColor, 'border-r-2 border-r-gray-400 dark:border-r-gray-500')}
+            {renderCell('dailyProfitRate', snapshot.dailyProfitRate, (v) => v.toFixed(4) + '%', getProfitColor, 'border-r-2 border-r-gray-400 dark:border-r-gray-500')}
             {renderCell('totalBuyAmount', snapshot.totalBuyAmount, formatInteger)}
             <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${getProfitColor(snapshot.totalBuyFloatingProfit ?? 0)} ${getCellHighlightClass('totalBuyFloatingProfit', snapshot.totalBuyFloatingProfit)}`} style={getBar_style(snapshot.totalBuyFloatingProfit, maxAbsValues.totalBuyFloatingProfit ?? 0, minAbsValues.totalBuyFloatingProfit ?? 0)}>
                 <div className="relative">{(snapshot.totalBuyAmount ?? 0) > 0 && snapshot.totalBuyFloatingProfit != null ? `${snapshot.totalBuyFloatingProfit >= 0 ? '+' : ''}${formatInteger(snapshot.totalBuyFloatingProfit)}|${((snapshot.totalBuyFloatingProfit / snapshot.totalBuyAmount!) * 100).toFixed(1)}%` : '-'}</div>
