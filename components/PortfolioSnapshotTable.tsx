@@ -15,6 +15,24 @@ const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-gr
 const formatInteger = (value: number) => Math.round(value).toLocaleString('en-US');
 const formatPercentage = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
+/**
+ * 智能百分比格式化：
+ * 1. < 100%: 展示为 +xx.x%
+ * 2. 100% ~ 1000%: 展示为 +1.1x (一位小数倍率)
+ * 3. > 1000%: 展示为 +11x (整数倍率)
+ */
+const formatSmartPercentage = (v: number) => {
+    const absV = Math.abs(v);
+    const sign = v >= 0 ? '+' : '';
+    if (absV >= 1000) {
+        return `${sign}${(v / 100).toFixed(0)}x`;
+    }
+    if (absV >= 100) {
+        return `${sign}${(v / 100).toFixed(1)}x`;
+    }
+    return `${sign}${v.toFixed(1)}%`;
+};
+
 const getDaysAgo = (dateString: string): number | null => {
     if (dateString === '待成交') return 0;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return null;
@@ -237,7 +255,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
     const baseline = snapshots[snapshots.length - 1];
     const effect = Math.abs(baseline.dailyProfit) > 1e-6 ? ((latest.dailyProfit - baseline.dailyProfit) / Math.abs(baseline.dailyProfit)) * 100 : 100;
     
-    // 汇总行的分母逻辑修正：优先使用操作金额的绝对值，使其更符合用户直觉
+    // 汇总行的分母逻辑修正：优先使用操作金额汇总的绝对值，使其更能体现“每一元投入/变动”的效率
     const actionBaseSummary = Math.abs(sums.netAmountChange) || sums.totalDailyActionValue || 1;
 
     return { 
@@ -260,8 +278,8 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
     { key: 'totalSellRealizedProfit', title: '落袋', render: d => <div className={getProfitColor(d.totalSellRealizedProfit)}>{formatInteger(d.totalSellRealizedProfit)}<span className="text-gray-500 text-[10px]">|{d.realizedProfitPercent.toFixed(1)}%</span></div> },
     { key: 'netAmountChange', title: '操作金额', render: d => <div className={getProfitColor(d.netAmountChange)}>{formatInteger(d.netAmountChange)}</div> },
     { key: 'marketValueChange', title: '总值变动', render: d => <div className={getProfitColor(d.marketValueChange)}>{formatInteger(d.marketValueChange)}</div> },
-    { key: 'operationProfit', title: '操作收益', render: d => <div className={getProfitColor(d.operationProfit)}>{formatInteger(d.operationProfit)}<span className="text-gray-500 text-[10px]">|{d.profitPerHundred.toFixed(1)}%</span></div> },
-    { key: 'profitCaused', title: '造成盈亏', render: d => <div className={getProfitColor(d.profitCaused)}>{formatInteger(d.profitCaused)}<span className="text-gray-500 text-[10px]">|{d.profitCausedPerHundred.toFixed(1)}%</span></div> },
+    { key: 'operationProfit', title: '操作收益', render: d => <div className={getProfitColor(d.operationProfit)}>{formatInteger(d.operationProfit)}<span className="text-gray-500 text-[10px]">|{formatSmartPercentage(d.profitPerHundred)}</span></div> },
+    { key: 'profitCaused', title: '造成盈亏', render: d => <div className={getProfitColor(d.profitCaused)}>{formatInteger(d.profitCaused)}<span className="text-gray-500 text-[10px]">|{formatSmartPercentage(d.profitCausedPerHundred)}</span></div> },
     { key: 'operationEffect', title: '操作效果', render: d => <div className={getProfitColor(d.operationEffect)}>{formatPercentage(d.operationEffect)}</div> },
   ];
 
