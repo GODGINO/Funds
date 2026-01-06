@@ -237,12 +237,13 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
     const baseline = snapshots[snapshots.length - 1];
     const effect = Math.abs(baseline.dailyProfit) > 1e-6 ? ((latest.dailyProfit - baseline.dailyProfit) / Math.abs(baseline.dailyProfit)) * 100 : 100;
     
-    const actionBase = sums.totalDailyActionValue || Math.abs(sums.netAmountChange);
+    // 汇总行的分母逻辑修正：优先使用操作金额的绝对值，使其更符合用户直觉
+    const actionBaseSummary = Math.abs(sums.netAmountChange) || sums.totalDailyActionValue || 1;
 
     return { 
         ...sums, 
-        profitPerHundred: actionBase > 1e-6 ? (sums.operationProfit / actionBase) * 100 : 0, 
-        profitCausedPerHundred: actionBase > 1e-6 ? (sums.profitCaused / actionBase) * 100 : 0, 
+        profitPerHundred: actionBaseSummary > 1e-6 ? (sums.operationProfit / actionBaseSummary) * 100 : 0, 
+        profitCausedPerHundred: actionBaseSummary > 1e-6 ? (sums.profitCaused / actionBaseSummary) * 100 : 0, 
         operationEffect: effect, 
         floatingProfitPercent: sums.totalBuyAmount > 1e-6 ? (sums.totalBuyFloatingProfit / sums.totalBuyAmount) * 100 : 0, 
         opportunityProfitPercent: sums.totalSellAmount > 1e-6 ? (sums.totalSellOpportunityProfit / sums.totalSellAmount) * 100 : 0, 
