@@ -333,6 +333,14 @@ const App: React.FC = () => {
     }
   }, [isVeiled]);
 
+  // --- 自动关闭隐私模式逻辑 ---
+  // 当应用加载完毕且基金列表为空时（初始用户或已清空用户），自动关闭隐私模式切换
+  useEffect(() => {
+      if (!isAppLoading && funds.length === 0) {
+          setIsPrivacyModeEnabled(false);
+      }
+  }, [funds.length, isAppLoading]);
+
   const loadFundsFromPositions = useCallback(async (positions: UserPosition[]) => {
       setIsAppLoading(true);
       setError(null);
@@ -1450,8 +1458,7 @@ const App: React.FC = () => {
             ...fund,
             userPosition: {
               ...existingPosition,
-              // Only apply the non-structural changes from the modal.
-              // This prevents overwriting the base shares/cost with the calculated
+              // Only apply the non-structuralBase shares/cost with the calculated
               // values from the modal, which would cause double-counting on the next replay.
               tag: updatedPosition.tag,
               realizedProfit: updatedPosition.realizedProfit,
@@ -2006,7 +2013,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
         totalCostBasis: baselineTotalCostBasis,
         currentMarketValue: baselineCurrentMarketValue,
         cumulativeValue: baselineCumulativeValue,
-        holdingProfit: baselineHoldingProfit,
+        holdingProfit: baselineCurrentMarketValue - baselineTotalCostBasis,
         totalProfit: baselineTotalProfit,
         profitRate: baselineTotalCostBasis > 0 ? (baselineTotalProfit / baselineTotalCostBasis) * 100 : 0,
         dailyProfit: baselineDailyProfit,
@@ -2014,7 +2021,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
         totalDailyActionValue: 0,
     };
 
-    const allSnapshots = [...historicalSnapshots, baselineSnapshot];
+    const allSnapshots: PortfolioSnapshot[] = [...historicalSnapshots, baselineSnapshot];
 
     // --- New Logic: Pending Snapshot ---
     const pendingRecordsExist = funds.some(f => f.userPosition?.tradingRecords?.some(r => r.nav === undefined));
@@ -2044,7 +2051,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
             
             const price = procFund.realTimeData?.estimatedNAV || procFund.latestNAV || 0;
             // For daily profit calc
-            const yesterdayPrice = procFund.baseChartData.length > 1 ? procFund.baseChartData[procFund.baseChartData.length - 2].unitNAV : 0;
+            const yesterdayPrice = procFund.baseChartData.length > 1 ? (procFund.baseChartData[procFund.baseChartData.length - 2].unitNAV ?? 0) : 0;
 
             const pendingRecs = fund.userPosition?.tradingRecords?.filter(r => r.nav === undefined) || [];
             
@@ -2121,12 +2128,14 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
     }
 
     const snapshotsWithChange = allSnapshots.map((snapshot, index) => {
+      // FIX: Explicitly cast snapshot and previousSnapshot to PortfolioSnapshot to ensure properties like currentMarketValue and dailyProfit are seen as numbers, resolving 'unknown' type errors during arithmetic operations.
+      const s = snapshot as PortfolioSnapshot;
       if (index < allSnapshots.length - 1) {
-          const previousSnapshot = allSnapshots[index + 1];
-          const marketValueChange = snapshot.currentMarketValue - previousSnapshot.currentMarketValue;
-          if (snapshot.snapshotDate === '待成交') {
+          const previousSnapshot = allSnapshots[index + 1] as PortfolioSnapshot;
+          const marketValueChange = s.currentMarketValue - previousSnapshot.currentMarketValue;
+          if (s.snapshotDate === '待成交') {
               return {
-                  ...snapshot,
+                  ...s,
                   marketValueChange,
                   operationProfit: undefined,
                   profitPerHundred: undefined,
@@ -2136,21 +2145,22 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
               };
           }
           
-          const actionBase = snapshot.totalDailyActionValue || Math.abs(snapshot.netAmountChange ?? 0);
+          const actionBase = s.totalDailyActionValue || Math.abs(s.netAmountChange ?? 0);
           
-          const operationProfit = marketValueChange - (snapshot.netAmountChange ?? 0);
+          const operationProfit = marketValueChange - (s.netAmountChange ?? 0);
           const profitPerHundred = actionBase > 1e-6 ? (operationProfit / actionBase) * 100 : undefined;
           
-          const profitCaused = snapshot.dailyProfit - previousSnapshot.dailyProfit;
+          const profitCaused = s.dailyProfit - previousSnapshot.dailyProfit;
           const profitCausedPerHundred = actionBase > 1e-6 ? (profitCaused / actionBase) * 100 : undefined;
           
-          const operationEffect = Math.abs(previousSnapshot.dailyProfit as number) > 1e-6
-              ? (profitCaused / Math.abs(previousSnapshot.dailyProfit as number)) * 100 
+          // FIX: Use explicit number properties from PortfolioSnapshot to resolve TypeScript 'unknown' type errors during arithmetic operations and comparisons.
+          const operationEffect = Math.abs(previousSnapshot.dailyProfit) > 1e-6
+              ? (profitCaused / Math.abs(previousSnapshot.dailyProfit)) * 100 
               : 100;
 
-          return { ...snapshot, marketValueChange, operationProfit, profitPerHundred, profitCaused, profitCausedPerHundred, operationEffect };
+          return { ...s, marketValueChange, operationProfit, profitPerHundred, profitCaused, profitCausedPerHundred, operationEffect };
       }
-      return snapshot;
+      return s;
     });
 
     return snapshotsWithChange;
@@ -2161,19 +2171,21 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
       return { summaryProfitCaused: undefined, summaryOperationEffect: undefined };
     }
 
-    const latestSnapshot = portfolioSnapshots.find(s => s.snapshotDate !== '待成交') || portfolioSnapshots[0];
-    const baselineSnapshot = portfolioSnapshots[portfolioSnapshots.length - 1];
+    // FIX: Cast snapshots to PortfolioSnapshot to ensure properties like dailyProfit are seen as numbers, avoiding 'unknown' errors.
+    const latestSnapshot = (portfolioSnapshots.find(s => s.snapshotDate !== '待成交') || portfolioSnapshots[0]) as PortfolioSnapshot;
+    const baselineSnapshot = portfolioSnapshots[portfolioSnapshots.length - 1] as PortfolioSnapshot;
 
     // Ensure we have a valid baseline to compare against
     if (baselineSnapshot.snapshotDate !== '基准持仓') {
        return { summaryProfitCaused: undefined, summaryOperationEffect: undefined };
     }
 
+    // FIX: Use explicit number properties from PortfolioSnapshot to resolve 'unknown' type errors during arithmetic operations.
     const summaryProfitCaused = latestSnapshot.dailyProfit - baselineSnapshot.dailyProfit;
     
-    // This logic is duplicated from PortfolioSnapshotTable, as requested for consistency.
-    const summaryOperationEffect = Math.abs(baselineSnapshot.dailyProfit as number) > 1e-6
-        ? (summaryProfitCaused / Math.abs(baselineSnapshot.dailyProfit as number)) * 100
+    // FIX: Use explicit number properties from PortfolioSnapshot to resolve TypeScript 'unknown' type errors during arithmetic operations and comparisons.
+    const summaryOperationEffect = Math.abs(baselineSnapshot.dailyProfit) > 1e-6
+        ? (summaryProfitCaused / Math.abs(baselineSnapshot.dailyProfit)) * 100
         : 100;
 
     return { summaryProfitCaused, summaryOperationEffect };

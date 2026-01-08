@@ -133,7 +133,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
         const snapshotDate = snapshot.snapshotDate;
         const isPendingSnapshot = snapshotDate === '待成交';
         const latestNavMap = new Map(funds.map(f => [f.code, f.baseChartData[f.baseChartData.length - 1]?.unitNAV ?? 0]));
-        const yesterdayNavMap = new Map(funds.map(f => [f.code, f.baseChartData.length > 1 ? f.baseChartData[f.baseChartData.length - 2]?.unitNAV ?? 0 : 0]));
+        const yesterdayNavMap = new Map(funds.map(f => [f.code, f.baseChartData.length > 1 ? (f.baseChartData[f.baseChartData.length - 2]?.unitNAV ?? 0) : 0]));
 
         const detailedBuys: any[] = [];
         const detailedSells: any[] = [];
@@ -158,6 +158,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
             const tags = position.tag ? position.tag.split(',').map(t => t.trim()).filter(Boolean) : [];
 
+            // FIX: Use explicit number type for prevShares and prevTotalCost to prevent TypeScript 'unknown' errors during complex arithmetic operations in nested loops.
             let prevShares: number = fund.initialUserPosition?.shares ?? 0;
             let prevTotalCost: number = (fund.initialUserPosition?.shares ?? 0) * (fund.initialUserPosition?.cost ?? 0);
 
@@ -173,13 +174,14 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     const costBasisPerShareBeforeSell = prevShares > 0 ? prevTotalCost / prevShares : 0;
                     prevTotalCost -= costBasisPerShareBeforeSell * Math.abs(record.sharesChange ?? 0);
                     prevShares += record.sharesChange ?? 0;
-                    if ((prevShares as number) < 1e-6) {
+                    if (prevShares < 1e-6) {
                         prevShares = 0;
                         prevTotalCost = 0;
                     }
                 }
             }
             
+            // FIX: Use explicit number variables to resolve TypeScript 'unknown' type errors in arithmetic operations.
             const prevAvgCost = prevShares > 0 ? prevTotalCost / prevShares : 0;
 
             recordsOnDate.forEach(record => {
@@ -188,9 +190,10 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                 const dailyProfitPerShare = (latestNAV > 0 && yesterdayNAV > 0) ? (latestNAV - yesterdayNAV) : 0;
                 
                 if (record.type === 'buy' || record.type === 'dividend-reinvest') {
-                    let sChange = record.sharesChange ?? 0;
-                    let rAmount = record.amount ?? 0;
-                    let rNav = record.nav ?? 0;
+                    // FIX: Declare sChange, rAmount, and rNav as numbers to avoid 'unknown' errors.
+                    let sChange: number = record.sharesChange ?? 0;
+                    let rAmount: number = record.amount ?? 0;
+                    let rNav: number = record.nav ?? 0;
 
                     if (isPendingSnapshot && record.nav === undefined) {
                         const val = record.value || 0;
@@ -211,7 +214,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
                     const costChange = newAvgCost - prevAvgCost;
                     const costChangePercent = prevAvgCost > 0 ? (costChange / prevAvgCost) * 100 : 0;
-                    const sharesChangePercent = (prevShares as number) > 0 ? (sChange / (prevShares as number)) * 100 : 100;
+                    const sharesChangePercent = prevShares > 0 ? (sChange / prevShares) * 100 : 100;
                     const floatingProfit = latestNAV > 0 ? (latestNAV - rNav) * sChange : 0;
                     const profitCaused = dailyProfitPerShare * sChange;
                     
@@ -236,15 +239,15 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     });
 
                 } else if (record.type === 'sell' || record.type === 'dividend-cash') { 
-                    let sChange = record.sharesChange ?? 0;
-                    let rNav = record.nav ?? 0;
-                    
-                    let rAmount = record.amount ?? 0; 
+                    // FIX: Declare sChange, rNav, rAmount, and realizedProfit as numbers to avoid 'unknown' errors.
+                    let sChange: number = record.sharesChange ?? 0;
+                    let rNav: number = record.nav ?? 0;
+                    let rAmount: number = record.amount ?? 0; 
                     if (record.type === 'dividend-cash') {
                         rAmount = -(record.realizedProfitChange ?? 0); 
                     }
                     
-                    let realizedProfit = record.realizedProfitChange ?? 0;
+                    let realizedProfit: number = record.realizedProfitChange ?? 0;
 
                     if (isPendingSnapshot && record.nav === undefined) {
                         const val = record.value || 0;
@@ -263,13 +266,14 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                         }
                     }
 
-                    const sharesChangePercent = (prevShares as number) > 0 ? (sChange / (prevShares as number)) * 100 : 0;
+                    const sharesChangePercent = prevShares > 0 ? (sChange / prevShares) * 100 : 0;
                     const opportunityProfit = latestNAV > 0 ? (rNav - latestNAV) * Math.abs(sChange) : 0;
                     const profitCaused = dailyProfitPerShare * sChange;
                     
                     const opportunityProfitPercent = (record.type === 'sell' && rNav > 0) ? ((rNav - latestNAV) / rNav) * 100 : 0;
                     const profitCausedPercent = Math.abs(rAmount) > 0 ? (profitCaused / Math.abs(rAmount)) * 100 : 0;
                         
+                    // FIX: Use explicit number variables and removed redundant 'as any' casts to resolve TypeScript 'unknown' type errors.
                     const realizedProfitPercent = (record.type === 'sell' && prevAvgCost > 0) 
                         ? ((rNav - prevAvgCost) / prevAvgCost) * 100 
                         : 0;
