@@ -2281,6 +2281,8 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
               summaryProfitCaused={snapshotSummary.summaryProfitCaused}
               summaryOperationEffect={snapshotSummary.summaryOperationEffect}
               onOpenGemini={handleOpenGemini}
+              indexData={indexData}
+              marketTurnover={marketTurnover}
             />
           </div>
           <div className="sticky left-4 z-20 w-[calc(100vw-2rem)]">

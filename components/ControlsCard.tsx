@@ -1,6 +1,5 @@
-
 import React, { useRef } from 'react';
-import { SortByType } from '../types';
+import { SortByType, IndexData } from '../types';
 
 const recordCountOptions = [10, 50, 100, 150, 200, 300];
 
@@ -25,6 +24,8 @@ interface ControlsCardProps {
   summaryProfitCaused?: number;
   summaryOperationEffect?: number;
   onOpenGemini: () => void;
+  indexData: IndexData | null;
+  marketTurnover: string | null;
 }
 
 const ControlsCard: React.FC<ControlsCardProps> = ({ 
@@ -48,6 +49,8 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
   summaryProfitCaused,
   summaryOperationEffect,
   onOpenGemini,
+  indexData,
+  marketTurnover,
 }) => {
   const isDisabled = isLoading || isRefreshing;
   const profitColor = totalDailyProfit >= 0 ? 'text-red-500' : 'text-green-600';
@@ -186,6 +189,22 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">操作效果</label>
               <div className={`py-1.5 text-sm font-semibold ${operationEffectColor}`}>
                   {summaryOperationEffect > 0 ? '+' : ''}{summaryOperationEffect.toFixed(2)}%
+              </div>
+          </div>
+        )}
+        {indexData && (
+          <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">上证指数</label>
+              <div className={`py-1.5 text-sm font-semibold ${indexData.change >= 0 ? 'text-red-500' : 'text-green-600'}`}>
+                  {indexData.value.toFixed(2)} ({indexData.change >= 0 ? '+' : ''}{indexData.changePercent.toFixed(2)}%)
+              </div>
+          </div>
+        )}
+        {marketTurnover && (
+          <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">成交额</label>
+              <div className="py-1.5 text-sm font-semibold text-gray-800 dark:text-gray-200">
+                  {marketTurnover}
               </div>
           </div>
         )}
