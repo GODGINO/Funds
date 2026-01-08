@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface FundInputFormProps {
   onAddFund: (details: { code: string; shares: number; cost: number; tag: string }) => Promise<boolean>;
@@ -26,6 +26,76 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
   const [shares, setShares] = useState<string>('');
   const [cost, setCost] = useState<string>('');
   const [tag, setTag] = useState<string>('');
+
+  // Privacy countdown and long-press logic
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const countdownIntervalRef = useRef<number | null>(null);
+  const isLongPressTriggered = useRef(false);
+
+  const clearCountdown = () => {
+    if (countdownIntervalRef.current) {
+      window.clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    setCountdown(null);
+  };
+
+  useEffect(() => {
+    if (countdown !== null && countdown > 0) {
+      countdownIntervalRef.current = window.setInterval(() => {
+        setCountdown(prev => {
+          if (prev !== null && prev <= 1) {
+            if (countdownIntervalRef.current) window.clearInterval(countdownIntervalRef.current);
+            onPrivacyModeChange(true);
+            return null;
+          }
+          return prev !== null ? prev - 1 : null;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (countdownIntervalRef.current) window.clearInterval(countdownIntervalRef.current);
+    };
+  }, [countdown, onPrivacyModeChange]);
+
+  const handlePointerDown = () => {
+    if (!isPrivacyModeEnabled) return;
+    isLongPressTriggered.current = false;
+    longPressTimerRef.current = window.setTimeout(() => {
+      isLongPressTriggered.current = true;
+      onPrivacyModeChange(false);
+      setCountdown(null); // Permanent disable
+    }, 1000);
+  };
+
+  const handlePointerUp = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handlePrivacyClick = () => {
+    if (isLongPressTriggered.current) {
+      isLongPressTriggered.current = false;
+      return;
+    }
+
+    if (isPrivacyModeEnabled) {
+      onPrivacyModeChange(false);
+      setCountdown(60);
+    } else {
+      onPrivacyModeChange(true);
+      clearCountdown();
+    }
+  };
+
+  const getPrivacyButtonText = () => {
+    if (isPrivacyModeEnabled) return 'Privacy';
+    if (countdown !== null) return `Privacy (${countdown}s)`;
+    return 'Privacy (Off)';
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,14 +238,17 @@ const FundInputForm: React.FC<FundInputFormProps> = ({
       <div className="md:col-span-1">
         <button
           type="button"
-          onClick={() => onPrivacyModeChange(!isPrivacyModeEnabled)}
-          className={`w-full inline-flex justify-center items-center px-4 py-2 border text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+          onClick={handlePrivacyClick}
+          className={`w-full inline-flex justify-center items-center px-4 py-2 border text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors select-none ${
             isPrivacyModeEnabled
               ? 'bg-primary-600 hover:bg-primary-700 text-white border-transparent'
               : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
           }`}
         >
-          Privacy
+          {getPrivacyButtonText()}
         </button>
       </div>
     </form>
