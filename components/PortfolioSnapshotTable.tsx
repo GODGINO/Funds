@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot } from 'recharts';
 import { PortfolioSnapshot, ProcessedFund } from '../types';
@@ -141,7 +140,8 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
     const getCellHighlightClass = (key: keyof PortfolioSnapshot, value: number | undefined | null) => {
         if (isBaselineRow) return '';
         if (value != null && maxes[key] != null && value === maxes[key]) {
-            return 'bg-gray-200 dark:bg-gray-700/60 group-hover:bg-gray-300 dark:group-hover:bg-gray-600';
+            // 修改点：增加 font-bold 类名，并稍微增强背景色
+            return 'bg-gray-200 dark:bg-gray-700/80 group-hover:bg-gray-300 dark:group-hover:bg-gray-600 font-bold';
         }
         return '';
     };
