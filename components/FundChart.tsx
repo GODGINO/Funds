@@ -357,7 +357,7 @@ const FundChart: React.FC<FundChartProps> = ({
                 position: clampedCostPrice <= minVal + (maxVal - minVal) * 0.1 ? 'insideBottomLeft' : 'insideTopLeft', 
                 fill: '#ef4444', 
                 fontSize: 10, 
-                dy: clampedCostPrice <= minVal + (maxVal - minVal) * 0.1 ? -4 : -2 
+                dy: clampedCostPrice <= minVal + (maxVal - minVal) * 0.1 ? -2 : -2 
               } : undefined}
             />
           )}
@@ -374,7 +374,7 @@ const FundChart: React.FC<FundChartProps> = ({
                 position: clampedActualCostPrice <= minVal + (maxVal - minVal) * 0.1 ? 'insideBottomLeft' : 'insideTopLeft', 
                 fill: '#374151', 
                 fontSize: 10, 
-                dy: clampedActualCostPrice <= minVal + (maxVal - minVal) * 0.1 ? -4 : -2 
+                dy: clampedActualCostPrice <= minVal + (maxVal - minVal) * 0.1 ? -2 : -2 
               } : undefined}
             />
           )}
