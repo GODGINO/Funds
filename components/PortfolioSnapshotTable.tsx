@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot } from 'recharts';
 import { PortfolioSnapshot, ProcessedFund } from '../types';
@@ -53,13 +52,19 @@ interface HeaderSparklineProps {
 }
 
 const HeaderSparkline = React.memo<HeaderSparklineProps>(({ data, dataKey, stroke, hoveredChartIndex, onHoverChange }) => {
-    const yDomain = useMemo(() => {
-        if (!data || data.length === 0) return ['auto', 'auto'];
+    const { yDomain, maxIndex } = useMemo(() => {
+        if (!data || data.length === 0) return { yDomain: ['auto', 'auto'], maxIndex: -1 };
         const values = data.map(p => p[dataKey]).filter((v): v is number => typeof v === 'number' && isFinite(v));
-        if (values.length < 1) return ['auto', 'auto'];
+        if (values.length < 1) return { yDomain: ['auto', 'auto'], maxIndex: -1 };
+        
         const min = Math.min(...values);
         const max = Math.max(...values);
-        return min === max ? [min * 0.99, max * 1.01] : [min, max];
+        const maxIdx = data.findIndex(p => p[dataKey] === max);
+        
+        return {
+            yDomain: min === max ? [min * 0.99, max * 1.01] : [min, max],
+            maxIndex: maxIdx
+        };
     }, [data, dataKey]);
 
     const handleMouseMove = useCallback((e: any) => {
@@ -73,6 +78,9 @@ const HeaderSparkline = React.memo<HeaderSparklineProps>(({ data, dataKey, strok
             <ResponsiveContainer minWidth={0}>
                 <LineChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 2 }} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
                     <YAxis hide domain={yDomain} />
+                    {maxIndex !== -1 && (
+                        <ReferenceLine x={maxIndex} stroke="#ef4444" strokeWidth={1} />
+                    )}
                     <Line type="linear" dataKey={dataKey} stroke={stroke} strokeWidth={1.5} dot={false} isAnimationActive={false} />
                     {hoveredChartIndex !== null && data[hoveredChartIndex] && (
                         <ReferenceDot x={hoveredChartIndex} y={data[hoveredChartIndex][dataKey]} r={3} fill={stroke} stroke="#fff" strokeWidth={1} />
@@ -184,7 +192,6 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
   const chartData = useMemo(() => [...snapshots].reverse(), [snapshots]);
   const hoveredChartIndex = useMemo(() => hoveredIndex === null ? null : snapshots.length - 1 - hoveredIndex, [hoveredIndex, snapshots.length]);
 
-  // 核心逻辑：监听 activeTag 变化来同步高亮，这使得无论是切片表长按还是折线图交易点长按，只要产生了全局日期筛选，UI 就会选中对应行。
   useEffect(() => {
     if (!activeTag) {
         setSelectedSnapshotDate(null);
@@ -195,7 +202,6 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
     } else if (activeTag.startsWith('TX_DATE:')) {
         setSelectedSnapshotDate(activeTag.substring(8));
     } else {
-        // 非日期筛选标签，不选中切片行
         setSelectedSnapshotDate(null);
     }
   }, [activeTag]);
@@ -263,7 +269,6 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
       longPressTimerRef.current = setTimeout(() => {
           isLongPressTriggered.current = true;
           onSnapshotFilter(date);
-          // 这里不需要手动调 setSelectedSnapshotDate，因为上面的 useEffect 会监听 activeTag 的变化来更新状态
       }, 800);
   }, [onSnapshotFilter]);
 
@@ -272,19 +277,16 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
   }, []);
 
   const handleRowClick = useCallback((e: React.MouseEvent, s: PortfolioSnapshot) => {
-      // 如果触发了长按，则不再处理后续的 Click 事件
       if (isLongPressTriggered.current) {
           isLongPressTriggered.current = false;
           return;
       }
       
       if (e.detail === 2) {
-          // 双击逻辑：打开弹窗
           if (s.snapshotDate !== '基准持仓') {
               setSelectedSnapshot(s);
           }
       }
-      // 单击逻辑：空操作（已按用户要求移除选中效果）
   }, []);
 
   return (
