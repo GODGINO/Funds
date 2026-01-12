@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Fund, ProcessedFund, TradingRecord, TransactionType, SortByType } from '../types';
 import FundRow from './FundRow';
@@ -10,6 +9,7 @@ interface FundTableProps {
   onShowDetails: (fund: Fund) => void;
   onTagDoubleClick: (tag: string) => void;
   onTrade: (fund: ProcessedFund, date: string, type: TransactionType, nav: number, isConfirmed: boolean, editingRecord?: TradingRecord) => void;
+  onSnapshotFilter: (date: string) => void;
   activeSort: SortByType;
   marketStats: { total: number; rankMap: Map<string, number> };
 }
@@ -21,6 +21,7 @@ const FundTable: React.FC<FundTableProps> = ({
   onShowDetails,
   onTagDoubleClick,
   onTrade,
+  onSnapshotFilter,
   activeSort,
   marketStats
 }) => {
@@ -60,6 +61,7 @@ const FundTable: React.FC<FundTableProps> = ({
               onShowDetails={onShowDetails}
               onTagDoubleClick={onTagDoubleClick}
               onTrade={onTrade}
+              onSnapshotFilter={onSnapshotFilter}
               activeSort={activeSort}
               totalPortfolioValue={marketStats.total}
               marketValueRank={marketStats.rankMap.get(fund.code) || 0}

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot } from 'recharts';
 import { PortfolioSnapshot, ProcessedFund } from '../types';
@@ -8,27 +9,18 @@ interface PortfolioSnapshotTableProps {
   funds: ProcessedFund[];
   onTagDoubleClick: (tag: string) => void;
   onSnapshotFilter: (date: string) => void;
+  activeTag?: string | null;
 }
 
 const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-green-600';
 const formatInteger = (value: number) => Math.round(value).toLocaleString('en-US');
 const formatPercentage = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
-/**
- * 智能百分比格式化：
- * 1. < 100%: 展示为 +xx.x%
- * 2. 100% ~ 1000%: 展示为 +1.1x (一位小数倍率)
- * 3. > 1000%: 展示为 +11x (整数倍率)
- */
 const formatSmartPercentage = (v: number) => {
     const absV = Math.abs(v);
     const sign = v >= 0 ? '+' : '';
-    if (absV >= 1000) {
-        return `${sign}${(v / 100).toFixed(0)}x`;
-    }
-    if (absV >= 100) {
-        return `${sign}${(v / 100).toFixed(1)}x`;
-    }
+    if (absV >= 1000) return `${sign}${(v / 100).toFixed(0)}x`;
+    if (absV >= 100) return `${sign}${(v / 100).toFixed(1)}x`;
     return `${sign}${v.toFixed(1)}%`;
 };
 
@@ -52,7 +44,6 @@ const getBar_style = (value: number | undefined | null, maxAbsValue: number, min
     return { background: `linear-gradient(to left, ${color} ${widthPercent}%, transparent ${widthPercent}%)` };
 };
 
-// --- 子组件: 头部迷你图 (优化性能) ---
 interface HeaderSparklineProps {
     data: any[];
     dataKey: string;
@@ -68,47 +59,21 @@ const HeaderSparkline = React.memo<HeaderSparklineProps>(({ data, dataKey, strok
         if (values.length < 1) return ['auto', 'auto'];
         const min = Math.min(...values);
         const max = Math.max(...values);
-        if (min === max) return [min * 0.99, max * 1.01];
-        return [min, max];
+        return min === max ? [min * 0.99, max * 1.01] : [min, max];
     }, [data, dataKey]);
 
-    const maxIndex = useMemo(() => {
-        if (!data || data.length === 0) return -1;
-        let maxVal = -Infinity;
-        let maxIdx = -1;
-        data.forEach((p, i) => {
-            const v = p[dataKey];
-            if (typeof v === 'number' && isFinite(v) && v > maxVal) {
-                maxVal = v;
-                maxIdx = i;
-            }
-        });
-        return maxIdx;
-    }, [data, dataKey]);
-
-    // 恢复为鼠标移动触发
     const handleMouseMove = useCallback((e: any) => {
-        if (e && e.activeTooltipIndex !== undefined) {
-            onHoverChange(e.activeTooltipIndex);
-        }
+        if (e && e.activeTooltipIndex !== undefined) onHoverChange(e.activeTooltipIndex);
     }, [onHoverChange]);
 
-    const handleMouseLeave = useCallback(() => {
-        onHoverChange(null);
-    }, [onHoverChange]);
+    const handleMouseLeave = useCallback(() => onHoverChange(null), [onHoverChange]);
 
     return (
         <div className="h-6 w-full">
             <ResponsiveContainer minWidth={0}>
-                <LineChart 
-                    data={data} 
-                    margin={{ top: 2, right: 0, left: 0, bottom: 2 }} 
-                    onMouseMove={handleMouseMove}
-                    onMouseLeave={handleMouseLeave}
-                >
+                <LineChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 2 }} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
                     <YAxis hide domain={yDomain} />
                     <Line type="linear" dataKey={dataKey} stroke={stroke} strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                    {maxIndex !== -1 && <ReferenceLine x={maxIndex} stroke="#ef4444" strokeWidth={1} />}
                     {hoveredChartIndex !== null && data[hoveredChartIndex] && (
                         <ReferenceDot x={hoveredChartIndex} y={data[hoveredChartIndex][dataKey]} r={3} fill={stroke} stroke="#fff" strokeWidth={1} />
                     )}
@@ -118,11 +83,11 @@ const HeaderSparkline = React.memo<HeaderSparklineProps>(({ data, dataKey, strok
     );
 });
 
-// --- 子组件: 表格行 (优化性能) ---
 interface SnapshotRowProps {
     snapshot: PortfolioSnapshot;
     index: number;
     isHovered: boolean;
+    isSelected: boolean;
     onMouseEnter: (index: number) => void;
     onRowClick: (e: React.MouseEvent, s: PortfolioSnapshot) => void;
     onLongPressStart: (date: string) => void;
@@ -132,23 +97,28 @@ interface SnapshotRowProps {
     maxes: any;
 }
 
-const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, onMouseEnter, onRowClick, onLongPressStart, onLongPressEnd, maxAbsValues, minAbsValues, maxes }) => {
+const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, isSelected, onMouseEnter, onRowClick, onLongPressStart, onLongPressEnd, maxAbsValues, minAbsValues, maxes }) => {
     const isBaselineRow = snapshot.snapshotDate === '基准持仓';
     const isPendingRow = snapshot.snapshotDate === '待成交';
     const daysAgo = (isBaselineRow || isPendingRow) ? null : getDaysAgo(snapshot.snapshotDate);
 
     const getCellHighlightClass = (key: keyof PortfolioSnapshot, value: number | undefined | null) => {
         if (isBaselineRow) return '';
-        if (value != null && maxes[key] != null && value === maxes[key]) {
-            // 修改点：增加 font-bold 类名，并稍微增强背景色
-            return 'bg-gray-200 dark:bg-gray-700/80 group-hover:bg-gray-300 dark:group-hover:bg-gray-600 font-bold';
-        }
+        if (value != null && maxes[key] != null && value === maxes[key]) return 'bg-gray-200 dark:bg-gray-700/80 font-bold';
         return '';
     };
 
-    let rowClasses = `transition-colors duration-75 group border-b dark:border-gray-800 ${isHovered ? 'bg-blue-100 dark:bg-gray-800/80' : 'hover:bg-blue-50/50 dark:hover:bg-gray-800/20'}`;
+    let rowClasses = `transition-colors duration-75 group border-b dark:border-gray-800 cursor-pointer`;
+    if (isSelected) {
+        rowClasses += ' bg-gray-300 dark:bg-gray-600';
+    } else if (isHovered) {
+        rowClasses += ' bg-blue-100 dark:bg-gray-800/80';
+    } else {
+        rowClasses += ' hover:bg-blue-50/50 dark:hover:bg-gray-800/20';
+    }
+
     if (isBaselineRow) rowClasses += ' font-semibold';
-    if (isPendingRow) rowClasses += ' bg-yellow-50/50 dark:bg-yellow-900/10 border-dashed border-b-2 border-b-yellow-300 dark:border-b-yellow-700/50';
+    if (isPendingRow && !isSelected) rowClasses += ' bg-yellow-50/50 dark:bg-yellow-900/10 border-dashed border-b-2 border-b-yellow-300 dark:border-b-yellow-700/50';
 
     const renderCell = (key: keyof PortfolioSnapshot, value: number | undefined | null, formatter: (v: number) => string, colorFn?: (v: number) => string, borderClass: string = '') => (
         <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${borderClass} ${colorFn ? colorFn(value || 0) : ''} ${getCellHighlightClass(key, value)}`} style={getBar_style(value, maxAbsValues[key] ?? 0, minAbsValues[key] ?? 0)}>
@@ -167,7 +137,7 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
             onTouchEnd={onLongPressEnd}
             className={rowClasses}
         >
-            <td className="w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-left">
+            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-left ${isSelected ? 'bg-gray-300 dark:bg-gray-600' : 'bg-white dark:bg-gray-900 group-hover:bg-gray-100 dark:group-hover:bg-gray-800'}`}>
                 {isPendingRow ? <span className="font-semibold text-yellow-700 dark:text-yellow-500">待成交</span> : (
                     <>
                         <span>{isBaselineRow ? snapshot.snapshotDate : snapshot.snapshotDate.substring(2).replace(/-/g, '/')}</span>
@@ -206,13 +176,29 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
     );
 });
 
-// --- 主组件 ---
-const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapshots, funds, onTagDoubleClick, onSnapshotFilter }) => {
+const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapshots, funds, onTagDoubleClick, onSnapshotFilter, activeTag }) => {
   const [selectedSnapshot, setSelectedSnapshot] = useState<PortfolioSnapshot | null>(null);
+  const [selectedSnapshotDate, setSelectedSnapshotDate] = useState<string | null>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   
   const chartData = useMemo(() => [...snapshots].reverse(), [snapshots]);
   const hoveredChartIndex = useMemo(() => hoveredIndex === null ? null : snapshots.length - 1 - hoveredIndex, [hoveredIndex, snapshots.length]);
+
+  // 核心逻辑：监听 activeTag 变化来同步高亮，这使得无论是切片表长按还是折线图交易点长按，只要产生了全局日期筛选，UI 就会选中对应行。
+  useEffect(() => {
+    if (!activeTag) {
+        setSelectedSnapshotDate(null);
+        return;
+    }
+    if (activeTag === 'TX_PENDING') {
+        setSelectedSnapshotDate('待成交');
+    } else if (activeTag.startsWith('TX_DATE:')) {
+        setSelectedSnapshotDate(activeTag.substring(8));
+    } else {
+        // 非日期筛选标签，不选中切片行
+        setSelectedSnapshotDate(null);
+    }
+  }, [activeTag]);
 
   const handleHoverChange = useCallback((chartIdx: number | null) => {
       setHoveredIndex(chartIdx === null ? null : snapshots.length - 1 - chartIdx);
@@ -225,6 +211,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
   const thickBorderRightKeys = useMemo(() => new Set(['dailyProfitRate', 'totalBuyFloatingProfit', 'totalSellRealizedProfit', 'operationProfit']), []);
   const wideColumnKeys = useMemo(() => new Set(['totalBuyFloatingProfit', 'totalSellOpportunityProfit', 'totalSellRealizedProfit', 'operationProfit', 'profitCaused']), []);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isLongPressTriggered = useRef<boolean>(false);
 
   const { maxes, maxAbsValues, minAbsValues } = useMemo(() => {
     if (!snapshots?.length) return { maxes: {}, maxAbsValues: {}, minAbsValues: {} };
@@ -247,26 +234,13 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
     if (!snapshots || snapshots.length < 2) return null;
     const operationalSnapshots = snapshots.filter(s => s.snapshotDate !== '基准持仓');
     if (!operationalSnapshots.length) return null;
-    
     const sums = { netAmountChange: 0, marketValueChange: 0, operationProfit: 0, totalBuyAmount: 0, totalBuyFloatingProfit: 0, totalSellAmount: 0, totalSellOpportunityProfit: 0, totalSellRealizedProfit: 0, profitCaused: 0, totalDailyActionValue: 0 };
     operationalSnapshots.forEach(s => Object.keys(sums).forEach(k => (sums as any)[k] += (s as any)[k] || 0));
-    
     const latest = snapshots.find(s => s.snapshotDate !== '待成交') || snapshots[0];
     const baseline = snapshots[snapshots.length - 1];
     const effect = Math.abs(baseline.dailyProfit) > 1e-6 ? ((latest.dailyProfit - baseline.dailyProfit) / Math.abs(baseline.dailyProfit)) * 100 : 100;
-    
-    // 汇总行的分母逻辑修正：优先使用操作金额汇总的绝对值，使其更能体现“每一元投入/变动”的效率
     const actionBaseSummary = Math.abs(sums.netAmountChange) || sums.totalDailyActionValue || 1;
-
-    return { 
-        ...sums, 
-        profitPerHundred: actionBaseSummary > 1e-6 ? (sums.operationProfit / actionBaseSummary) * 100 : 0, 
-        profitCausedPerHundred: actionBaseSummary > 1e-6 ? (sums.profitCaused / actionBaseSummary) * 100 : 0, 
-        operationEffect: effect, 
-        floatingProfitPercent: sums.totalBuyAmount > 1e-6 ? (sums.totalBuyFloatingProfit / sums.totalBuyAmount) * 100 : 0, 
-        opportunityProfitPercent: sums.totalSellAmount > 1e-6 ? (sums.totalSellOpportunityProfit / sums.totalSellAmount) * 100 : 0, 
-        realizedProfitPercent: sums.totalSellAmount > 1e-6 ? (sums.totalSellRealizedProfit / sums.totalSellAmount) * 100 : 0 
-    };
+    return { ...sums, profitPerHundred: actionBaseSummary > 1e-6 ? (sums.operationProfit / actionBaseSummary) * 100 : 0, profitCausedPerHundred: actionBaseSummary > 1e-6 ? (sums.profitCaused / actionBaseSummary) * 100 : 0, operationEffect: effect, floatingProfitPercent: sums.totalBuyAmount > 1e-6 ? (sums.totalBuyFloatingProfit / sums.totalBuyAmount) * 100 : 0, opportunityProfitPercent: sums.totalSellAmount > 1e-6 ? (sums.totalSellOpportunityProfit / sums.totalSellAmount) * 100 : 0, realizedProfitPercent: sums.totalSellAmount > 1e-6 ? (sums.totalSellRealizedProfit / sums.totalSellAmount) * 100 : 0 };
   }, [snapshots]);
 
   const sparklineColumns: { key: keyof PortfolioSnapshot; title: string; }[] = [{ key: 'totalCostBasis', title: '总成本' }, { key: 'currentMarketValue', title: '持有总值' }, { key: 'holdingProfit', title: '持有收益' }, { key: 'totalProfit', title: '累计收益' }, { key: 'profitRate', title: '累计收益率' }, { key: 'dailyProfit', title: '日收益' }, { key: 'dailyProfitRate', title: '日收益率' }];
@@ -285,7 +259,12 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
 
   const handleLongPressStart = useCallback((date: string) => {
       if (date === '基准持仓') return;
-      longPressTimerRef.current = setTimeout(() => onSnapshotFilter(date), 1000);
+      isLongPressTriggered.current = false;
+      longPressTimerRef.current = setTimeout(() => {
+          isLongPressTriggered.current = true;
+          onSnapshotFilter(date);
+          // 这里不需要手动调 setSelectedSnapshotDate，因为上面的 useEffect 会监听 activeTag 的变化来更新状态
+      }, 800);
   }, [onSnapshotFilter]);
 
   const handleLongPressEnd = useCallback(() => {
@@ -293,9 +272,19 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
   }, []);
 
   const handleRowClick = useCallback((e: React.MouseEvent, s: PortfolioSnapshot) => {
-      if (s.snapshotDate !== '基准持仓' && e.detail === 2) {
-          setSelectedSnapshot(s);
+      // 如果触发了长按，则不再处理后续的 Click 事件
+      if (isLongPressTriggered.current) {
+          isLongPressTriggered.current = false;
+          return;
       }
+      
+      if (e.detail === 2) {
+          // 双击逻辑：打开弹窗
+          if (s.snapshotDate !== '基准持仓') {
+              setSelectedSnapshot(s);
+          }
+      }
+      // 单击逻辑：空操作（已按用户要求移除选中效果）
   }, []);
 
   return (
@@ -316,13 +305,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
               <tr>
                 {sparklineColumns.map(col => (
                   <th key={`${String(col.key)}-sparkline`} className={`p-0 border dark:border-gray-700 font-normal ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>
-                      <HeaderSparkline 
-                        data={chartData} 
-                        dataKey={col.key as string} 
-                        stroke="#3b82f6" 
-                        hoveredChartIndex={hoveredChartIndex} 
-                        onHoverChange={handleHoverChange} 
-                      />
+                      <HeaderSparkline data={chartData} dataKey={col.key as string} stroke="#3b82f6" hoveredChartIndex={hoveredChartIndex} onHoverChange={handleHoverChange} />
                   </th>
                 ))}
                 {summaryColumns.map(col => (
@@ -339,6 +322,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
                     snapshot={s} 
                     index={i} 
                     isHovered={hoveredIndex === i} 
+                    isSelected={selectedSnapshotDate === s.snapshotDate}
                     onMouseEnter={handleMouseEnter}
                     onRowClick={handleRowClick} 
                     onLongPressStart={handleLongPressStart} 
