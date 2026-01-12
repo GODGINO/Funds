@@ -1,4 +1,3 @@
-
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { Fund, UserPosition, ProcessedFund } from '../types';
 import FundChart from './FundChart';
@@ -25,6 +24,7 @@ const StatDisplay: React.FC<{ label: string; value: string; subValue?: string; c
 const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDelete, onSave, zigzagThreshold }) => {
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [includeBaseline, setIncludeBaseline] = useState(false);
+    const [isActualPosition, setIsActualPosition] = useState(false);
 
     // Identify the baseline position (starting point before trades)
     // If it's a ProcessedFund, use initialUserPosition; otherwise use userPosition
@@ -266,7 +266,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
 
                     {/* Modal Body - Fixed Padding for Sticky Header Alignment */}
                     <div className="px-6 pb-6 overflow-y-auto flex-1">
-                        <div className="h-[250px] mt-6 mb-6">
+                        <div className="h-[250px] mt-6 mb-2">
                             <FundChart 
                                 baseChartData={baseChartData}
                                 zigzagPoints={zigzagPoints}
@@ -276,7 +276,20 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                 actualCostPrice={metrics.actualCost > 0 ? metrics.actualCost : null}
                                 navPercentile={navPercentile}
                                 tradingRecords={fund.userPosition?.tradingRecords}
+                                forceActualCostPosition={isActualPosition}
                             />
+                        </div>
+
+                        <div className="flex justify-end mb-6">
+                            <label className="flex items-center gap-1.5 text-[10px] text-gray-500 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300">
+                                <input 
+                                    type="checkbox" 
+                                    checked={isActualPosition} 
+                                    onChange={(e) => setIsActualPosition(e.target.checked)}
+                                    className="w-3 h-3 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                />
+                                <span>显示成本真实位置 (可能会压缩曲线)</span>
+                            </label>
                         </div>
 
                         {/* Stats Grid */}

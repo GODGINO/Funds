@@ -27,6 +27,7 @@ interface FundChartProps {
   showLabels?: boolean;
   navPercentile?: number | null;
   tradingRecords?: TradingRecord[];
+  forceActualCostPosition?: boolean;
 }
 
 const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-green-600';
@@ -164,6 +165,7 @@ const FundChart: React.FC<FundChartProps> = ({
   showLabels = true, 
   navPercentile,
   tradingRecords,
+  forceActualCostPosition = false,
 }) => {
   const [localBaselineDate, setLocalBaselineDate] = useState<string | null>(null);
   const [hoveredNAV, setHoveredNAV] = useState<number | null>(null);
@@ -177,7 +179,6 @@ const FundChart: React.FC<FundChartProps> = ({
     return baseChartData.find(p => p.date === localBaselineDate)?.unitNAV ?? null;
   }, [localBaselineDate, baseChartData]);
 
-  // 查找趋势起点的净值，用于绘制水平虚线
   const lastPivotNAV = useMemo(() => {
     if (!lastPivotDate) return null;
     return zigzagPoints.find(p => p.date === lastPivotDate)?.unitNAV ?? null;
@@ -213,22 +214,43 @@ const FundChart: React.FC<FundChartProps> = ({
     });
   }, [baseChartData, zigzagPoints, shares, confirmedTradingRecords, localBaselineNAV]);
 
-  const yAxisDomain = useMemo(() => {
+  const { domain, minVal, maxVal } = useMemo(() => {
     const navValues = baseChartData.map(p => p.unitNAV).filter((v): v is number => typeof v === 'number' && !isNaN(v));
-    const allValues = [...navValues];
-    if (costPrice && costPrice > 0) allValues.push(costPrice);
-    if (actualCostPrice && actualCostPrice > 0) allValues.push(actualCostPrice);
     
-    if (allValues.length < 1) return ['auto', 'auto'];
+    if (navValues.length < 1) return { domain: ['auto', 'auto'], minVal: 0, maxVal: 0 };
 
-    const min = Math.min(...allValues);
-    const max = Math.max(...allValues);
-    if (min === max) return [min * 0.995, max * 1.005];
+    let min = Math.min(...navValues);
+    let max = Math.max(...navValues);
+
+    if (forceActualCostPosition) {
+        if (costPrice && costPrice > 0) {
+            min = Math.min(min, costPrice);
+            max = Math.max(max, costPrice);
+        }
+        if (actualCostPrice && actualCostPrice > 0) {
+            min = Math.min(min, actualCostPrice);
+            max = Math.max(max, actualCostPrice);
+        }
+    }
+
+    if (min === max) return { domain: [min * 0.995, max * 1.005], minVal: min, maxVal: max };
     
     const range = max - min;
     const padding = range * 0.05;
-    return [min - padding, max + padding];
-  }, [baseChartData, costPrice, actualCostPrice]);
+    return { domain: [min - padding, max + padding], minVal: min - padding, maxVal: max + padding };
+  }, [baseChartData, costPrice, actualCostPrice, forceActualCostPosition]);
+
+  const clampedCostPrice = useMemo(() => {
+    if (!costPrice) return null;
+    if (forceActualCostPosition) return costPrice;
+    return Math.max(minVal, Math.min(maxVal, costPrice));
+  }, [costPrice, minVal, maxVal, forceActualCostPosition]);
+
+  const clampedActualCostPrice = useMemo(() => {
+    if (!actualCostPrice) return null;
+    if (forceActualCostPosition) return actualCostPrice;
+    return Math.max(minVal, Math.min(maxVal, actualCostPrice));
+  }, [actualCostPrice, minVal, maxVal, forceActualCostPosition]);
 
   const gradientId = "costAreaGradient";
 
@@ -276,7 +298,7 @@ const FundChart: React.FC<FundChartProps> = ({
             </linearGradient>
           </defs>
           <XAxis dataKey="date" type="category" hide />
-          <YAxis hide domain={yAxisDomain} yAxisId="main" />
+          <YAxis hide domain={domain} yAxisId="main" />
 
           <Tooltip 
             content={<CustomTooltip localBaselineDate={localBaselineDate} />} 
@@ -284,18 +306,17 @@ const FundChart: React.FC<FundChartProps> = ({
             wrapperStyle={{ zIndex: 100, pointerEvents: 'none' }} 
           />
 
-          {costPrice && costPrice > 0 && (
+          {clampedCostPrice && clampedCostPrice > 0 && clampedCostPrice > minVal && (
             <ReferenceArea 
               yAxisId="main"
-              y1={0} 
-              y2={costPrice} 
+              y1={minVal} 
+              y2={clampedCostPrice} 
               fill={`url(#${gradientId})`} 
               strokeOpacity={0} 
               ifOverflow="hidden" 
             />
           )}
           
-          {/* 趋势起点十字准星 (静态灰色) */}
           {lastPivotDate && (
               <ReferenceLine 
                   yAxisId="main"
@@ -325,24 +346,36 @@ const FundChart: React.FC<FundChartProps> = ({
               />
           )}
 
-          {costPrice && costPrice > 0 && (
+          {costPrice && clampedCostPrice !== null && (
             <ReferenceLine 
               yAxisId="main"
-              y={costPrice} 
+              y={clampedCostPrice} 
               stroke="#ef4444" 
               strokeWidth={1.33} 
-              label={showLabels ? { value: `成本: ${costPrice.toFixed(4)}`, position: 'insideTopLeft', fill: '#ef4444', fontSize: 10, dy: -2 } : undefined}
+              label={showLabels ? { 
+                value: `成本: ${costPrice.toFixed(4)}`, 
+                position: clampedCostPrice <= minVal + (maxVal - minVal) * 0.1 ? 'insideBottomLeft' : 'insideTopLeft', 
+                fill: '#ef4444', 
+                fontSize: 10, 
+                dy: clampedCostPrice <= minVal + (maxVal - minVal) * 0.1 ? -4 : -2 
+              } : undefined}
             />
           )}
           
-          {actualCostPrice && actualCostPrice > 0 && actualCostPrice.toFixed(4) !== costPrice?.toFixed(4) && (
+          {actualCostPrice && clampedActualCostPrice !== null && actualCostPrice.toFixed(4) !== costPrice?.toFixed(4) && (
             <ReferenceLine 
               yAxisId="main"
-              y={actualCostPrice} 
+              y={clampedActualCostPrice} 
               stroke="#6b7280" 
               strokeDasharray="3 3" 
               strokeWidth={1.33}
-              label={showLabels ? { value: `实际: ${actualCostPrice.toFixed(4)}`, position: 'insideTopLeft', fill: '#374151', fontSize: 10, dy: -2 } : undefined}
+              label={showLabels ? { 
+                value: `实际: ${actualCostPrice.toFixed(4)}`, 
+                position: clampedActualCostPrice <= minVal + (maxVal - minVal) * 0.1 ? 'insideBottomLeft' : 'insideTopLeft', 
+                fill: '#374151', 
+                fontSize: 10, 
+                dy: clampedActualCostPrice <= minVal + (maxVal - minVal) * 0.1 ? -4 : -2 
+              } : undefined}
             />
           )}
           
@@ -378,7 +411,6 @@ const FundChart: React.FC<FundChartProps> = ({
             />
           ))}
 
-          {/* Hover Horizontal Line (Render last for top-most z-index) */}
           {hoveredNAV !== null && (
               <ReferenceLine 
                 yAxisId="main"
@@ -390,7 +422,6 @@ const FundChart: React.FC<FundChartProps> = ({
               />
           )}
 
-          {/* Clicked Horizontal Line (Render last for top-most z-index) */}
           {localBaselineNAV !== null && (
               <ReferenceLine 
                   yAxisId="main"

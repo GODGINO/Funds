@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { TradeModalState, TransactionType } from '../types';
 import FundChart from './FundChart';
@@ -17,6 +16,8 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
     const { fund, date, nav, isConfirmed, editingRecord } = tradeState;
     const isEditing = !!editingRecord;
     const isPending = isEditing && editingRecord.nav === undefined;
+
+    const [isActualPosition, setIsActualPosition] = useState(false);
 
     // Determine initial tab based on editing record type, default to 'buy'
     const [activeTab, setActiveTab] = useState<TransactionType>(() => {
@@ -306,7 +307,7 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
 
                 {/* Modal Body */}
                 <div className="p-6 overflow-y-auto">
-                    <div className="h-[160px] mb-4">
+                    <div className="h-[160px] mb-2">
                         <FundChart 
                             baseChartData={fund.baseChartData}
                             zigzagPoints={fund.zigzagPoints}
@@ -316,7 +317,20 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                             actualCostPrice={fund.actualCost}
                             navPercentile={fund.navPercentile}
                             tradingRecords={fund.userPosition?.tradingRecords}
+                            forceActualCostPosition={isActualPosition}
                         />
+                    </div>
+
+                    <div className="flex justify-end mb-4">
+                        <label className="flex items-center gap-1.5 text-[10px] text-gray-500 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300">
+                            <input 
+                                type="checkbox" 
+                                checked={isActualPosition} 
+                                onChange={(e) => setIsActualPosition(e.target.checked)}
+                                className="w-3 h-3 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                            />
+                            <span>显示成本真实位置</span>
+                        </label>
                     </div>
                     
                     <div className="mb-4">
