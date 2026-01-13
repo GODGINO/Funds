@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot } from 'recharts';
 import { PortfolioSnapshot, ProcessedFund } from '../types';
@@ -120,13 +121,12 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
     if (isSelected) {
         rowClasses += ' bg-gray-300 dark:bg-gray-600';
     } else if (isHovered) {
-        rowClasses += ' bg-blue-100 dark:bg-gray-800/80';
-    } else {
-        rowClasses += ' hover:bg-blue-50/50 dark:hover:bg-gray-800/20';
+        // 统一使用联动浅灰色背景
+        rowClasses += ' bg-gray-100 dark:bg-gray-800/80';
     }
 
     if (isBaselineRow) rowClasses += ' font-semibold';
-    if (isPendingRow && !isSelected) rowClasses += ' bg-yellow-50/50 dark:bg-yellow-900/10 border-dashed border-b-2 border-b-yellow-300 dark:border-b-yellow-700/50';
+    if (isPendingRow && !isSelected) rowClasses += ' bg-yellow-50/10 dark:bg-yellow-900/10 border-dashed border-b-2 border-b-yellow-300 dark:border-b-yellow-700/50';
 
     const renderCell = (key: keyof PortfolioSnapshot, value: number | undefined | null, formatter: (v: number) => string, colorFn?: (v: number) => string, borderClass: string = '') => (
         <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${borderClass} ${colorFn ? colorFn(value || 0) : ''} ${getCellHighlightClass(key, value)}`} style={getBar_style(value, maxAbsValues[key] ?? 0, minAbsValues[key] ?? 0)}>
@@ -145,7 +145,7 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
             onTouchEnd={onLongPressEnd}
             className={rowClasses}
         >
-            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-left ${isSelected ? 'bg-gray-300 dark:bg-gray-600' : 'bg-white dark:bg-gray-900 group-hover:bg-gray-100 dark:group-hover:bg-gray-800'}`}>
+            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-left transition-colors duration-75 ${isSelected ? 'bg-gray-300 dark:bg-gray-600' : isHovered ? 'bg-gray-100 dark:bg-gray-800' : 'bg-white dark:bg-gray-900'}`}>
                 {isPendingRow ? <span className="font-semibold text-yellow-700 dark:text-yellow-500">待成交</span> : (
                     <>
                         <span>{isBaselineRow ? snapshot.snapshotDate : snapshot.snapshotDate.substring(2).replace(/-/g, '/')}</span>

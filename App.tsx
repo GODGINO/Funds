@@ -909,7 +909,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
     return allSnapshots.map((s, index) => {
       if (index < allSnapshots.length - 1) {
           const prev = allSnapshots[index + 1]; const marketValueChange = s.currentMarketValue - prev.currentMarketValue;
-          if (s.snapshotDate === '待成交') return { ...s, marketValueChange };
+          if (s.snapshotDate === '待成交') return { ...s, marketValueChange: undefined, dailyProfit: undefined, dailyProfitRate: undefined };
           const actionBase = s.totalDailyActionValue || Math.abs(s.netAmountChange ?? 0);
           const operationProfit = marketValueChange - (s.netAmountChange ?? 0);
           const profitPerHundred = actionBase > 1e-6 ? (operationProfit / actionBase) * 100 : undefined;
