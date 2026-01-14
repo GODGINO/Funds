@@ -16,6 +16,15 @@ const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-gr
 const formatInteger = (value: number) => Math.round(value).toLocaleString('en-US');
 const formatPercentage = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
+// 智能格式化金额：超过1000显示k，否则显示整数
+const formatSmartAmount = (value: number) => {
+    const absVal = Math.abs(value);
+    if (absVal >= 1000) {
+        return `${(value / 1000).toFixed(1)}k`;
+    }
+    return Math.round(value).toString();
+};
+
 const formatSmartPercentage = (v: number) => {
     const absV = Math.abs(v);
     const sign = v >= 0 ? '+' : '';
@@ -121,7 +130,6 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
     if (isSelected) {
         rowClasses += ' bg-gray-300 dark:bg-gray-600';
     } else if (isHovered) {
-        // 统一使用联动浅灰色背景
         rowClasses += ' bg-gray-100 dark:bg-gray-800/80';
     }
 
@@ -162,22 +170,22 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
             {renderCell('dailyProfitRate', snapshot.dailyProfitRate, (v) => v.toFixed(4) + '%', getProfitColor, 'border-r-2 border-r-gray-400 dark:border-r-gray-500')}
             {renderCell('totalBuyAmount', snapshot.totalBuyAmount, formatInteger)}
             <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${getProfitColor(snapshot.totalBuyFloatingProfit ?? 0)} ${getCellHighlightClass('totalBuyFloatingProfit', snapshot.totalBuyFloatingProfit)}`} style={getBar_style(snapshot.totalBuyFloatingProfit, maxAbsValues.totalBuyFloatingProfit ?? 0, minAbsValues.totalBuyFloatingProfit ?? 0)}>
-                <div className="relative">{(snapshot.totalBuyAmount ?? 0) > 0 && snapshot.totalBuyFloatingProfit != null ? `${snapshot.totalBuyFloatingProfit >= 0 ? '+' : ''}${formatInteger(snapshot.totalBuyFloatingProfit)}|${((snapshot.totalBuyFloatingProfit / snapshot.totalBuyAmount!) * 100).toFixed(1)}%` : '-'}</div>
+                <div className="relative">{(snapshot.totalBuyAmount ?? 0) > 0 && snapshot.totalBuyFloatingProfit != null ? `${snapshot.totalBuyFloatingProfit >= 0 ? '+' : ''}${formatSmartAmount(snapshot.totalBuyFloatingProfit)}|${((snapshot.totalBuyFloatingProfit / snapshot.totalBuyAmount!) * 100).toFixed(1)}%` : '-'}</div>
             </td>
             {renderCell('totalSellAmount', snapshot.totalSellAmount, formatInteger)}
             <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(snapshot.totalSellOpportunityProfit ?? 0)} ${getCellHighlightClass('totalSellOpportunityProfit', snapshot.totalSellOpportunityProfit)}`} style={getBar_style(snapshot.totalSellOpportunityProfit, maxAbsValues.totalSellOpportunityProfit ?? 0, minAbsValues.totalSellOpportunityProfit ?? 0)}>
-                <div className="relative">{(snapshot.totalSellAmount ?? 0) > 0 && snapshot.totalSellOpportunityProfit != null ? `${snapshot.totalSellOpportunityProfit >= 0 ? '+' : ''}${formatInteger(snapshot.totalSellOpportunityProfit)}|${((snapshot.totalSellOpportunityProfit / snapshot.totalSellAmount!) * 100).toFixed(1)}%` : '-'}</div>
+                <div className="relative">{(snapshot.totalSellAmount ?? 0) > 0 && snapshot.totalSellOpportunityProfit != null ? `${snapshot.totalSellOpportunityProfit >= 0 ? '+' : ''}${formatSmartAmount(snapshot.totalSellOpportunityProfit)}|${((snapshot.totalSellOpportunityProfit / snapshot.totalSellAmount!) * 100).toFixed(1)}%` : '-'}</div>
             </td>
             <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${getProfitColor(snapshot.totalSellRealizedProfit ?? 0)} ${getCellHighlightClass('totalSellRealizedProfit', snapshot.totalSellRealizedProfit)}`} style={getBar_style(snapshot.totalSellRealizedProfit, maxAbsValues.totalSellRealizedProfit ?? 0, minAbsValues.totalSellRealizedProfit ?? 0)}>
-                <div className="relative">{(snapshot.totalSellAmount ?? 0) > 0 ? `${(snapshot.totalSellRealizedProfit ?? 0) >= 0 ? '+' : ''}${formatInteger(snapshot.totalSellRealizedProfit ?? 0)}|${((snapshot.totalSellRealizedProfit! / snapshot.totalSellAmount!) * 100).toFixed(1)}%` : '-'}</div>
+                <div className="relative">{(snapshot.totalSellAmount ?? 0) > 0 ? `${(snapshot.totalSellRealizedProfit ?? 0) >= 0 ? '+' : ''}${formatSmartAmount(snapshot.totalSellRealizedProfit ?? 0)}|${((snapshot.totalSellRealizedProfit! / snapshot.totalSellAmount!) * 100).toFixed(1)}%` : '-'}</div>
             </td>
             {renderCell('netAmountChange', isBaselineRow ? null : snapshot.netAmountChange, formatInteger, isBaselineRow ? undefined : getProfitColor)}
             {renderCell('marketValueChange', snapshot.marketValueChange, formatInteger, (v) => getProfitColor(v))}
             <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${snapshot.operationProfit ? getProfitColor(snapshot.operationProfit) : ''} ${getCellHighlightClass('operationProfit', snapshot.operationProfit)}`} style={getBar_style(snapshot.operationProfit, maxAbsValues.operationProfit ?? 0, minAbsValues.operationProfit ?? 0)}>
-                <div className="relative">{snapshot.operationProfit != null ? `${snapshot.operationProfit >= 0 ? '+' : ''}${formatInteger(snapshot.operationProfit)}|${(snapshot.profitPerHundred ?? 0).toFixed(1)}%` : '-'}</div>
+                <div className="relative">{snapshot.operationProfit != null ? `${snapshot.operationProfit >= 0 ? '+' : ''}${formatSmartAmount(snapshot.operationProfit)}|${(snapshot.profitPerHundred ?? 0).toFixed(1)}%` : '-'}</div>
             </td>
             <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${snapshot.profitCaused ? getProfitColor(snapshot.profitCaused) : ''} ${getCellHighlightClass('profitCaused', snapshot.profitCaused)}`} style={getBar_style(snapshot.profitCaused, maxAbsValues.profitCaused ?? 0, minAbsValues.profitCaused ?? 0)}>
-                <div className="relative">{snapshot.profitCaused != null ? `${snapshot.profitCaused >= 0 ? '+' : ''}${formatInteger(snapshot.profitCaused)}|${(snapshot.profitCausedPerHundred ?? 0).toFixed(1)}%` : '-'}</div>
+                <div className="relative">{snapshot.profitCaused != null ? `${snapshot.profitCaused >= 0 ? '+' : ''}${formatSmartAmount(snapshot.profitCaused)}|${(snapshot.profitCausedPerHundred ?? 0).toFixed(1)}%` : '-'}</div>
             </td>
             {renderCell('operationEffect', snapshot.operationEffect, (v) => v.toFixed(2) + '%', (v) => getProfitColor(v))}
         </tr>
@@ -250,16 +258,16 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
   }, [snapshots]);
 
   const sparklineColumns: { key: keyof PortfolioSnapshot; title: string; }[] = [{ key: 'totalCostBasis', title: '总成本' }, { key: 'currentMarketValue', title: '持有总值' }, { key: 'holdingProfit', title: '持有收益' }, { key: 'totalProfit', title: '累计收益' }, { key: 'profitRate', title: '累计收益率' }, { key: 'dailyProfit', title: '日收益' }, { key: 'dailyProfitRate', title: '日收益率' }];
-  const summaryColumns: { key: string, title: string, render: (data: any) => React.ReactNode }[] = [
+  const summaryColumns: { key: string, title: string, render: (d: any) => React.ReactNode }[] = [
     { key: 'totalBuyAmount', title: '⬆︎买入', render: d => <div>{formatInteger(d.totalBuyAmount)}</div> },
-    { key: 'totalBuyFloatingProfit', title: '浮盈', render: d => <div className={getProfitColor(d.totalBuyFloatingProfit)}>{formatInteger(d.totalBuyFloatingProfit)}<span className="text-gray-500 text-[10px]">|{d.floatingProfitPercent.toFixed(1)}%</span></div> },
+    { key: 'totalBuyFloatingProfit', title: '浮盈', render: d => <div className={getProfitColor(d.totalBuyFloatingProfit)}>{formatSmartAmount(d.totalBuyFloatingProfit)}<span className="text-gray-500 text-[10px]">|{d.floatingProfitPercent.toFixed(1)}%</span></div> },
     { key: 'totalSellAmount', title: '⬇︎卖出', render: d => <div>{formatInteger(d.totalSellAmount)}</div> },
-    { key: 'totalSellOpportunityProfit', title: '机会收益', render: d => <div className={getProfitColor(d.totalSellOpportunityProfit)}>{formatInteger(d.totalSellOpportunityProfit)}<span className="text-gray-500 text-[10px]">|{d.opportunityProfitPercent.toFixed(1)}%</span></div> },
-    { key: 'totalSellRealizedProfit', title: '落袋', render: d => <div className={getProfitColor(d.totalSellRealizedProfit)}>{formatInteger(d.totalSellRealizedProfit)}<span className="text-gray-500 text-[10px]">|{d.realizedProfitPercent.toFixed(1)}%</span></div> },
+    { key: 'totalSellOpportunityProfit', title: '机会收益', render: d => <div className={getProfitColor(d.totalSellOpportunityProfit)}>{formatSmartAmount(d.totalSellOpportunityProfit)}<span className="text-gray-500 text-[10px]">|{d.opportunityProfitPercent.toFixed(1)}%</span></div> },
+    { key: 'totalSellRealizedProfit', title: '落袋', render: d => <div className={getProfitColor(d.totalSellRealizedProfit)}>{formatSmartAmount(d.totalSellRealizedProfit)}<span className="text-gray-500 text-[10px]">|{d.realizedProfitPercent.toFixed(1)}%</span></div> },
     { key: 'netAmountChange', title: '操作金额', render: d => <div className={getProfitColor(d.netAmountChange)}>{formatInteger(d.netAmountChange)}</div> },
     { key: 'marketValueChange', title: '总值变动', render: d => <div className={getProfitColor(d.marketValueChange)}>{formatInteger(d.marketValueChange)}</div> },
-    { key: 'operationProfit', title: '操作收益', render: d => <div className={getProfitColor(d.operationProfit)}>{formatInteger(d.operationProfit)}<span className="text-gray-500 text-[10px]">|{formatSmartPercentage(d.profitPerHundred)}</span></div> },
-    { key: 'profitCaused', title: '造成盈亏', render: d => <div className={getProfitColor(d.profitCaused)}>{formatInteger(d.profitCaused)}<span className="text-gray-500 text-[10px]">|{formatSmartPercentage(d.profitCausedPerHundred)}</span></div> },
+    { key: 'operationProfit', title: '操作收益', render: d => <div className={getProfitColor(d.operationProfit)}>{formatSmartAmount(d.operationProfit)}<span className="text-gray-500 text-[10px]">|{formatSmartPercentage(d.profitPerHundred)}</span></div> },
+    { key: 'profitCaused', title: '造成盈亏', render: d => <div className={getProfitColor(d.profitCaused)}>{formatSmartAmount(d.profitCaused)}<span className="text-gray-500 text-[10px]">|{formatSmartPercentage(d.profitCausedPerHundred)}</span></div> },
     { key: 'operationEffect', title: '操作效果', render: d => <div className={getProfitColor(d.operationEffect)}>{formatPercentage(d.operationEffect)}</div> },
   ];
 
