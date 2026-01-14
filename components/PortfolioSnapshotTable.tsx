@@ -16,13 +16,21 @@ const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-gr
 const formatInteger = (value: number) => Math.round(value).toLocaleString('en-US');
 const formatPercentage = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
-// 智能格式化金额：超过1000显示k，否则显示整数
+/**
+ * 智能格式化金额：
+ * 1. 绝对值 >= 10000: 11k
+ * 2. 绝对值 >= 1000: 7.1k
+ * 3. 否则: 999
+ */
 const formatSmartAmount = (value: number) => {
     const absVal = Math.abs(value);
+    if (absVal >= 10000) {
+        return `${Math.round(value / 1000)}k`;
+    }
     if (absVal >= 1000) {
         return `${(value / 1000).toFixed(1)}k`;
     }
-    return Math.round(value).toString();
+    return Math.round(value).toLocaleString('en-US');
 };
 
 const formatSmartPercentage = (v: number) => {
