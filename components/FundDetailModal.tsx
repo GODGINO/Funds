@@ -27,13 +27,11 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
     const [isActualPosition, setIsActualPosition] = useState(false);
 
     // Identify the baseline position (starting point before trades)
-    // If it's a ProcessedFund, use initialUserPosition; otherwise use userPosition
     const baselinePosition = useMemo(() => {
         return (fund as ProcessedFund).initialUserPosition || fund.userPosition;
     }, [fund]);
 
-    // Form state - initialized from the CURRENT status (what's in fund.userPosition)
-    // This allows the user to see and potentially promote the calculated status to baseline status
+    // Form state
     const [shares, setShares] = useState<string>((fund.userPosition?.shares ?? 0).toFixed(2));
     const [cost, setCost] = useState<string>((fund.userPosition?.cost ?? 0).toFixed(4));
     const [tag, setTag] = useState<string>(fund.userPosition?.tag ?? '');
@@ -92,7 +90,6 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
         const costBasis = parseFloat((numericShares * numericCost).toFixed(2));
         const holdingProfit = parseFloat((marketValue - costBasis).toFixed(2));
         
-        // Use the editable value for real-time calculation
         const currentTotalProfit = parseFloat(editableTotalProfit) || 0;
         const realizedProfit = parseFloat((currentTotalProfit - holdingProfit).toFixed(2));
 
@@ -106,14 +103,12 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
         const dailyProfitRate = (marketValue - dailyProfit) > 0 ? (dailyProfit / (marketValue - dailyProfit)) * 100 : 0;
         
         const holdingProfitRate = costBasis > 0 ? (holdingProfit / costBasis) * 100 : 0;
-        // Use the editable value for real-time calculation
         const totalProfitRate = costBasis > 0 ? (currentTotalProfit / costBasis) * 100 : 0;
         
         return { marketValue, costBasis, holdingProfit, realizedProfit, cumulativeCost, actualCost, totalProfit: currentTotalProfit, dailyProfit, dailyProfitRate, holdingProfitRate, totalProfitRate };
     }, [numericShares, numericCost, latestNAV, yesterdayNAV, editableTotalProfit]);
 
     useEffect(() => {
-      // Initialize editableTotalProfit from saved data when modal opens or fund changes
       const initialHoldingProfit = parseFloat(((numericShares * latestNAV) - (numericShares * numericCost)).toFixed(2));
       const initialRealizedProfit = fund.userPosition?.realizedProfit ?? 0;
       const initialTotalProfit = parseFloat((initialHoldingProfit + initialRealizedProfit).toFixed(2));
@@ -124,11 +119,8 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
     const handleSave = useCallback(() => {
         const originalShares = fund.userPosition?.shares ?? 0;
         const originalCost = fund.userPosition?.cost ?? 0;
-
-        // Using a small tolerance for floating point comparison
         const sharesChanged = Math.abs(numericShares - originalShares) > 1e-9;
         const costChanged = Math.abs(numericCost - originalCost) > 1e-9;
-        
         const resetTradingRecords = sharesChanged || costChanged;
 
         const updatedPosition: UserPosition = {
@@ -136,7 +128,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
             shares: parseFloat(numericShares.toFixed(2)),
             cost: parseFloat(numericCost.toFixed(4)),
             tag,
-            realizedProfit: parseFloat(metrics.realizedProfit.toFixed(2)), // Use the dynamically calculated realized profit
+            realizedProfit: parseFloat(metrics.realizedProfit.toFixed(2)),
         };
 
         onSave(updatedPosition, resetTradingRecords);
@@ -176,41 +168,61 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
         let totalRealizedProfit = includeBaseline ? initialRealizedProfit : 0;
         let totalProfitCaused = includeBaseline ? (dailyProfitPerShare * initialShares) : 0;
         
-        // 分母计算
         let sumPositiveAmount = includeBaseline ? initialAmount : 0;
         let sumNegativeAmount = 0;
 
         records.forEach(record => {
-            if (record.nav === undefined) return;
+            const isPending = record.nav === undefined;
+            
+            // 计算核心变动 (模拟成交逻辑)
+            let sChange = record.sharesChange ?? 0;
+            let rAmount = record.amount ?? 0;
+            let realizedChange = record.realizedProfitChange ?? 0;
 
-            totalSharesChange += record.sharesChange || 0;
-
-            if (record.type === 'dividend-cash') {
-                // Fix: 现金分红是资金回流，应减少账面净投入
-                totalAmount -= record.realizedProfitChange || 0;
-            } else {
-                // 买入(+) 或 卖出(-)
-                totalAmount += record.amount || 0;
-            }
-
-            if (latestNAV > 0 && record.nav) {
-                if (record.type === 'buy' || record.type === 'dividend-reinvest') {
-                    totalFloatingProfit += (latestNAV - record.nav) * (record.sharesChange || 0);
+            if (isPending) {
+                const val = record.value || 0;
+                if (record.type === 'buy') {
+                    rAmount = val;
+                    sChange = latestNAV > 0 ? val / latestNAV : 0;
                 } else if (record.type === 'sell') {
-                    totalOpportunityProfit += (record.nav - latestNAV) * Math.abs(record.sharesChange || 0);
+                    sChange = -val;
+                    rAmount = -(val * latestNAV);
+                    realizedChange = (latestNAV - numericCost) * val;
+                } else if (record.type === 'dividend-cash') {
+                    rAmount = -val;
+                    realizedChange = val;
+                } else if (record.type === 'dividend-reinvest') {
+                    sChange = val;
+                    rAmount = 0;
                 }
             }
 
-            totalRealizedProfit += record.realizedProfitChange || 0;
-            totalProfitCaused += (dailyProfitPerShare * (record.sharesChange || 0));
+            // 更新表头汇总 (份额、金额、落袋包含待成交)
+            totalSharesChange += sChange;
+            if (record.type === 'dividend-cash') {
+                totalAmount -= Math.abs(rAmount);
+            } else {
+                totalAmount += rAmount;
+            }
+            totalRealizedProfit += realizedChange;
 
-            // 分母逻辑
+            // 分母逻辑包含待成交
             if (record.type === 'buy') {
-                sumPositiveAmount += (record.amount || 0);
-            } else if (record.type === 'sell') {
-                sumNegativeAmount += Math.abs(record.amount || 0);
-            } else if (record.type === 'dividend-cash') {
-                sumNegativeAmount += Math.abs(record.realizedProfitChange || 0);
+                sumPositiveAmount += rAmount;
+            } else if (record.type === 'sell' || record.type === 'dividend-cash') {
+                sumNegativeAmount += Math.abs(record.type === 'sell' ? rAmount : realizedChange);
+            }
+
+            // 造成今日盈亏, 浮盈, 机会收益 排除待成交
+            if (!isPending) {
+                if (latestNAV > 0 && record.nav) {
+                    if (record.type === 'buy' || record.type === 'dividend-reinvest') {
+                        totalFloatingProfit += (latestNAV - record.nav) * (record.sharesChange || 0);
+                    } else if (record.type === 'sell') {
+                        totalOpportunityProfit += (record.nav - latestNAV) * Math.abs(record.sharesChange || 0);
+                    }
+                }
+                totalProfitCaused += (dailyProfitPerShare * (record.sharesChange || 0));
             }
         });
 
@@ -224,12 +236,9 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
             sumPositiveAmount,
             sumNegativeAmount
         };
-    }, [fund.userPosition, baselinePosition, latestNAV, yesterdayNAV, includeBaseline]);
+    }, [fund.userPosition, baselinePosition, latestNAV, yesterdayNAV, includeBaseline, numericCost]);
 
-    // Determine if we should show the trading history table
-    const hasTradingRecords = (fund.userPosition?.tradingRecords?.length ?? 0) > 0;
-    const hasBaselineShares = (baselinePosition?.shares ?? 0) > 0;
-    const shouldShowHistory = hasTradingRecords || hasBaselineShares;
+    const shouldShowHistory = (fund.userPosition?.tradingRecords?.length ?? 0) > 0 || (baselinePosition?.shares ?? 0) > 0;
 
     return (
         <>
@@ -264,7 +273,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                         </button>
                     </div>
 
-                    {/* Modal Body - Fixed Padding for Sticky Header Alignment */}
+                    {/* Modal Body */}
                     <div className="px-6 pb-6 overflow-y-auto flex-1">
                         <div className="h-[250px] mt-6 mb-2">
                             <FundChart 
@@ -371,22 +380,34 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                                 <th className="p-2 text-right">
                                                     <div>造成今日盈亏</div>
                                                     <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalProfitCaused)}`}>
-                                                        {tradingHistorySummary.totalProfitCaused.toFixed(2)}
-                                                        {Math.abs(tradingHistorySummary.totalAmount) > 0 && `|${((tradingHistorySummary.totalProfitCaused / Math.abs(tradingHistorySummary.totalAmount)) * 100).toFixed(1)}%`}
+                                                        {tradingHistorySummary.totalProfitCaused !== 0 ? (
+                                                            <>
+                                                                {tradingHistorySummary.totalProfitCaused.toFixed(2)}
+                                                                {Math.abs(tradingHistorySummary.totalAmount) > 0 && `|${((tradingHistorySummary.totalProfitCaused / Math.abs(tradingHistorySummary.totalAmount)) * 100).toFixed(1)}%`}
+                                                            </>
+                                                        ) : '-'}
                                                     </div>
                                                 </th>
                                                 <th className="p-2 text-right">
                                                     <div>浮盈</div>
                                                     <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalFloatingProfit)}`}>
-                                                        {tradingHistorySummary.totalFloatingProfit.toFixed(2)}
-                                                        {tradingHistorySummary.sumPositiveAmount > 0 && `|${((tradingHistorySummary.totalFloatingProfit / tradingHistorySummary.sumPositiveAmount) * 100).toFixed(1)}%`}
+                                                        {tradingHistorySummary.totalFloatingProfit !== 0 ? (
+                                                            <>
+                                                                {tradingHistorySummary.totalFloatingProfit.toFixed(2)}
+                                                                {tradingHistorySummary.sumPositiveAmount > 0 && `|${((tradingHistorySummary.totalFloatingProfit / tradingHistorySummary.sumPositiveAmount) * 100).toFixed(1)}%`}
+                                                            </>
+                                                        ) : '-'}
                                                     </div>
                                                 </th>
                                                 <th className="p-2 text-right">
                                                     <div>机会收益</div>
                                                     <div className={`font-mono text-[10px] ${getProfitColor(tradingHistorySummary.totalOpportunityProfit)}`}>
-                                                        {tradingHistorySummary.totalOpportunityProfit.toFixed(2)}
-                                                        {tradingHistorySummary.sumNegativeAmount > 0 && `|${((tradingHistorySummary.totalOpportunityProfit / tradingHistorySummary.sumNegativeAmount) * 100).toFixed(1)}%`}
+                                                        {tradingHistorySummary.totalOpportunityProfit !== 0 ? (
+                                                            <>
+                                                                {tradingHistorySummary.totalOpportunityProfit.toFixed(2)}
+                                                                {tradingHistorySummary.sumNegativeAmount > 0 && `|${((tradingHistorySummary.totalOpportunityProfit / tradingHistorySummary.sumNegativeAmount) * 100).toFixed(1)}%`}
+                                                            </>
+                                                        ) : '-'}
                                                     </div>
                                                 </th>
                                                 <th className="p-2 text-right">
@@ -400,9 +421,9 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                         </thead>
                                         <tbody>
                                             {[...(fund.userPosition?.tradingRecords || [])]
-                                                .filter(record => record.nav !== undefined)
                                                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(record => {
-                                                    
+                                                
+                                                const isPending = record.nav === undefined;
                                                 let typeLabel = '';
                                                 let typeClass = '';
                                                 
@@ -420,16 +441,37 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                                     typeClass = 'text-purple-600';
                                                 }
 
-                                                // Safe access to sharesChange
-                                                const sharesChange = record.sharesChange ?? 0;
-                                                const dailyProfitPerShare = (latestNAV > 0 && yesterdayNAV > 0) ? (latestNAV - yesterdayNAV) : 0;
-                                                const profitCaused = dailyProfitPerShare * sharesChange;
+                                                // 动态模拟
+                                                const recordNAV = record.nav ?? latestNAV;
+                                                let sharesChange = record.sharesChange ?? 0;
+                                                let recordAmount = record.amount ?? 0;
+                                                let realizedChange = record.realizedProfitChange ?? 0;
 
-                                                // Calculate Buy Floating Profit and Sell Opportunity Profit relative to CURRENT market
+                                                if (isPending) {
+                                                    const val = record.value || 0;
+                                                    if (record.type === 'buy') {
+                                                        sharesChange = latestNAV > 0 ? val / latestNAV : 0;
+                                                        recordAmount = val;
+                                                    } else if (record.type === 'sell') {
+                                                        sharesChange = -val;
+                                                        recordAmount = -(val * latestNAV);
+                                                        realizedChange = (latestNAV - numericCost) * val;
+                                                    } else if (record.type === 'dividend-cash') {
+                                                        realizedChange = val;
+                                                        recordAmount = -val; // 资金回流
+                                                    } else if (record.type === 'dividend-reinvest') {
+                                                        sharesChange = val;
+                                                        recordAmount = 0;
+                                                    }
+                                                }
+
+                                                const dailyProfitPerShare = (latestNAV > 0 && yesterdayNAV > 0) ? (latestNAV - yesterdayNAV) : 0;
+                                                const profitCaused = isPending ? 0 : dailyProfitPerShare * sharesChange;
+
                                                 let floatingProfit: number | null = null;
                                                 let opportunityProfit: number | null = null;
 
-                                                if (latestNAV > 0 && record.nav) {
+                                                if (!isPending && latestNAV > 0 && record.nav) {
                                                     if (record.type === 'buy' || record.type === 'dividend-reinvest') {
                                                         floatingProfit = (latestNAV - record.nav) * sharesChange;
                                                     } else if (record.type === 'sell') {
@@ -437,57 +479,60 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                                     }
                                                 }
 
-                                                // Denominator for row percentage
                                                 const rowAmountForPercent = (record.type === 'buy' || record.type === 'sell') 
-                                                    ? Math.abs(record.amount || 0) 
+                                                    ? Math.abs(recordAmount) 
                                                     : (record.type === 'dividend-cash' 
-                                                        ? Math.abs(record.realizedProfitChange || 0) 
-                                                        : (record.nav && record.sharesChange ? record.nav * record.sharesChange : 0));
+                                                        ? Math.abs(realizedChange) 
+                                                        : (recordNAV * sharesChange));
 
                                                 return (
-                                                <tr key={record.date} className="border-t dark:border-gray-700">
-                                                    <td className="p-2 font-mono whitespace-nowrap">{record.date}</td>
+                                                <tr key={`${record.date}-${record.type}`} className={`border-t dark:border-gray-700 transition-colors ${isPending ? 'bg-yellow-50/30 dark:bg-yellow-900/10 border-dashed' : ''}`}>
+                                                    <td className={`p-2 font-mono whitespace-nowrap ${isPending ? 'text-yellow-700 dark:text-yellow-500 font-bold' : ''}`}>
+                                                        {isPending ? '待成交' : record.date}
+                                                    </td>
                                                     <td className={`p-2 font-semibold whitespace-nowrap ${typeClass}`}>{typeLabel}</td>
-                                                    <td className="p-2 text-right font-mono">{record.nav!.toFixed(4)}</td>
+                                                    <td className="p-2 text-right font-mono">
+                                                        {recordNAV.toFixed(4)}
+                                                    </td>
                                                     <td className={`p-2 text-right font-mono ${sharesChange > 0 ? 'text-red-500' : (sharesChange < 0 ? 'text-green-600' : 'text-gray-400')}`}>
                                                         {sharesChange > 0 ? '+' : ''}{sharesChange !== 0 ? sharesChange.toFixed(2) : '-'}
                                                     </td>
                                                     <td className="p-2 text-right font-mono">
                                                         {record.type === 'dividend-cash' ? (
-                                                            <span className="text-yellow-600">+{record.realizedProfitChange?.toFixed(2)}</span>
+                                                            <span className="text-yellow-600">+{Math.abs(realizedChange).toFixed(2)}</span>
                                                         ) : (
-                                                            record.amount ? record.amount.toFixed(2) : '-'
+                                                            recordAmount !== 0 ? recordAmount.toFixed(2) : '-'
                                                         )}
                                                     </td>
-                                                    <td className={`p-2 text-right font-mono ${getProfitColor(profitCaused)}`}>
-                                                        {profitCaused !== 0 ? (
+                                                    <td className={`p-2 text-right font-mono ${isPending ? 'text-gray-400' : getProfitColor(profitCaused)}`}>
+                                                        {(!isPending && profitCaused !== 0) ? (
                                                             <>
                                                                 {profitCaused > 0 ? '+' : ''}{profitCaused.toFixed(2)}
                                                                 {rowAmountForPercent > 0 && <span className="text-[10px] opacity-70">|{((profitCaused / rowAmountForPercent) * 100).toFixed(1)}%</span>}
                                                             </>
                                                         ) : '-'}
                                                     </td>
-                                                    <td className={`p-2 text-right font-mono ${floatingProfit != null ? getProfitColor(floatingProfit) : ''}`}>
-                                                        {floatingProfit != null ? (
+                                                    <td className={`p-2 text-right font-mono ${isPending ? 'text-gray-400' : (floatingProfit != null ? getProfitColor(floatingProfit) : '')}`}>
+                                                        {(!isPending && floatingProfit != null) ? (
                                                             <>
                                                                 {floatingProfit > 0 ? '+' : ''}{floatingProfit.toFixed(2)}
                                                                 {rowAmountForPercent > 0 && <span className="text-[10px] opacity-70">|{((floatingProfit / rowAmountForPercent) * 100).toFixed(1)}%</span>}
                                                             </>
                                                         ) : '-'}
                                                     </td>
-                                                    <td className={`p-2 text-right font-mono ${opportunityProfit != null ? getProfitColor(opportunityProfit) : ''}`}>
-                                                        {opportunityProfit != null ? (
+                                                    <td className={`p-2 text-right font-mono ${isPending ? 'text-gray-400' : (opportunityProfit != null ? getProfitColor(opportunityProfit) : '')}`}>
+                                                        {(!isPending && opportunityProfit != null) ? (
                                                             <>
                                                                 {opportunityProfit > 0 ? '+' : ''}{opportunityProfit.toFixed(2)}
                                                                 {rowAmountForPercent > 0 && <span className="text-[10px] opacity-70">|{((opportunityProfit / rowAmountForPercent) * 100).toFixed(1)}%</span>}
                                                             </>
                                                         ) : '-'}
                                                     </td>
-                                                    <td className={`p-2 text-right font-mono ${record.realizedProfitChange && record.realizedProfitChange !== 0 ? getProfitColor(record.realizedProfitChange) : ''}`}>
-                                                        {record.realizedProfitChange != null ? (
+                                                    <td className={`p-2 text-right font-mono ${realizedChange !== 0 ? getProfitColor(realizedChange) : ''}`}>
+                                                        {realizedChange !== 0 ? (
                                                             <>
-                                                                {record.type === 'dividend-cash' ? '+' : ''}{record.realizedProfitChange.toFixed(2)}
-                                                                {rowAmountForPercent > 0 && <span className="text-[10px] opacity-70">|{((record.realizedProfitChange / rowAmountForPercent) * 100).toFixed(1)}%</span>}
+                                                                {record.type === 'dividend-cash' ? '+' : ''}{realizedChange.toFixed(2)}
+                                                                {rowAmountForPercent > 0 && <span className="text-[10px] opacity-70">|{((realizedChange / rowAmountForPercent) * 100).toFixed(1)}%</span>}
                                                             </>
                                                         ) : '-'}
                                                     </td>
@@ -502,14 +547,22 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
                                                     <td className={`p-2 text-right font-mono ${includeBaseline ? 'text-red-500' : 'text-gray-500'}`}>+{baselinePosition.shares.toFixed(2)}</td>
                                                     <td className="p-2 text-right font-mono">{(baselinePosition.shares * baselinePosition.cost).toFixed(2)}</td>
                                                     <td className={`p-2 text-right font-mono ${includeBaseline ? getProfitColor((latestNAV - yesterdayNAV) * baselinePosition.shares) : 'text-gray-500'}`}>
-                                                        {((latestNAV - yesterdayNAV) * baselinePosition.shares) > 0 ? '+' : ''}
-                                                        {((latestNAV - yesterdayNAV) * baselinePosition.shares).toFixed(2)}
-                                                        {baselinePosition.cost > 0 && <span className="text-[10px] opacity-70">|{(((latestNAV - yesterdayNAV) / baselinePosition.cost) * 100).toFixed(1)}%</span>}
+                                                        {includeBaseline ? (
+                                                            <>
+                                                                {((latestNAV - yesterdayNAV) * baselinePosition.shares) > 0 ? '+' : ''}
+                                                                {((latestNAV - yesterdayNAV) * baselinePosition.shares).toFixed(2)}
+                                                                {baselinePosition.cost > 0 && <span className="text-[10px] opacity-70">|{(((latestNAV - yesterdayNAV) / baselinePosition.cost) * 100).toFixed(1)}%</span>}
+                                                            </>
+                                                        ) : '-'}
                                                     </td>
                                                     <td className={`p-2 text-right font-mono ${includeBaseline ? getProfitColor((latestNAV - baselinePosition.cost) * baselinePosition.shares) : 'text-gray-500'}`}>
-                                                        {((latestNAV - baselinePosition.cost) * baselinePosition.shares) > 0 ? '+' : ''}
-                                                        {((latestNAV - baselinePosition.cost) * baselinePosition.shares).toFixed(2)}
-                                                        {baselinePosition.cost > 0 && <span className="text-[10px] opacity-70">|{(((latestNAV - baselinePosition.cost) / baselinePosition.cost) * 100).toFixed(1)}%</span>}
+                                                        {includeBaseline ? (
+                                                            <>
+                                                                {((latestNAV - baselinePosition.cost) * baselinePosition.shares) > 0 ? '+' : ''}
+                                                                {((latestNAV - baselinePosition.cost) * baselinePosition.shares).toFixed(2)}
+                                                                {baselinePosition.cost > 0 && <span className="text-[10px] opacity-70">|{(((latestNAV - baselinePosition.cost) / baselinePosition.cost) * 100).toFixed(1)}%</span>}
+                                                            </>
+                                                        ) : '-'}
                                                     </td>
                                                     <td className="p-2 text-right font-mono text-gray-400">-</td>
                                                     <td className={`p-2 text-right font-mono ${includeBaseline ? getProfitColor(baselinePosition.realizedProfit) : 'text-gray-500'}`}>
