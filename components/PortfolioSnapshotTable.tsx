@@ -16,20 +16,10 @@ const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-gr
 const formatInteger = (value: number) => Math.round(value).toLocaleString('en-US');
 const formatPercentage = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
-/**
- * 智能格式化金额：
- * 1. 绝对值 >= 10000: 11k
- * 2. 绝对值 >= 1000: 7.1k
- * 3. 否则: 999
- */
 const formatSmartAmount = (value: number) => {
     const absVal = Math.abs(value);
-    if (absVal >= 10000) {
-        return `${Math.round(value / 1000)}k`;
-    }
-    if (absVal >= 1000) {
-        return `${(value / 1000).toFixed(1)}k`;
-    }
+    if (absVal >= 10000) return `${Math.round(value / 1000)}k`;
+    if (absVal >= 1000) return `${(value / 1000).toFixed(1)}k`;
     return Math.round(value).toLocaleString('en-US');
 };
 
@@ -74,15 +64,10 @@ const HeaderSparkline = React.memo<HeaderSparklineProps>(({ data, dataKey, strok
         if (!data || data.length === 0) return { yDomain: ['auto', 'auto'], maxIndex: -1 };
         const values = data.map(p => p[dataKey]).filter((v): v is number => typeof v === 'number' && isFinite(v));
         if (values.length < 1) return { yDomain: ['auto', 'auto'], maxIndex: -1 };
-        
         const min = Math.min(...values);
         const max = Math.max(...values);
         const maxIdx = data.findIndex(p => p[dataKey] === max);
-        
-        return {
-            yDomain: min === max ? [min * 0.99, max * 1.01] : [min, max],
-            maxIndex: maxIdx
-        };
+        return { yDomain: min === max ? [min * 0.99, max * 1.01] : [min, max], maxIndex: maxIdx };
     }, [data, dataKey]);
 
     const handleMouseMove = useCallback((e: any) => {
@@ -96,9 +81,7 @@ const HeaderSparkline = React.memo<HeaderSparklineProps>(({ data, dataKey, strok
             <ResponsiveContainer minWidth={0}>
                 <LineChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 2 }} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
                     <YAxis hide domain={yDomain} />
-                    {maxIndex !== -1 && (
-                        <ReferenceLine x={maxIndex} stroke="#ef4444" strokeWidth={1} />
-                    )}
+                    {maxIndex !== -1 && <ReferenceLine x={maxIndex} stroke="#ef4444" strokeWidth={1} />}
                     <Line type="linear" dataKey={dataKey} stroke={stroke} strokeWidth={1.5} dot={false} isAnimationActive={false} />
                     {hoveredChartIndex !== null && data[hoveredChartIndex] && (
                         <ReferenceDot x={hoveredChartIndex} y={data[hoveredChartIndex][dataKey]} r={3} fill={stroke} stroke="#fff" strokeWidth={1} />
@@ -114,38 +97,45 @@ interface SnapshotRowProps {
     index: number;
     isHovered: boolean;
     isSelected: boolean;
+    isBaseline: boolean;
+    isOutOfRange: boolean;
     onMouseEnter: (index: number) => void;
     onRowClick: (e: React.MouseEvent, s: PortfolioSnapshot) => void;
     onLongPressStart: (date: string) => void;
     onLongPressEnd: () => void;
+    onSetBaseline: (date: string) => void;
     maxAbsValues: any;
     minAbsValues: any;
     maxes: any;
 }
 
-const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, isSelected, onMouseEnter, onRowClick, onLongPressStart, onLongPressEnd, maxAbsValues, minAbsValues, maxes }) => {
-    const isBaselineRow = snapshot.snapshotDate === '基准持仓';
+const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, isSelected, isBaseline, isOutOfRange, onMouseEnter, onRowClick, onLongPressStart, onLongPressEnd, onSetBaseline, maxAbsValues, minAbsValues, maxes }) => {
+    const isBaselineRowLabel = snapshot.snapshotDate === '基准持仓';
     const isPendingRow = snapshot.snapshotDate === '待成交';
-    const daysAgo = (isBaselineRow || isPendingRow) ? null : getDaysAgo(snapshot.snapshotDate);
+    const daysAgo = (isBaselineRowLabel || isPendingRow) ? null : getDaysAgo(snapshot.snapshotDate);
 
     const getCellHighlightClass = (key: keyof PortfolioSnapshot, value: number | undefined | null) => {
-        if (isBaselineRow) return '';
+        if (isBaselineRowLabel || isBaseline || isOutOfRange) return '';
         if (value != null && maxes[key] != null && value === maxes[key]) return 'bg-gray-200 dark:bg-gray-700/80 font-bold';
         return '';
     };
 
-    let rowClasses = `transition-colors duration-75 group border-b dark:border-gray-800 cursor-pointer`;
-    if (isSelected) {
+    let rowClasses = `transition-all duration-200 group border-b dark:border-gray-800 cursor-pointer select-none`;
+    if (isBaseline) {
+        rowClasses += ' bg-blue-50 dark:bg-blue-900/30 font-bold shadow-inner';
+    } else if (isOutOfRange) {
+        rowClasses += ' opacity-40 grayscale';
+    } else if (isSelected) {
         rowClasses += ' bg-gray-300 dark:bg-gray-600';
     } else if (isHovered) {
         rowClasses += ' bg-gray-100 dark:bg-gray-800/80';
     }
 
-    if (isBaselineRow) rowClasses += ' font-semibold';
+    if (isBaselineRowLabel) rowClasses += ' font-semibold';
     if (isPendingRow && !isSelected) rowClasses += ' bg-yellow-50/10 dark:bg-yellow-900/10 border-dashed border-b-2 border-b-yellow-300 dark:border-b-yellow-700/50';
 
     const renderCell = (key: keyof PortfolioSnapshot, value: number | undefined | null, formatter: (v: number) => string, colorFn?: (v: number) => string, borderClass: string = '') => (
-        <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${borderClass} ${colorFn ? colorFn(value || 0) : ''} ${getCellHighlightClass(key, value)}`} style={getBar_style(value, maxAbsValues[key] ?? 0, minAbsValues[key] ?? 0)}>
+        <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${borderClass} ${colorFn ? colorFn(value || 0) : ''} ${getCellHighlightClass(key, value)}`} style={(!isBaseline && !isOutOfRange) ? getBar_style(value, maxAbsValues[key] ?? 0, minAbsValues[key] ?? 0) : {}}>
             <div className="relative">{value != null ? (value >= 0 && colorFn ? '+' : '') + formatter(value) : '-'}</div>
         </td>
     );
@@ -161,13 +151,22 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
             onTouchEnd={onLongPressEnd}
             className={rowClasses}
         >
-            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-left transition-colors duration-75 ${isSelected ? 'bg-gray-300 dark:bg-gray-600' : isHovered ? 'bg-gray-100 dark:bg-gray-800' : 'bg-white dark:bg-gray-900'}`}>
-                {isPendingRow ? <span className="font-semibold text-yellow-700 dark:text-yellow-500">待成交</span> : (
-                    <>
-                        <span>{isBaselineRow ? snapshot.snapshotDate : snapshot.snapshotDate.substring(2).replace(/-/g, '/')}</span>
-                        {daysAgo !== null && <span className="text-gray-500 dark:text-gray-400 ml-2 text-[10px]">{daysAgo}</span>}
-                    </>
-                )}
+            <td className={`w-28 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-left transition-colors duration-75 ${isBaseline ? 'bg-blue-50 dark:bg-blue-900/30' : isSelected ? 'bg-gray-300 dark:bg-gray-600' : isHovered ? 'bg-gray-100 dark:bg-gray-800' : 'bg-white dark:bg-gray-900'}`}>
+                <div className="flex items-center gap-2">
+                    <input 
+                        type="checkbox" 
+                        checked={isBaseline} 
+                        onChange={() => onSetBaseline(snapshot.snapshotDate)} 
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    {isPendingRow ? <span className="font-semibold text-yellow-700 dark:text-yellow-500">待成交</span> : (
+                        <div className="flex items-center gap-1">
+                            <span>{isBaselineRowLabel ? snapshot.snapshotDate : snapshot.snapshotDate.substring(2).replace(/-/g, '/')}</span>
+                            {daysAgo !== null && !isBaseline && <span className="text-gray-500 dark:text-gray-400 ml-1 text-[10px]">{daysAgo}</span>}
+                        </div>
+                    )}
+                </div>
             </td>
             {renderCell('totalCostBasis', snapshot.totalCostBasis, formatInteger)}
             {renderCell('currentMarketValue', snapshot.currentMarketValue, formatInteger)}
@@ -177,22 +176,22 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
             {renderCell('dailyProfit', snapshot.dailyProfit, formatInteger, getProfitColor)}
             {renderCell('dailyProfitRate', snapshot.dailyProfitRate, (v) => v.toFixed(4) + '%', getProfitColor, 'border-r-2 border-r-gray-400 dark:border-r-gray-500')}
             {renderCell('totalBuyAmount', snapshot.totalBuyAmount, formatInteger)}
-            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${getProfitColor(snapshot.totalBuyFloatingProfit ?? 0)} ${getCellHighlightClass('totalBuyFloatingProfit', snapshot.totalBuyFloatingProfit)}`} style={getBar_style(snapshot.totalBuyFloatingProfit, maxAbsValues.totalBuyFloatingProfit ?? 0, minAbsValues.totalBuyFloatingProfit ?? 0)}>
+            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${getProfitColor(snapshot.totalBuyFloatingProfit ?? 0)} ${getCellHighlightClass('totalBuyFloatingProfit', snapshot.totalBuyFloatingProfit)}`} style={(!isBaseline && !isOutOfRange) ? getBar_style(snapshot.totalBuyFloatingProfit, maxAbsValues.totalBuyFloatingProfit ?? 0, minAbsValues.totalBuyFloatingProfit ?? 0) : {}}>
                 <div className="relative">{(snapshot.totalBuyAmount ?? 0) > 0 && snapshot.totalBuyFloatingProfit != null ? `${snapshot.totalBuyFloatingProfit >= 0 ? '+' : ''}${formatSmartAmount(snapshot.totalBuyFloatingProfit)}|${((snapshot.totalBuyFloatingProfit / snapshot.totalBuyAmount!) * 100).toFixed(1)}%` : '-'}</div>
             </td>
             {renderCell('totalSellAmount', snapshot.totalSellAmount, formatInteger)}
-            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(snapshot.totalSellOpportunityProfit ?? 0)} ${getCellHighlightClass('totalSellOpportunityProfit', snapshot.totalSellOpportunityProfit)}`} style={getBar_style(snapshot.totalSellOpportunityProfit, maxAbsValues.totalSellOpportunityProfit ?? 0, minAbsValues.totalSellOpportunityProfit ?? 0)}>
+            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(snapshot.totalSellOpportunityProfit ?? 0)} ${getCellHighlightClass('totalSellOpportunityProfit', snapshot.totalSellOpportunityProfit)}`} style={(!isBaseline && !isOutOfRange) ? getBar_style(snapshot.totalSellOpportunityProfit, maxAbsValues.totalSellOpportunityProfit ?? 0, minAbsValues.totalSellOpportunityProfit ?? 0) : {}}>
                 <div className="relative">{(snapshot.totalSellAmount ?? 0) > 0 && snapshot.totalSellOpportunityProfit != null ? `${snapshot.totalSellOpportunityProfit >= 0 ? '+' : ''}${formatSmartAmount(snapshot.totalSellOpportunityProfit)}|${((snapshot.totalSellOpportunityProfit / snapshot.totalSellAmount!) * 100).toFixed(1)}%` : '-'}</div>
             </td>
-            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${getProfitColor(snapshot.totalSellRealizedProfit ?? 0)} ${getCellHighlightClass('totalSellRealizedProfit', snapshot.totalSellRealizedProfit)}`} style={getBar_style(snapshot.totalSellRealizedProfit, maxAbsValues.totalSellRealizedProfit ?? 0, minAbsValues.totalSellRealizedProfit ?? 0)}>
+            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${getProfitColor(snapshot.totalSellRealizedProfit ?? 0)} ${getCellHighlightClass('totalSellRealizedProfit', snapshot.totalSellRealizedProfit)}`} style={(!isBaseline && !isOutOfRange) ? getBar_style(snapshot.totalSellRealizedProfit, maxAbsValues.totalSellRealizedProfit ?? 0, minAbsValues.totalSellRealizedProfit ?? 0) : {}}>
                 <div className="relative">{(snapshot.totalSellAmount ?? 0) > 0 ? `${(snapshot.totalSellRealizedProfit ?? 0) >= 0 ? '+' : ''}${formatSmartAmount(snapshot.totalSellRealizedProfit ?? 0)}|${((snapshot.totalSellRealizedProfit! / snapshot.totalSellAmount!) * 100).toFixed(1)}%` : '-'}</div>
             </td>
-            {renderCell('netAmountChange', isBaselineRow ? null : snapshot.netAmountChange, formatInteger, isBaselineRow ? undefined : getProfitColor)}
+            {renderCell('netAmountChange', isBaselineRowLabel ? null : snapshot.netAmountChange, formatInteger, isBaselineRowLabel ? undefined : getProfitColor)}
             {renderCell('marketValueChange', snapshot.marketValueChange, formatInteger, (v) => getProfitColor(v))}
-            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${snapshot.operationProfit ? getProfitColor(snapshot.operationProfit) : ''} ${getCellHighlightClass('operationProfit', snapshot.operationProfit)}`} style={getBar_style(snapshot.operationProfit, maxAbsValues.operationProfit ?? 0, minAbsValues.operationProfit ?? 0)}>
+            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right border-r-2 border-r-gray-400 dark:border-r-gray-500 ${snapshot.operationProfit ? getProfitColor(snapshot.operationProfit) : ''} ${getCellHighlightClass('operationProfit', snapshot.operationProfit)}`} style={(!isBaseline && !isOutOfRange) ? getBar_style(snapshot.operationProfit, maxAbsValues.operationProfit ?? 0, minAbsValues.operationProfit ?? 0) : {}}>
                 <div className="relative">{snapshot.operationProfit != null ? `${snapshot.operationProfit >= 0 ? '+' : ''}${formatSmartAmount(snapshot.operationProfit)}|${(snapshot.profitPerHundred ?? 0).toFixed(1)}%` : '-'}</div>
             </td>
-            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${snapshot.profitCaused ? getProfitColor(snapshot.profitCaused) : ''} ${getCellHighlightClass('profitCaused', snapshot.profitCaused)}`} style={getBar_style(snapshot.profitCaused, maxAbsValues.profitCaused ?? 0, minAbsValues.profitCaused ?? 0)}>
+            <td className={`w-20 px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${snapshot.profitCaused ? getProfitColor(snapshot.profitCaused) : ''} ${getCellHighlightClass('profitCaused', snapshot.profitCaused)}`} style={(!isBaseline && !isOutOfRange) ? getBar_style(snapshot.profitCaused, maxAbsValues.profitCaused ?? 0, minAbsValues.profitCaused ?? 0) : {}}>
                 <div className="relative">{snapshot.profitCaused != null ? `${snapshot.profitCaused >= 0 ? '+' : ''}${formatSmartAmount(snapshot.profitCaused)}|${(snapshot.profitCausedPerHundred ?? 0).toFixed(1)}%` : '-'}</div>
             </td>
             {renderCell('operationEffect', snapshot.operationEffect, (v) => v.toFixed(2) + '%', (v) => getProfitColor(v))}
@@ -204,27 +203,24 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
   const [selectedSnapshot, setSelectedSnapshot] = useState<PortfolioSnapshot | null>(null);
   const [selectedSnapshotDate, setSelectedSnapshotDate] = useState<string | null>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [baselineDate, setBaselineDate] = useState<string>('基准持仓');
   
-  const chartData = useMemo(() => [...snapshots].reverse(), [snapshots]);
-  const hoveredChartIndex = useMemo(() => hoveredIndex === null ? null : snapshots.length - 1 - hoveredIndex, [hoveredIndex, snapshots.length]);
+  const baselineIndex = useMemo(() => snapshots.findIndex(s => s.snapshotDate === baselineDate), [snapshots, baselineDate]);
+  
+  const activeSnapshots = useMemo(() => snapshots.slice(0, baselineIndex === -1 ? snapshots.length : baselineIndex), [snapshots, baselineIndex]);
+  const chartData = useMemo(() => [...activeSnapshots].reverse(), [activeSnapshots]);
+  const hoveredChartIndex = useMemo(() => hoveredIndex === null ? null : activeSnapshots.length - 1 - hoveredIndex, [hoveredIndex, activeSnapshots.length]);
 
   useEffect(() => {
-    if (!activeTag) {
-        setSelectedSnapshotDate(null);
-        return;
-    }
-    if (activeTag === 'TX_PENDING') {
-        setSelectedSnapshotDate('待成交');
-    } else if (activeTag.startsWith('TX_DATE:')) {
-        setSelectedSnapshotDate(activeTag.substring(8));
-    } else {
-        setSelectedSnapshotDate(null);
-    }
+    if (!activeTag) { setSelectedSnapshotDate(null); return; }
+    if (activeTag === 'TX_PENDING') setSelectedSnapshotDate('待成交');
+    else if (activeTag.startsWith('TX_DATE:')) setSelectedSnapshotDate(activeTag.substring(8));
+    else setSelectedSnapshotDate(null);
   }, [activeTag]);
 
   const handleHoverChange = useCallback((chartIdx: number | null) => {
-      setHoveredIndex(chartIdx === null ? null : snapshots.length - 1 - chartIdx);
-  }, [snapshots.length]);
+      setHoveredIndex(chartIdx === null ? null : activeSnapshots.length - 1 - chartIdx);
+  }, [activeSnapshots.length]);
 
   const handleMouseEnter = useCallback((idx: number) => {
       setHoveredIndex(idx);
@@ -236,8 +232,8 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
   const isLongPressTriggered = useRef<boolean>(false);
 
   const { maxes, maxAbsValues, minAbsValues } = useMemo(() => {
-    if (!snapshots?.length) return { maxes: {}, maxAbsValues: {}, minAbsValues: {} };
-    const operationalSnapshots = snapshots.filter(s => s.snapshotDate !== '基准持仓');
+    if (!activeSnapshots?.length) return { maxes: {}, maxAbsValues: {}, minAbsValues: {} };
+    const operationalSnapshots = activeSnapshots.filter(s => s.snapshotDate !== '基准持仓');
     const numericKeys: (keyof PortfolioSnapshot)[] = ['totalCostBasis', 'currentMarketValue', 'cumulativeValue', 'holdingProfit', 'totalProfit', 'profitRate', 'dailyProfit', 'dailyProfitRate', 'netAmountChange', 'marketValueChange', 'operationProfit', 'profitPerHundred', 'totalBuyAmount', 'totalBuyFloatingProfit', 'totalSellAmount', 'totalSellOpportunityProfit', 'totalSellRealizedProfit', 'profitCaused', 'profitCausedPerHundred', 'operationEffect'];
     const maxes: any = {}, maxAbs: any = {}, minAbs: any = {};
     numericKeys.forEach(k => {
@@ -250,20 +246,19 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
         }
     });
     return { maxes, maxAbsValues: maxAbs, minAbsValues: minAbs };
-  }, [snapshots]);
+  }, [activeSnapshots]);
 
   const summaryData = useMemo(() => {
-    if (!snapshots || snapshots.length < 2) return null;
-    const operationalSnapshots = snapshots.filter(s => s.snapshotDate !== '基准持仓');
-    if (!operationalSnapshots.length) return null;
+    if (!activeSnapshots.length) return null;
+    const operationalSnapshots = activeSnapshots.filter(s => s.snapshotDate !== '基准持仓');
     const sums = { netAmountChange: 0, marketValueChange: 0, operationProfit: 0, totalBuyAmount: 0, totalBuyFloatingProfit: 0, totalSellAmount: 0, totalSellOpportunityProfit: 0, totalSellRealizedProfit: 0, profitCaused: 0, totalDailyActionValue: 0 };
     operationalSnapshots.forEach(s => Object.keys(sums).forEach(k => (sums as any)[k] += (s as any)[k] || 0));
-    const latest = snapshots.find(s => s.snapshotDate !== '待成交') || snapshots[0];
-    const baseline = snapshots[snapshots.length - 1];
-    const effect = Math.abs(baseline.dailyProfit) > 1e-6 ? ((latest.dailyProfit - baseline.dailyProfit) / Math.abs(baseline.dailyProfit)) * 100 : 100;
+    const latest = activeSnapshots.find(s => s.snapshotDate !== '待成交') || activeSnapshots[0];
+    const baseline = snapshots[baselineIndex];
+    const effect = (baseline && Math.abs(baseline.dailyProfit) > 1e-6) ? ((latest.dailyProfit - baseline.dailyProfit) / Math.abs(baseline.dailyProfit)) * 100 : 100;
     const actionBaseSummary = Math.abs(sums.netAmountChange) || sums.totalDailyActionValue || 1;
     return { ...sums, profitPerHundred: actionBaseSummary > 1e-6 ? (sums.operationProfit / actionBaseSummary) * 100 : 0, profitCausedPerHundred: actionBaseSummary > 1e-6 ? (sums.profitCaused / actionBaseSummary) * 100 : 0, operationEffect: effect, floatingProfitPercent: sums.totalBuyAmount > 1e-6 ? (sums.totalBuyFloatingProfit / sums.totalBuyAmount) * 100 : 0, opportunityProfitPercent: sums.totalSellAmount > 1e-6 ? (sums.totalSellOpportunityProfit / sums.totalSellAmount) * 100 : 0, realizedProfitPercent: sums.totalSellAmount > 1e-6 ? (sums.totalSellRealizedProfit / sums.totalSellAmount) * 100 : 0 };
-  }, [snapshots]);
+  }, [activeSnapshots, snapshots, baselineIndex]);
 
   const sparklineColumns: { key: keyof PortfolioSnapshot; title: string; }[] = [{ key: 'totalCostBasis', title: '总成本' }, { key: 'currentMarketValue', title: '持有总值' }, { key: 'holdingProfit', title: '持有收益' }, { key: 'totalProfit', title: '累计收益' }, { key: 'profitRate', title: '累计收益率' }, { key: 'dailyProfit', title: '日收益' }, { key: 'dailyProfitRate', title: '日收益率' }];
   const summaryColumns: { key: string, title: string, render: (d: any) => React.ReactNode }[] = [
@@ -282,10 +277,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
   const handleLongPressStart = useCallback((date: string) => {
       if (date === '基准持仓') return;
       isLongPressTriggered.current = false;
-      longPressTimerRef.current = setTimeout(() => {
-          isLongPressTriggered.current = true;
-          onSnapshotFilter(date);
-      }, 800);
+      longPressTimerRef.current = setTimeout(() => { isLongPressTriggered.current = true; onSnapshotFilter(date); }, 800);
   }, [onSnapshotFilter]);
 
   const handleLongPressEnd = useCallback(() => {
@@ -293,26 +285,25 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
   }, []);
 
   const handleRowClick = useCallback((e: React.MouseEvent, s: PortfolioSnapshot) => {
-      if (isLongPressTriggered.current) {
-          isLongPressTriggered.current = false;
-          return;
+      if (isLongPressTriggered.current) { isLongPressTriggered.current = false; return; }
+      if (e.detail === 2 && s.snapshotDate !== '基准持仓') {
+          setSelectedSnapshot(s);
       }
-      
-      if (e.detail === 2) {
-          if (s.snapshotDate !== '基准持仓') {
-              setSelectedSnapshot(s);
-          }
-      }
+  }, []);
+
+  const handleSetBaseline = useCallback((date: string) => { 
+      setBaselineDate(date); 
+      setHoveredIndex(null); 
   }, []);
 
   return (
     <>
-      <div className="mt-6 bg-white dark:bg-gray-900 rounded-lg shadow-md p-4 select-none">
-        <div className="w-full">
+      <div className="mt-6 bg-white dark:bg-gray-900 rounded-lg shadow-md p-4 select-none overflow-x-auto">
+        <div className="min-w-full">
           <table className="w-full text-[11px] text-center border-collapse table-fixed">
             <thead className="bg-gray-50 dark:bg-gray-800 align-bottom sticky top-0 z-20">
                <tr>
-                <th rowSpan={2} className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 text-left align-middle w-20">切片日期</th>
+                <th rowSpan={2} className="px-1 py-0.5 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 text-left align-middle w-28">日期</th>
                 {sparklineColumns.map(col => (
                    <th key={String(col.key)} className={`px-1 py-0.5 text-right border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 ${thickBorderRightKeys.has(col.key as string) ? 'border-r-2 border-r-gray-400 dark:border-r-gray-500' : ''}`}>{col.title}</th>
                 ))}
@@ -334,22 +325,29 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
               </tr>
             </thead>
             <tbody onMouseLeave={() => setHoveredIndex(null)}>
-              {snapshots.map((s, i) => (
-                <SnapshotRow 
-                    key={s.snapshotDate} 
-                    snapshot={s} 
-                    index={i} 
-                    isHovered={hoveredIndex === i} 
-                    isSelected={selectedSnapshotDate === s.snapshotDate}
-                    onMouseEnter={handleMouseEnter}
-                    onRowClick={handleRowClick} 
-                    onLongPressStart={handleLongPressStart} 
-                    onLongPressEnd={handleLongPressEnd} 
-                    maxAbsValues={maxAbsValues} 
-                    minAbsValues={minAbsValues} 
-                    maxes={maxes} 
-                />
-              ))}
+              {snapshots.map((s, i) => {
+                  const isBaseline = s.snapshotDate === baselineDate;
+                  const isOutOfRange = baselineIndex !== -1 && i > baselineIndex;
+                  return (
+                    <SnapshotRow 
+                        key={s.snapshotDate} 
+                        snapshot={s} 
+                        index={i} 
+                        isHovered={hoveredIndex === i} 
+                        isSelected={selectedSnapshotDate === s.snapshotDate}
+                        isBaseline={isBaseline}
+                        isOutOfRange={isOutOfRange}
+                        onMouseEnter={handleMouseEnter}
+                        onRowClick={handleRowClick} 
+                        onLongPressStart={handleLongPressStart} 
+                        onLongPressEnd={handleLongPressEnd} 
+                        onSetBaseline={handleSetBaseline}
+                        maxAbsValues={maxAbsValues} 
+                        minAbsValues={minAbsValues} 
+                        maxes={maxes} 
+                    />
+                  );
+              })}
             </tbody>
           </table>
         </div>
