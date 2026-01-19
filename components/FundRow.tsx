@@ -72,9 +72,19 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
 
   const isTrendSignificant = useMemo(() => { if (!fund.trendInfo) return false; const change = fund.trendInfo.change; return (change < -4.5) || (change > 0 && change < 4.5); }, [fund.trendInfo]);
   
+  const handleSilentCopy = useCallback(() => {
+    navigator.clipboard.writeText(fund.code).catch(err => console.error('Silent copy failed', err));
+  }, [fund.code]);
+
   const handleTodayTrade = (type: 'buy' | 'sell') => {
+      handleSilentCopy();
       if (historicalDataForToday) onTrade(fund, historicalDataForToday.date, type, historicalDataForToday.unitNAV, true);
       else if (fund.realTimeData && fund.realTimeData.estimatedNAV > 0) onTrade(fund, fund.realTimeData.estimationTime.split(' ')[0], type, fund.realTimeData.estimatedNAV, false);
+  };
+
+  const handleHistoricalTrade = (date: string, type: 'buy' | 'sell', nav: number) => {
+      handleSilentCopy();
+      onTrade(fund, date, type, nav, true);
   };
 
   const todayDateStr = historicalDataForToday?.date || fund.realTimeData?.estimationTime.split(' ')[0];
@@ -89,6 +99,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
   const lastTransactionInfo = useMemo(() => {
     const records = fund.userPosition?.tradingRecords?.filter(r => r.nav !== undefined);
     if (!records || records.length === 0) return null;
+    // FIX: Replaced `new Date(b.getTime) - new Date(a.getTime)` with correct date string to timestamp conversion.
     const lastRecord = [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
     const latestNAV = latestNAVForComparison; if (!lastRecord || latestNAV <= 0 || !lastRecord.nav || lastRecord.nav <= 0) return null;
     const diffDays = Math.round((new Date().setHours(0,0,0,0) - new Date(lastRecord.date).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24));
@@ -168,7 +179,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
         return (
           <td key={date} className={`p-0 border-r border-gray-300 dark:border-gray-600 ${cellBgClass}`}>
             {point ? (
-              <div className="p-0"><div className="font-normal font-mono text-xs text-gray-800 dark:text-gray-200">{point.unitNAV.toFixed(4)}</div><div className={`text-sm font-semibold ${point.dailyGrowthRate.startsWith('-') ? 'text-green-600' : 'text-red-500'}`}>{point.dailyGrowthRate}</div>{!isNaN(diff) && <div className={`text-xs font-mono mt-1 ${diff >= 0 ? 'text-red-500' : 'text-green-600'}`}>{diff >= 0 ? '+' : ''}{diff.toFixed(2)}%</div>}{record ? <RecordLink onClick={() => onTrade(fund, date, record.type, record.nav!, true, record)} /> : pendingRecord ? <RecordLink onClick={() => onTrade(fund, date, pendingRecord.type, fund.realTimeData?.estimatedNAV || fund.latestNAV || 0, false, pendingRecord)} /> : <TradeLinks onTradeClick={(type) => onTrade(fund, date, type, point.unitNAV, true)} />}</div>
+              <div className="p-0"><div className="font-normal font-mono text-xs text-gray-800 dark:text-gray-200">{point.unitNAV.toFixed(4)}</div><div className={`text-sm font-semibold ${point.dailyGrowthRate.startsWith('-') ? 'text-green-600' : 'text-red-500'}`}>{point.dailyGrowthRate}</div>{!isNaN(diff) && <div className={`text-xs font-mono mt-1 ${diff >= 0 ? 'text-red-500' : 'text-green-600'}`}>{diff >= 0 ? '+' : ''}{diff.toFixed(2)}%</div>}{record ? <RecordLink onClick={() => onTrade(fund, date, record.type, record.nav!, true, record)} /> : pendingRecord ? <RecordLink onClick={() => onTrade(fund, date, pendingRecord.type, fund.realTimeData?.estimatedNAV || fund.latestNAV || 0, false, pendingRecord)} /> : <TradeLinks onTradeClick={(type) => handleHistoricalTrade(date, type, point.unitNAV)} />}</div>
             ) : <span className="text-gray-400">-</span>}
           </td>
         );
