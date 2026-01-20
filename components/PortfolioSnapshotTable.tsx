@@ -120,7 +120,7 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
         return '';
     };
 
-    let rowClasses = `transition-all duration-200 group border-b dark:border-gray-800 cursor-pointer select-none`;
+    let rowClasses = `transition-all duration-200 group border-b dark:border-gray-800 select-none`;
     if (isBaseline) {
         rowClasses += ' bg-blue-50 dark:bg-blue-900/30 font-bold shadow-inner';
     } else if (isOutOfRange) {
@@ -158,12 +158,12 @@ const SnapshotRow = React.memo<SnapshotRowProps>(({ snapshot, index, isHovered, 
                         checked={isBaseline} 
                         onChange={() => onSetBaseline(snapshot.snapshotDate)} 
                         onClick={(e) => e.stopPropagation()}
-                        className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                     {isPendingRow ? <span className="font-semibold text-yellow-700 dark:text-yellow-500">待成交</span> : (
                         <div className="flex items-center gap-1">
                             <span>{isBaselineRowLabel ? snapshot.snapshotDate : snapshot.snapshotDate.substring(2).replace(/-/g, '/')}</span>
-                            {daysAgo !== null && !isBaseline && <span className="text-gray-500 dark:text-gray-400 ml-1 text-[10px]">{daysAgo}</span>}
+                            {daysAgo !== null && <span className="text-gray-500 dark:text-gray-400 ml-1 text-[10px]">{daysAgo}</span>}
                         </div>
                     )}
                 </div>
