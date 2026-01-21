@@ -172,7 +172,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       });
 
       if (continuousPoints.length > 0) {
-          const pivots = calculateZigzag(continuousPoints, 0.3);
+          const pivots = calculateZigzag(continuousPoints, 0.5);
           pivots.forEach(pivot => {
               const target = iData[pivot.idx];
               if (target) target.zz = pivot.unitNAV;
