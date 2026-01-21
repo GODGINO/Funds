@@ -1,7 +1,6 @@
-
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { PortfolioSnapshot, ProcessedFund, TradingRecord, TransactionType } from '../types';
+import { PortfolioSnapshot, ProcessedFund, TradingRecord, TransactionType, TagSortOrder } from '../types';
 
 interface SnapshotDetailModalProps {
     isOpen: boolean;
@@ -54,7 +53,7 @@ const TypeBadge: React.FC<{ type: TransactionType }> = ({ type }) => {
         return <span className="inline-block px-1.5 py-0.5 text-[10px] leading-none font-medium rounded bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 ml-1">红利再投</span>;
     }
     if (type === 'dividend-cash') {
-        return <span className="inline-block px-1.5 py-0.5 text-[10px] leading-none font-medium rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 ml-1">现金分红</span>;
+        return <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 ml-1">现金分红</span>;
     }
     return null;
 };
@@ -89,6 +88,11 @@ const FundNameDisplay: React.FC<{ name: string; code: string }> = ({ name, code 
 };
 
 const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClose, snapshot, funds, onTagDoubleClick }) => {
+    const [buySortKey, setBuySortKey] = useState<string>('amount');
+    const [buySortOrder, setBuySortOrder] = useState<TagSortOrder>('desc');
+    const [sellSortKey, setSellSortKey] = useState<string>('amount');
+    const [sellSortOrder, setSellSortOrder] = useState<TagSortOrder>('desc');
+
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
@@ -106,6 +110,45 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
     const handleTagAction = (tag: string) => {
         onClose();
         onTagDoubleClick(tag);
+    };
+
+    const sortRecords = (records: any[], key: string, order: TagSortOrder) => {
+        return [...records].sort((a, b) => {
+            const valA = a[key] ?? 0;
+            const valB = b[key] ?? 0;
+            if (order === 'asc') return valA - valB;
+            if (order === 'desc') return valB - valA;
+            if (order === 'abs_asc') return Math.abs(valA) - Math.abs(valB);
+            if (order === 'abs_desc') return Math.abs(valB) - Math.abs(valA);
+            return 0;
+        });
+    };
+
+    const handleBuySortChange = useCallback((key: string) => {
+        if (buySortKey === key) {
+            setBuySortOrder(prev => (prev === 'desc' ? 'asc' : prev === 'asc' ? 'abs_asc' : prev === 'abs_asc' ? 'abs_desc' : 'desc'));
+        } else {
+            setBuySortKey(key);
+            setBuySortOrder('desc');
+        }
+    }, [buySortKey]);
+
+    const handleSellSortChange = useCallback((key: string) => {
+        if (sellSortKey === key) {
+            setSellSortOrder(prev => (prev === 'desc' ? 'asc' : prev === 'asc' ? 'abs_asc' : prev === 'abs_asc' ? 'abs_desc' : 'desc'));
+        } else {
+            setSellSortKey(key);
+            setSellSortOrder('desc');
+        }
+    }, [sellSortKey]);
+
+    const getSortIndicator = (key: string, currentKey: string, currentOrder: TagSortOrder) => {
+        if (key !== currentKey) return null;
+        if (currentOrder === 'desc') return '▼';
+        if (currentOrder === 'asc') return '▲';
+        if (currentOrder === 'abs_desc') return '|▼|';
+        if (currentOrder === 'abs_asc') return '|▲|';
+        return null;
     };
 
     const { detailedBuyRecords, buyTotals, detailedSellRecords, sellTotals, initialHoldings } = useMemo(() => {
@@ -158,7 +201,6 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
 
             const tags = position.tag ? position.tag.split(',').map(t => t.trim()).filter(Boolean) : [];
 
-            // FIX: Use explicit number type for prevShares and prevTotalCost to prevent TypeScript 'unknown' errors during complex arithmetic operations in nested loops.
             let prevShares: number = fund.initialUserPosition?.shares ?? 0;
             let prevTotalCost: number = (fund.initialUserPosition?.shares ?? 0) * (fund.initialUserPosition?.cost ?? 0);
 
@@ -181,7 +223,6 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                 }
             }
             
-            // FIX: Use explicit number variables to resolve TypeScript 'unknown' type errors in arithmetic operations.
             const prevAvgCost = prevShares > 0 ? prevTotalCost / prevShares : 0;
 
             recordsOnDate.forEach(record => {
@@ -190,7 +231,6 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                 const dailyProfitPerShare = (latestNAV > 0 && yesterdayNAV > 0) ? (latestNAV - yesterdayNAV) : 0;
                 
                 if (record.type === 'buy' || record.type === 'dividend-reinvest') {
-                    // FIX: Declare sChange, rAmount, and rNav as numbers to avoid 'unknown' errors.
                     let sChange: number = record.sharesChange ?? 0;
                     let rAmount: number = record.amount ?? 0;
                     let rNav: number = record.nav ?? 0;
@@ -239,7 +279,6 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     });
 
                 } else if (record.type === 'sell' || record.type === 'dividend-cash') { 
-                    // FIX: Declare sChange, rNav, rAmount, and realizedProfit as numbers to avoid 'unknown' errors.
                     let sChange: number = record.sharesChange ?? 0;
                     let rNav: number = record.nav ?? 0;
                     let rAmount: number = record.amount ?? 0; 
@@ -273,7 +312,6 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     const opportunityProfitPercent = (record.type === 'sell' && rNav > 0) ? ((rNav - latestNAV) / rNav) * 100 : 0;
                     const profitCausedPercent = Math.abs(rAmount) > 0 ? (profitCaused / Math.abs(rAmount)) * 100 : 0;
                         
-                    // FIX: Use explicit number variables and removed redundant 'as any' casts to resolve TypeScript 'unknown' type errors.
                     const realizedProfitPercent = (record.type === 'sell' && prevAvgCost > 0) 
                         ? ((rNav - prevAvgCost) / prevAvgCost) * 100 
                         : 0;
@@ -301,22 +339,22 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
         detailedBuys.forEach(r => {
             r.amountPercent = totalBuyAmount > 0 ? (r.amount / totalBuyAmount) * 100 : 0;
         });
-        detailedBuys.sort((a, b) => b.amount - a.amount);
+        const sortedBuys = sortRecords(detailedBuys, buySortKey, buySortOrder);
 
         detailedSells.forEach(r => {
             r.amountPercent = totalSellAmount > 0 ? (r.amount / totalSellAmount) * 100 : 0;
         });
-        detailedSells.sort((a, b) => b.amount - a.amount);
+        const sortedSells = sortRecords(detailedSells, sellSortKey, sellSortOrder);
 
         return { 
-            detailedBuyRecords: detailedBuys,
+            detailedBuyRecords: sortedBuys,
             buyTotals: { floatingProfit: totalBuyFloatingProfit, amount: totalBuyAmount, profitCaused: totalBuyProfitCaused },
-            detailedSellRecords: detailedSells,
+            detailedSellRecords: sortedSells,
             sellTotals: { opportunityProfit: totalSellOpportunityProfit, realizedProfit: totalSellRealizedProfit, amount: totalSellAmount, profitCaused: totalSellProfitCaused },
             initialHoldings: [] 
         };
 
-    }, [snapshot, funds]);
+    }, [snapshot, funds, buySortKey, buySortOrder, sellSortKey, sellSortOrder]);
     
     const uniqueBuyTags = useMemo(() => {
         const tagSet = new Set<string>();
@@ -374,22 +412,53 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
     );
 
     const renderBuyTable = () => (
-        <div className="overflow-x-auto h-full">
-            <table className="w-full text-sm text-left h-full">
-                <thead className="bg-gray-200 dark:bg-gray-700 h-fit">
+        <div className="">
+            <table className="w-full text-[11px] text-left border-collapse">
+                <thead className="bg-gray-200 dark:bg-gray-700 h-fit select-none sticky top-0 z-20">
                     <tr>
-                        <th className="p-2 whitespace-nowrap">基金名称</th>
-                        <th className="p-2 text-right whitespace-nowrap">份额变化</th>
-                        <th className="p-2 text-right whitespace-nowrap">成本变化</th>
-                        <th className="p-2 text-right whitespace-nowrap">造成今日盈亏</th>
-                        <th className="p-2 text-right whitespace-nowrap">{snapshot.snapshotDate === '待成交' ? '预估浮盈' : '浮盈'}</th>
-                        <th className="p-2 text-right whitespace-nowrap">买入</th>
+                        <th className="p-1 border dark:border-gray-600 whitespace-nowrap bg-gray-200 dark:bg-gray-700">
+                            <div>基金名称</div>
+                            <div className="font-mono font-normal text-gray-500">汇总</div>
+                        </th>
+                        <th className="p-1 text-right border dark:border-gray-600 whitespace-nowrap bg-gray-200 dark:bg-gray-700">
+                            <div>份额变化</div>
+                            <div className="font-mono font-normal text-gray-400">-</div>
+                        </th>
+                        <th className="p-1 text-right border dark:border-gray-600 whitespace-nowrap bg-gray-200 dark:bg-gray-700">
+                            <div>成本变化</div>
+                            <div className="font-mono font-normal text-gray-400">-</div>
+                        </th>
+                        <th 
+                            className="p-1 text-right border dark:border-gray-600 whitespace-nowrap cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600 bg-gray-200 dark:bg-gray-700"
+                            onClick={() => handleBuySortChange('profitCaused')}
+                        >
+                            <div>{getSortIndicator('profitCaused', buySortKey, buySortOrder)} 造成今日盈亏</div>
+                            <div className={`font-mono font-normal ${getProfitColor(buyTotals.profitCaused)}`}>
+                                {buyTotals.profitCaused >= 0 ? '+' : ''}{buyTotals.profitCaused.toFixed(2)}|{buyTotals.amount > 0 ? `${((buyTotals.profitCaused / buyTotals.amount) * 100) > 0 ? '+' : ''}${((buyTotals.profitCaused / buyTotals.amount) * 100).toFixed(2)}%` : '0.00%'}
+                            </div>
+                        </th>
+                        <th 
+                            className="p-1 text-right border dark:border-gray-600 whitespace-nowrap cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600 bg-gray-200 dark:bg-gray-700"
+                            onClick={() => handleBuySortChange('floatingProfit')}
+                        >
+                            <div>{getSortIndicator('floatingProfit', buySortKey, buySortOrder)} {snapshot.snapshotDate === '待成交' ? '预估浮盈' : '浮盈'}</div>
+                            <div className={`font-mono font-normal ${getProfitColor(buyTotals.floatingProfit)}`}>
+                                {buyTotals.floatingProfit.toFixed(2)}|{buyTotals.amount > 0 ? `${((buyTotals.floatingProfit / buyTotals.amount) * 100) > 0 ? '+' : ''}${((buyTotals.floatingProfit / buyTotals.amount) * 100).toFixed(2)}%` : '0.00%'}
+                            </div>
+                        </th>
+                        <th 
+                            className="p-1 text-right border dark:border-gray-600 whitespace-nowrap cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600 bg-gray-200 dark:bg-gray-700"
+                            onClick={() => handleBuySortChange('amount')}
+                        >
+                            <div>{getSortIndicator('amount', buySortKey, buySortOrder)} 买入</div>
+                            <div className="font-mono font-normal text-gray-500">{buyTotals.amount.toFixed(2)}</div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
                     {detailedBuyRecords.map((record, index) => (
-                        <tr key={`buy-${index}`} className="border-b dark:border-gray-700 h-fit">
-                            <td className="p-2">
+                        <tr key={`buy-${index}`} className="border-b dark:border-gray-700 h-fit hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                            <td className="p-1">
                                 <FundNameDisplay name={record.fundName} code={record.fundCode} />
                                 <TypeBadge type={record.type} />
                                 {record.tags && record.tags.length > 0 && (
@@ -400,78 +469,86 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                                     </div>
                                 )}
                             </td>
-                            <td className="p-2 text-right font-mono">
+                            <td className="p-1 text-right font-mono">
                                 <div className={getProfitColor(1)}>+{record.sharesChange.toFixed(2)}</div>
-                                <div className={`${getProfitColor(1)} text-xs`}>+{record.sharesChangePercent.toFixed(2)}%</div>
+                                <div className={`${getProfitColor(1)} opacity-70`}>+{record.sharesChangePercent.toFixed(2)}%</div>
                             </td>
-                            <td className="p-2 text-right font-mono">
+                            <td className="p-1 text-right font-mono text-gray-500">
                                 <div className={getProfitColor(record.costChange * -1)}>{record.costChange.toFixed(4)}</div>
-                                <div className={`${getProfitColor(record.costChange * -1)} text-xs`}>{`${record.costChangePercent > 0 ? '+' : ''}${record.costChangePercent.toFixed(2)}%`}</div>
+                                <div className={`opacity-70`}>{`${record.costChangePercent > 0 ? '+' : ''}${record.costChangePercent.toFixed(2)}%`}</div>
                             </td>
-                            <td className="p-2 text-right font-mono">
+                            <td className="p-1 text-right font-mono">
                                 <div className={getProfitColor(record.profitCaused)}>{record.profitCaused >= 0 ? '+' : ''}{record.profitCaused.toFixed(2)}</div>
-                                <div className={`${getProfitColor(record.profitCaused)} text-xs`}>{`${record.profitCausedPercent >= 0 ? '+' : ''}${record.profitCausedPercent.toFixed(2)}%`}</div>
+                                <div className={`${getProfitColor(record.profitCaused)} opacity-70`}>{`${record.profitCausedPercent >= 0 ? '+' : ''}${record.profitCausedPercent.toFixed(2)}%`}</div>
                             </td>
-                            <td className="p-2 text-right font-mono">
+                            <td className="p-1 text-right font-mono">
                                 <div className={getProfitColor(record.floatingProfit)}>{record.floatingProfit.toFixed(2)}</div>
-                                <div className={`${getProfitColor(record.floatingProfit)} text-xs`}>{`${record.floatingProfitPercent > 0 ? '+' : ''}${record.floatingProfitPercent.toFixed(2)}%`}</div>
+                                <div className={`${getProfitColor(record.floatingProfit)} opacity-70`}>{`${record.floatingProfitPercent > 0 ? '+' : ''}${record.floatingProfitPercent.toFixed(2)}%`}</div>
                             </td>
-                            <td className="p-2 text-right font-mono">
+                            <td className="p-1 text-right font-mono">
                                 <div>{record.amount.toFixed(2)}</div>
-                                <div className="text-gray-500 dark:text-gray-400 text-xs">{record.amountPercent.toFixed(1)}%</div>
+                                <div className="text-gray-500 dark:text-gray-400 opacity-70">{record.amountPercent.toFixed(1)}%</div>
                             </td>
                         </tr>
                     ))}
-                    <tr className="border-none bg-transparent">
-                        <td colSpan={6} className="p-0 border-none h-full"></td>
-                    </tr>
                 </tbody>
-                <tfoot className="h-fit">
-                    <tr className="border-t dark:border-gray-600 font-bold">
-                        <td className="p-2 text-left" colSpan={2}>汇总</td>
-                        <td className="p-2 text-right font-mono"></td>
-                        <td className="p-2 text-right font-mono">
-                            <div className={getProfitColor(buyTotals.profitCaused)}>{buyTotals.profitCaused >= 0 ? '+' : ''}{buyTotals.profitCaused.toFixed(2)}</div>
-                            <div className={`${getProfitColor(buyTotals.profitCaused)} text-xs font-normal`}>
-                                {buyTotals.amount > 0 
-                                    ? `${((buyTotals.profitCaused / buyTotals.amount) * 100) > 0 ? '+' : ''}${((buyTotals.profitCaused / buyTotals.amount) * 100).toFixed(2)}%`
-                                    : '0.00%'
-                                }
-                            </div>
-                        </td>
-                        <td className="p-2 text-right font-mono">
-                            <div className={getProfitColor(buyTotals.floatingProfit)}>{buyTotals.floatingProfit.toFixed(2)}</div>
-                            <div className={`${getProfitColor(buyTotals.floatingProfit)} text-xs font-normal`}>
-                                {buyTotals.amount > 0 
-                                    ? `${((buyTotals.floatingProfit / buyTotals.amount) * 100) > 0 ? '+' : ''}${((buyTotals.floatingProfit / buyTotals.amount) * 100).toFixed(2)}%`
-                                    : '0.00%'
-                                }
-                            </div>
-                        </td>
-                        <td className="p-2 text-right font-mono">{buyTotals.amount.toFixed(2)}</td>
-                    </tr>
-                </tfoot>
             </table>
         </div>
     );
 
     const renderSellTable = () => (
-        <div className="overflow-x-auto h-full">
-            <table className="w-full text-sm text-left h-full">
-                <thead className="bg-gray-200 dark:bg-gray-700 h-fit">
+        <div className="">
+            <table className="w-full text-[11px] text-left border-collapse">
+                <thead className="bg-gray-200 dark:bg-gray-700 h-fit select-none sticky top-0 z-20">
                     <tr>
-                        <th className="p-2 whitespace-nowrap">基金名称</th>
-                        <th className="p-2 text-right whitespace-nowrap">份额变化</th>
-                        <th className="p-2 text-right whitespace-nowrap">造成今日盈亏</th>
-                        <th className="p-2 text-right whitespace-nowrap">{snapshot.snapshotDate === '待成交' ? '预估机会收益' : '机会收益'}</th>
-                        <th className="p-2 text-right whitespace-nowrap">{snapshot.snapshotDate === '待成交' ? '预估落袋' : '落袋'}</th>
-                        <th className="p-2 text-right whitespace-nowrap">到账</th>
+                        <th className="p-1 border dark:border-gray-600 whitespace-nowrap bg-gray-200 dark:bg-gray-700">
+                            <div>基金名称</div>
+                            <div className="font-mono font-normal text-gray-500">汇总</div>
+                        </th>
+                        <th className="p-1 text-right border dark:border-gray-600 whitespace-nowrap bg-gray-200 dark:bg-gray-700">
+                            <div>份额变化</div>
+                            <div className="font-mono font-normal text-gray-400">-</div>
+                        </th>
+                        <th 
+                            className="p-1 text-right border dark:border-gray-600 whitespace-nowrap cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600 bg-gray-200 dark:bg-gray-700"
+                            onClick={() => handleSellSortChange('profitCaused')}
+                        >
+                            <div>{getSortIndicator('profitCaused', sellSortKey, sellSortOrder)} 造成今日盈亏</div>
+                            <div className={`font-mono font-normal ${getProfitColor(sellTotals.profitCaused)}`}>
+                                {sellTotals.profitCaused >= 0 ? '+' : ''}{sellTotals.profitCaused.toFixed(2)}|{sellTotals.amount > 0 ? `${((sellTotals.profitCaused / sellTotals.amount) * 100) > 0 ? '+' : ''}${((sellTotals.profitCaused / sellTotals.amount) * 100).toFixed(2)}%` : '0.00%'}
+                            </div>
+                        </th>
+                        <th 
+                            className="p-1 text-right border dark:border-gray-600 whitespace-nowrap cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600 bg-gray-200 dark:bg-gray-700"
+                            onClick={() => handleSellSortChange('opportunityProfit')}
+                        >
+                            <div>{getSortIndicator('opportunityProfit', sellSortKey, sellSortOrder)} {snapshot.snapshotDate === '待成交' ? '预估机会收益' : '机会收益'}</div>
+                            <div className={`font-mono font-normal ${getProfitColor(sellTotals.opportunityProfit)}`}>
+                                {sellTotals.opportunityProfit.toFixed(2)}|{sellTotals.amount > 0 ? `${((sellTotals.opportunityProfit / sellTotals.amount) * 100) > 0 ? '+' : ''}${((sellTotals.opportunityProfit / sellTotals.amount) * 100).toFixed(2)}%` : '0.00%'}
+                            </div>
+                        </th>
+                        <th 
+                            className="p-1 text-right border dark:border-gray-600 whitespace-nowrap cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600 bg-gray-200 dark:bg-gray-700"
+                            onClick={() => handleSellSortChange('realizedProfit')}
+                        >
+                            <div>{getSortIndicator('realizedProfit', sellSortKey, sellSortOrder)} {snapshot.snapshotDate === '待成交' ? '预估落袋' : '落袋'}</div>
+                            <div className={`font-mono font-normal ${getProfitColor(sellTotals.realizedProfit)}`}>
+                                {sellTotals.realizedProfit.toFixed(2)}|{sellTotals.amount > 0 ? `${((sellTotals.realizedProfit / sellTotals.amount) * 100) > 0 ? '+' : ''}${((sellTotals.realizedProfit / sellTotals.amount) * 100).toFixed(2)}%` : '0.00%'}
+                            </div>
+                        </th>
+                        <th 
+                            className="p-1 text-right border dark:border-gray-600 whitespace-nowrap cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600 bg-gray-200 dark:bg-gray-700"
+                            onClick={() => handleSellSortChange('amount')}
+                        >
+                            <div>{getSortIndicator('amount', sellSortKey, sellSortOrder)} 到账</div>
+                            <div className="font-mono font-normal text-gray-500">{sellTotals.amount.toFixed(2)}</div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
                     {detailedSellRecords.map((record, index) => (
-                        <tr key={`sell-${index}`} className="border-b dark:border-gray-700 h-fit">
-                            <td className="p-2">
+                        <tr key={`sell-${index}`} className="border-b dark:border-gray-700 h-fit hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                            <td className="p-1">
                                 <FundNameDisplay name={record.fundName} code={record.fundCode} />
                                 <TypeBadge type={record.type} />
                                 {record.tags && record.tags.length > 0 && (
@@ -482,65 +559,29 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                                     </div>
                                 )}
                             </td>
-                            <td className="p-2 text-right font-mono">
+                            <td className="p-1 text-right font-mono">
                                 <div className={getProfitColor(record.sharesChange)}>{record.sharesChange.toFixed(2)}</div>
-                                <div className={`${getProfitColor(record.sharesChange)} text-xs`}>{record.sharesChangePercent.toFixed(2)}%</div>
+                                <div className={`${getProfitColor(record.sharesChange)} opacity-70`}>{record.sharesChangePercent.toFixed(2)}%</div>
                             </td>
-                            <td className="p-2 text-right font-mono">
+                            <td className="p-1 text-right font-mono">
                                 <div className={getProfitColor(record.profitCaused)}>{record.profitCaused >= 0 ? '+' : ''}{record.profitCaused.toFixed(2)}</div>
-                                <div className={`${getProfitColor(record.profitCaused)} text-xs`}>{`${record.profitCausedPercent >= 0 ? '+' : ''}${record.profitCausedPercent.toFixed(2)}%`}</div>
+                                <div className={`${getProfitColor(record.profitCaused)} opacity-70`}>{`${record.profitCausedPercent >= 0 ? '+' : ''}${record.profitCausedPercent.toFixed(2)}%`}</div>
                             </td>
-                            <td className="p-2 text-right font-mono">
+                            <td className="p-1 text-right font-mono">
                                 <div className={getProfitColor(record.opportunityProfit)}>{`${record.opportunityProfit > 0 ? '+' : ''}${record.opportunityProfit.toFixed(2)}`}</div>
-                                <div className={`${getProfitColor(record.opportunityProfit)} text-xs`}>{`${record.opportunityProfitPercent > 0 ? '+' : ''}${record.opportunityProfitPercent.toFixed(2)}%`}</div>
+                                <div className={`${getProfitColor(record.opportunityProfit)} opacity-70`}>{`${record.opportunityProfitPercent > 0 ? '+' : ''}${record.opportunityProfitPercent.toFixed(2)}%`}</div>
                             </td>
-                            <td className="p-2 text-right font-mono">
+                            <td className="p-1 text-right font-mono">
                                 <div className={getProfitColor(record.realizedProfit)}>{record.realizedProfit.toFixed(2)}</div>
-                                <div className={`${[getProfitColor(record.realizedProfit)]} text-xs`}>{`${record.realizedProfitPercent > 0 ? '+' : ''}${record.realizedProfitPercent.toFixed(2)}%`}</div>
+                                <div className={`${[getProfitColor(record.realizedProfit)]} opacity-70`}>{`${record.realizedProfitPercent > 0 ? '+' : ''}${record.realizedProfitPercent.toFixed(2)}%`}</div>
                             </td>
-                            <td className="p-2 text-right font-mono">
+                            <td className="p-1 text-right font-mono">
                                 <div>{record.amount.toFixed(2)}</div>
-                                <div className="text-gray-500 dark:text-gray-400 text-xs">{record.amountPercent.toFixed(1)}%</div>
+                                <div className="text-gray-500 dark:text-gray-400 opacity-70">{record.amountPercent.toFixed(1)}%</div>
                             </td>
                         </tr>
                     ))}
-                    <tr className="border-none bg-transparent">
-                        <td colSpan={6} className="p-0 border-none h-full"></td>
-                    </tr>
                 </tbody>
-                <tfoot className="h-fit">
-                    <tr className="border-t dark:border-gray-600 font-bold">
-                        <td className="p-2 text-left" colSpan={2}>汇总</td>
-                        <td className="p-2 text-right font-mono">
-                            <div className={getProfitColor(sellTotals.profitCaused)}>{sellTotals.profitCaused >= 0 ? '+' : ''}{sellTotals.profitCaused.toFixed(2)}</div>
-                            <div className={`${getProfitColor(sellTotals.profitCaused)} text-xs font-normal`}>
-                                {sellTotals.amount > 0 
-                                    ? `${((sellTotals.profitCaused / sellTotals.amount) * 100) > 0 ? '+' : ''}${((sellTotals.profitCaused / sellTotals.amount) * 100).toFixed(2)}%`
-                                    : '0.00%'
-                                }
-                            </div>
-                        </td>
-                        <td className="p-2 text-right font-mono">
-                            <div className={getProfitColor(sellTotals.opportunityProfit)}>{`${sellTotals.opportunityProfit > 0 ? '+' : ''}${sellTotals.opportunityProfit.toFixed(2)}`}</div>
-                            <div className={`${getProfitColor(sellTotals.opportunityProfit)} text-xs font-normal`}>
-                                {sellTotals.amount > 0 
-                                    ? `${((sellTotals.opportunityProfit / sellTotals.amount) * 100) > 0 ? '+' : ''}${((sellTotals.opportunityProfit / sellTotals.amount) * 100).toFixed(2)}%`
-                                    : '0.00%'
-                                }
-                            </div>
-                        </td>
-                        <td className="p-2 text-right font-mono">
-                            <div className={getProfitColor(sellTotals.realizedProfit)}>{sellTotals.realizedProfit.toFixed(2)}</div>
-                            <div className={`${getProfitColor(sellTotals.realizedProfit)} text-xs font-normal`}>
-                                {sellTotals.amount > 0 
-                                    ? `${((sellTotals.realizedProfit / sellTotals.amount) * 100) > 0 ? '+' : ''}${((sellTotals.realizedProfit / sellTotals.amount) * 100).toFixed(2)}%`
-                                    : '0.00%'
-                                }
-                            </div>
-                        </td>
-                        <td className="p-2 text-right font-mono">{sellTotals.amount.toFixed(2)}</td>
-                    </tr>
-                </tfoot>
             </table>
         </div>
     );
@@ -548,9 +589,9 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
     const renderTransactionTables = () => {
         if (hasOnlyOneType) {
              return (
-                 <div className="mx-auto w-full max-w-2xl flex flex-col h-full">
+                 <div className="mx-auto w-full max-w-2xl flex flex-col items-start px-6">
                      {hasBuys ? renderBuyHeader() : renderSellHeader()}
-                     <div className="flex-1 mt-0">
+                     <div className="w-full">
                          {hasBuys ? renderBuyTable() : renderSellTable()}
                      </div>
                  </div>
@@ -558,20 +599,14 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
         }
 
         return (
-            <div className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-[auto_1fr] gap-x-6 gap-y-0 h-full">
-                <div className="order-1 md:order-none md:col-start-1 md:row-start-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-0 items-start px-6">
+                <div className="flex flex-col">
                     {renderBuyHeader()}
+                    {renderBuyTable()}
                 </div>
                 
-                <div className="order-2 md:order-none md:col-start-1 md:row-start-2 overflow-x-auto h-full mb-6 md:mb-0">
-                     {renderBuyTable()}
-                </div>
-
-                <div className="order-3 md:order-none md:col-start-2 md:row-start-1">
+                <div className="flex flex-col mt-6 md:mt-0">
                     {renderSellHeader()}
-                </div>
-
-                <div className="order-4 md:order-none md:col-start-2 md:row-start-2 overflow-x-auto h-full">
                     {renderSellTable()}
                 </div>
             </div>
@@ -581,25 +616,25 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
     if (!isOpen) return null;
 
     const renderInitialHoldingsTable = () => (
-        <div className="flex justify-center">
+        <div className="flex justify-center p-6">
             <div className="w-full max-w-3xl">
                 <h4 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">
                     初始持仓
                 </h4>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-200 dark:bg-gray-700">
+                        <thead className="bg-gray-200 dark:bg-gray-700 sticky top-0">
                             <tr>
-                                <th className="p-2">基金名称</th>
-                                <th className="p-2 text-right">初始份额</th>
-                                <th className="p-2 text-right">初始成本</th>
-                                <th className="p-2 text-right">初始总成本</th>
-                                <th className="p-2 text-right">落袋收益</th>
+                                <th className="p-2 border dark:border-gray-600">基金名称</th>
+                                <th className="p-2 text-right border dark:border-gray-600">初始份额</th>
+                                <th className="p-2 text-right border dark:border-gray-600">初始成本</th>
+                                <th className="p-2 text-right border dark:border-gray-600">初始总成本</th>
+                                <th className="p-2 text-right border dark:border-gray-600">落袋收益</th>
                             </tr>
                         </thead>
                         <tbody>
                             {initialHoldings.map((h, index) => (
-                                <tr key={`${h.name}-${index}`} className="border-b dark:border-gray-700">
+                                <tr key={`${h.name}-${index}`} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40">
                                     <td className="p-2">
                                         <FundNameDisplay name={h.name} code={h.fundCode} />
                                         {h.tags && h.tags.length > 0 && (
@@ -652,14 +687,14 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     </button>
                 </div>
 
-                <div className="p-6 overflow-y-auto flex-1">
+                <div className="overflow-y-auto flex-1 pt-0">
                     {snapshot.snapshotDate === '基准持仓' ? (
-                        initialHoldings.length > 0 ? renderInitialHoldingsTable() : <p className="text-center text-gray-500 dark:text-gray-400">无初始持仓记录。</p>
+                        initialHoldings.length > 0 ? renderInitialHoldingsTable() : <p className="p-6 text-center text-gray-500 dark:text-gray-400">无初始持仓记录。</p>
                     ) : (
                         (hasBuys || hasSells) ? (
-                            renderTransactionTables()
+                            <div className="pt-6">{renderTransactionTables()}</div>
                         ) : (
-                            <p className="text-center text-gray-500 dark:text-gray-400">该日期无交易记录。</p>
+                            <p className="p-6 text-center text-gray-500 dark:text-gray-400">该日期无交易记录。</p>
                         )
                     )}
                 </div>
