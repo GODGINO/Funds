@@ -298,7 +298,7 @@ const PortfolioSnapshotTable: React.FC<PortfolioSnapshotTableProps> = ({ snapsho
 
   return (
     <>
-      <div className="mt-6 bg-white dark:bg-gray-900 rounded-lg shadow-md p-4 select-none overflow-x-auto">
+      <div className="mt-6 bg-white dark:bg-gray-900 rounded-lg shadow-md p-4 select-none">
         <div className="min-w-full">
           <table className="w-full text-[11px] text-center border-collapse table-fixed">
             <thead className="bg-gray-50 dark:bg-gray-800 align-bottom sticky top-0 z-20">
