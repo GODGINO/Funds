@@ -53,6 +53,8 @@ const RecordLink: React.FC<{ onClick: () => void }> = ({ onClick }) => (
 
 const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onTagDoubleClick, onTrade, onSnapshotFilter, activeSort, totalPortfolioValue = 0, marketValueRank = 0 }) => {
   const [isCopied, setIsCopied] = useState(false);
+  const [activeHoverDate, setActiveHoverDate] = useState<string | null>(null);
+
   const { trendInfo, baseChartData, zigzagPoints, lastPivotDate, navPercentile } = fund;
   const dataMap = useMemo(() => new Map<string, FundDataPoint>(fund.data.map(p => [p.date, p])), [fund.data]);
   const confirmedRecordMap = useMemo(() => new Map<string, TradingRecord>((fund.userPosition?.tradingRecords || []).filter(r => r.nav !== undefined).map(r => [r.date, r])), [fund.userPosition?.tradingRecords]);
@@ -99,7 +101,6 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
   const lastTransactionInfo = useMemo(() => {
     const records = fund.userPosition?.tradingRecords?.filter(r => r.nav !== undefined);
     if (!records || records.length === 0) return null;
-    // FIX: Replaced `new Date(b.getTime) - new Date(a.getTime)` with correct date string to timestamp conversion.
     const lastRecord = [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
     const latestNAV = latestNAVForComparison; if (!lastRecord || latestNAV <= 0 || !lastRecord.nav || lastRecord.nav <= 0) return null;
     const diffDays = Math.round((new Date().setHours(0,0,0,0) - new Date(lastRecord.date).setHours(0,0,0,0)) / (1000 * 60 * 60 * 24));
@@ -136,6 +137,12 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
       );
   }, [fund.marketValue, totalPortfolioValue, marketValueRank]);
 
+  // Hover 样式逻辑：仅保留虚线边框效果，移除背景填充，添加 z-index 确保可见性
+  const getHoverClasses = (date: string | undefined) => {
+    if (!date || date !== activeHoverDate) return "";
+    return "outline-2 outline-dashed outline-primary-500 -outline-offset-2 z-[10]";
+  };
+
   return (
     <tr className="border-b border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50">
       <td className={`p-0 border-r border-gray-300 dark:border-gray-600 text-left md:sticky md:left-0 md:z-[10] w-[250px] min-w-[250px] ${isTrendSignificant ? 'bg-gray-200 dark:bg-gray-700' : 'bg-white dark:bg-gray-900'}`} onDoubleClick={() => onShowDetails(fund)}>
@@ -159,10 +166,27 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
       </td>
       <td className="p-0 border-r border-gray-300 dark:border-gray-600 w-[450px] min-w-[450px] md:sticky md:left-[0px] bg-white dark:bg-gray-900 md:z-[5] relative">
         <div className="absolute inset-0">
-          <FundChart baseChartData={baseChartData} zigzagPoints={zigzagPoints} shares={fund.userPosition?.shares ?? 0} lastPivotDate={lastPivotDate} costPrice={fund.userPosition?.cost && fund.userPosition.cost > 0 ? fund.userPosition.cost : null} actualCostPrice={fund.actualCost && fund.actualCost > 0 ? fund.actualCost : null} showLabels={false} navPercentile={navPercentile} tradingRecords={fund.userPosition?.tradingRecords} onSnapshotFilter={onSnapshotFilter} />
+          <FundChart 
+            baseChartData={baseChartData} 
+            zigzagPoints={zigzagPoints} 
+            shares={fund.userPosition?.shares ?? 0} 
+            lastPivotDate={lastPivotDate} 
+            costPrice={fund.userPosition?.cost && fund.userPosition.cost > 0 ? fund.userPosition.cost : null} 
+            actualCostPrice={fund.actualCost && fund.actualCost > 0 ? fund.actualCost : null} 
+            showLabels={false} 
+            navPercentile={navPercentile} 
+            tradingRecords={fund.userPosition?.tradingRecords} 
+            onSnapshotFilter={onSnapshotFilter} 
+            externalHoverDate={activeHoverDate}
+            onHoverDateChange={setActiveHoverDate}
+          />
         </div>
       </td>
-      <td className={`p-0 border-r border-gray-300 dark:border-gray-600 w-[60px] min-w-[60px] ${todayTransaction ? (todayTransaction.type === 'buy' || todayTransaction.type === 'dividend-reinvest' ? 'bg-red-50 dark:bg-red-900/20' : todayTransaction.type === 'dividend-cash' ? 'bg-yellow-50 dark:bg-yellow-900/20' : 'bg-blue-50 dark:bg-blue-900/20') : 'bg-white dark:bg-gray-900'}`}>
+      <td 
+        className={`p-0 border-r border-gray-300 dark:border-gray-600 w-[60px] min-w-[60px] relative ${getHoverClasses(todayDateStr)} ${todayTransaction ? (todayTransaction.type === 'buy' || todayTransaction.type === 'dividend-reinvest' ? 'bg-red-50 dark:bg-red-900/20' : todayTransaction.type === 'dividend-cash' ? 'bg-yellow-50 dark:bg-yellow-900/20' : 'bg-blue-50 dark:bg-blue-900/20') : 'bg-white dark:bg-gray-900'}`}
+        onMouseEnter={() => todayDateStr && setActiveHoverDate(todayDateStr)}
+        onMouseLeave={() => setActiveHoverDate(null)}
+      >
         <div className="p-0">
             {historicalDataForToday ? (
               <><div className="font-normal font-mono text-xs text-gray-800 dark:text-gray-200">{historicalDataForToday.unitNAV.toFixed(4)}</div><div className={`text-sm font-semibold ${historicalDataForToday.dailyGrowthRate.startsWith('-') ? 'text-green-600' : 'text-red-500'}`}>{historicalDataForToday.dailyGrowthRate}</div><div className="text-xs text-gray-500 dark:text-gray-400 mt-1">已确认</div></>
@@ -177,7 +201,12 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
         let diff = (point && latestNAVForComparison > 0) ? ((latestNAVForComparison - point.unitNAV) / point.unitNAV) * 100 : NaN;
         let cellBgClass = transaction ? (transaction.type === 'buy' || transaction.type === 'dividend-reinvest' ? (pivotDateSet.has(date) ? 'bg-red-200 dark:bg-red-900/60' : 'bg-red-50 dark:bg-red-900/20') : transaction.type === 'dividend-cash' ? (pivotDateSet.has(date) ? 'bg-yellow-200 dark:bg-yellow-900/60' : 'bg-yellow-50 dark:bg-yellow-900/20') : (pivotDateSet.has(date) ? 'bg-blue-200 dark:bg-blue-900/60' : 'bg-blue-50 dark:bg-blue-900/20')) : (pivotDateSet.has(date) ? 'bg-gray-200 dark:bg-gray-700' : '');
         return (
-          <td key={date} className={`p-0 border-r border-gray-300 dark:border-gray-600 ${cellBgClass}`}>
+          <td 
+            key={date} 
+            className={`p-0 border-r border-gray-300 dark:border-gray-600 relative ${cellBgClass} ${getHoverClasses(date)}`}
+            onMouseEnter={() => setActiveHoverDate(date)}
+            onMouseLeave={() => setActiveHoverDate(null)}
+          >
             {point ? (
               <div className="p-0"><div className="font-normal font-mono text-xs text-gray-800 dark:text-gray-200">{point.unitNAV.toFixed(4)}</div><div className={`text-sm font-semibold ${point.dailyGrowthRate.startsWith('-') ? 'text-green-600' : 'text-red-500'}`}>{point.dailyGrowthRate}</div>{!isNaN(diff) && <div className={`text-xs font-mono mt-1 ${diff >= 0 ? 'text-red-500' : 'text-green-600'}`}>{diff >= 0 ? '+' : ''}{diff.toFixed(2)}%</div>}{record ? <RecordLink onClick={() => onTrade(fund, date, record.type, record.nav!, true, record)} /> : pendingRecord ? <RecordLink onClick={() => onTrade(fund, date, pendingRecord.type, fund.realTimeData?.estimatedNAV || fund.latestNAV || 0, false, pendingRecord)} /> : <TradeLinks onTradeClick={(type) => handleHistoricalTrade(date, type, point.unitNAV)} />}</div>
             ) : <span className="text-gray-400">-</span>}

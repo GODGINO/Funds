@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useCallback, useRef } from 'react';
+
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, XAxis, ReferenceArea, Tooltip, ReferenceDot } from 'recharts';
 import { FundDataPoint, TradingRecord, TransactionType } from '../types';
 
@@ -29,6 +30,9 @@ interface FundChartProps {
   tradingRecords?: TradingRecord[];
   forceActualCostPosition?: boolean;
   onSnapshotFilter?: (date: string) => void;
+  // 双向 Hover 关联
+  externalHoverDate?: string | null;
+  onHoverDateChange?: (date: string | null) => void;
 }
 
 const getProfitColor = (value: number) => value >= 0 ? 'text-red-500' : 'text-green-600';
@@ -107,7 +111,7 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
     return null;
 };
 
-const FundChart: React.FC<FundChartProps> = ({ baseChartData, zigzagPoints, shares, lastPivotDate, costPrice, actualCostPrice, showLabels = true, navPercentile, tradingRecords, forceActualCostPosition = false, onSnapshotFilter }) => {
+const FundChart: React.FC<FundChartProps> = ({ baseChartData, zigzagPoints, shares, lastPivotDate, costPrice, actualCostPrice, showLabels = true, navPercentile, tradingRecords, forceActualCostPosition = false, onSnapshotFilter, externalHoverDate, onHoverDateChange }) => {
   const [localBaselineDate, setLocalBaselineDate] = useState<string | null>(null);
   const [hoveredNAV, setHoveredNAV] = useState<number | null>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -156,10 +160,19 @@ const FundChart: React.FC<FundChartProps> = ({ baseChartData, zigzagPoints, shar
     if (state && state.activeTooltipIndex !== undefined) {
       setHoveredIndex(state.activeTooltipIndex);
       const point = chartDataForRender[state.activeTooltipIndex];
-      if (point && typeof point.unitNAV === 'number') { setHoveredNAV(point.unitNAV); return; }
+      if (point && typeof point.unitNAV === 'number') { 
+        setHoveredNAV(point.unitNAV); 
+        // 向外通知日期
+        if (onHoverDateChange && point.date) {
+            onHoverDateChange(point.date.split(' ')[0]);
+        }
+        return; 
+      }
     }
-    setHoveredNAV(null); setHoveredIndex(null);
-  }, [chartDataForRender]);
+    setHoveredNAV(null); 
+    setHoveredIndex(null);
+    if (onHoverDateChange) onHoverDateChange(null);
+  }, [chartDataForRender, onHoverDateChange]);
 
   const startLongPress = useCallback((date: string) => {
       if (!onSnapshotFilter) return;
@@ -176,10 +189,21 @@ const FundChart: React.FC<FundChartProps> = ({ baseChartData, zigzagPoints, shar
     }
   }, [hoveredIndex, chartDataForRender, startLongPress]);
 
+  // 处理外部 hover 传入的索引
+  const activeTooltipIndex = useMemo(() => {
+    if (hoveredIndex !== null) return hoveredIndex;
+    if (externalHoverDate) {
+        const idx = chartDataForRender.findIndex(p => p.date && p.date.startsWith(externalHoverDate));
+        return idx !== -1 ? idx : undefined;
+    }
+    return undefined;
+  }, [hoveredIndex, externalHoverDate, chartDataForRender]);
+
   return (
     <div className="relative w-full h-full" onMouseDown={handleContainerMouseDown} onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress} onTouchStart={handleContainerMouseDown} onTouchEnd={cancelLongPress}>
       <ResponsiveContainer minWidth={0}>
-        <LineChart data={chartDataForRender} margin={{ top: 5, right: 5, left: 5, bottom: 5 }} onClick={handleChartClick} onMouseMove={handleMouseMove} onMouseLeave={() => { setHoveredNAV(null); setHoveredIndex(null); cancelLongPress(); }} style={{ cursor: 'pointer' }}>
+        {/* FIX: Removed invalid 'activeTooltipIndex' prop from LineChart as it is not supported in recharts and caused a type error. */}
+        <LineChart data={chartDataForRender} margin={{ top: 5, right: 5, left: 5, bottom: 5 }} onClick={handleChartClick} onMouseMove={handleMouseMove} onMouseLeave={() => { setHoveredNAV(null); setHoveredIndex(null); if (onHoverDateChange) onHoverDateChange(null); cancelLongPress(); }} style={{ cursor: 'pointer' }}>
           <defs><linearGradient id="costAreaGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ef4444" stopOpacity={0.2}/><stop offset="100%" stopColor="#ef4444" stopOpacity={0.05}/></linearGradient></defs>
           <XAxis dataKey="date" type="category" hide /><YAxis hide domain={domain} yAxisId="main" />
           <Tooltip content={<CustomTooltip localBaselineDate={localBaselineDate} />} cursor={{ stroke: '#a0a0a0', strokeWidth: 1.33, strokeDasharray: '3 3' }} wrapperStyle={{ zIndex: 100, pointerEvents: 'none' }} />
@@ -194,7 +218,13 @@ const FundChart: React.FC<FundChartProps> = ({ baseChartData, zigzagPoints, shar
           {confirmedTradingRecords?.map(record => (
             <ReferenceDot yAxisId="main" key={record.date} x={record.date} y={record.nav!} r={4} fill={getTransactionColor(record.type)} stroke="#ffffff" strokeWidth={1.33} className="cursor-pointer transition-transform hover:scale-125" onMouseDown={(e: any) => { e.stopPropagation(); startLongPress(record.date); }} onMouseUp={(e: any) => { e.stopPropagation(); cancelLongPress(); }} onTouchStart={(e: any) => { e.stopPropagation(); startLongPress(record.date); }} onTouchEnd={(e: any) => { e.stopPropagation(); cancelLongPress(); }} />
           ))}
-          {hoveredNAV !== null && <ReferenceLine yAxisId="main" y={hoveredNAV} stroke="#a0a0a0" strokeDasharray="3 3" strokeWidth={1.33} ifOverflow="visible" />}
+          {(hoveredNAV !== null || (externalHoverDate && activeTooltipIndex !== undefined)) && (
+            <ReferenceLine yAxisId="main" y={hoveredNAV !== null ? hoveredNAV : chartDataForRender[activeTooltipIndex!].unitNAV} stroke="#a0a0a0" strokeDasharray="3 3" strokeWidth={1.33} ifOverflow="visible" />
+          )}
+          {/* FIX: Added vertical ReferenceLine for external hover to provide visual feedback when the chart is not directly hovered. */}
+          {hoveredIndex === null && externalHoverDate && activeTooltipIndex !== undefined && chartDataForRender[activeTooltipIndex] && (
+            <ReferenceLine yAxisId="main" x={chartDataForRender[activeTooltipIndex].date} stroke="#a0a0a0" strokeDasharray="3 3" strokeWidth={1.33} ifOverflow="visible" />
+          )}
           {localBaselineNAV !== null && <ReferenceLine yAxisId="main" y={localBaselineNAV} stroke="#3b82f6" strokeDasharray="5 5" strokeWidth={2} ifOverflow="visible" />}
         </LineChart>
       </ResponsiveContainer>

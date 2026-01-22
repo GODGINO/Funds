@@ -589,7 +589,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
     const renderTransactionTables = () => {
         if (hasOnlyOneType) {
              return (
-                 <div className="mx-auto w-full max-w-2xl flex flex-col items-start px-6">
+                 <div className="mx-auto w-full max-w-2xl flex flex-col items-start px-6 pb-6">
                      {hasBuys ? renderBuyHeader() : renderSellHeader()}
                      <div className="w-full">
                          {hasBuys ? renderBuyTable() : renderSellTable()}
@@ -599,7 +599,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
         }
 
         return (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-0 items-start px-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-0 items-start px-6 pb-6">
                 <div className="flex flex-col">
                     {renderBuyHeader()}
                     {renderBuyTable()}
@@ -687,7 +687,7 @@ const SnapshotDetailModal: React.FC<SnapshotDetailModalProps> = ({ isOpen, onClo
                     </button>
                 </div>
 
-                <div className="overflow-y-auto flex-1 pt-0">
+                <div className="overflow-y-auto flex-1 pt-0 pb-6">
                     {snapshot.snapshotDate === '基准持仓' ? (
                         initialHoldings.length > 0 ? renderInitialHoldingsTable() : <p className="p-6 text-center text-gray-500 dark:text-gray-400">无初始持仓记录。</p>
                     ) : (
