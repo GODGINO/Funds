@@ -100,16 +100,11 @@ export async function generatePortfolioAdvice(context: AnalysisContext) {
   const snapshotContext = formatSnapshotsForPrompt(snapshots);
   const marketContext = indexData ? `上证指数: ${indexData.value} (涨跌: ${indexData.changePercent.toFixed(2)}%)` : "大盘数据不可用";
 
-  const systemPrompt = `
+  // Split instructions and data for clearer LLM logic using systemInstruction
+  const instructions = `
 你是一位世界顶级的基金投资顾问。你的目标是帮助用户最大化两个核心指标：
 1. **操作收益 (Operation Profit)**: 衡量用户通过低买高卖捕获的市场波动收益。
 2. **造成盈亏 (Profit Caused/Caused Profit)**: 衡量用户的操作对整个组合“每日盈利能力”的提升（即：是否在上涨前加仓了？是否在下跌前减仓了？）。
-
-请基于以下数据进行分析：
-- **大盘环境**: ${marketContext}
-- **历史操作效果**: ${snapshotContext}
-- **当前基金池状态**: 
-${fundsContext}
 
 **用户当前执行的策略：4.5% 金字塔加仓法**
 这是一个严格的左侧网格交易策略，旨在通过分批抄底降低成本。
@@ -140,18 +135,30 @@ ${fundsContext}
 4. **风险提示**: 针对当前组合的最大风险点。
 `;
 
+  const data = `
+请基于以下数据进行分析：
+- **大盘环境**: ${marketContext}
+- **历史操作效果**: ${snapshotContext}
+- **当前基金池状态**: 
+${fundsContext}
+`;
+
   // LOGGING THE PROMPT AS REQUESTED
   console.log("%c--- Gemini System Prompt ---", "color: #8e44ad; font-weight: bold; font-size: 12px;");
-  console.log(systemPrompt);
+  console.log(instructions);
+  console.log(data);
 
   try {
     // Initialize AI client lazily and inside try-catch to avoid crashes if API key is missing or invalid
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
+    // Using gemini-3-pro-preview for complex reasoning task.
+    // Explicitly using systemInstruction in config to provide guidelines.
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: systemPrompt,
+      model: 'gemini-3-pro-preview',
+      contents: data,
       config: {
+        systemInstruction: instructions,
         temperature: 0.7,
         topK: 40,
         topP: 0.95,

@@ -118,8 +118,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       };
   }, [isDark]);
 
-  const { turnoverChartData, indexChartData, todayOnlyIndexData, dayIndices, intraDayRefIndices, distributionDots, turnoverDomain } = useMemo(() => {
-      if (!isHovering) return { turnoverChartData: [], indexChartData: [], todayOnlyIndexData: [], dayIndices: [], intraDayRefIndices: [], distributionDots: [], turnoverDomain: [15, 256] };
+  const { turnoverChartData, indexChartData, todayOnlyIndexData, dayIndices, intraDayRefIndices, distributionDots, turnoverDomain, mode0Segments, mode1Segments } = useMemo(() => {
+      if (!isHovering) return { turnoverChartData: [], indexChartData: [], todayOnlyIndexData: [], dayIndices: [], intraDayRefIndices: [], distributionDots: [], turnoverDomain: [15, 256], mode0Segments: [], mode1Segments: [] };
       
       const history = getLocalMarketHistory();
       const todayDate = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[0].t.split(' ')[0] : '';
@@ -171,12 +171,17 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           });
       });
 
+      const m0Segs: string[] = [];
       if (continuousPoints.length > 0) {
           const pivots = calculateZigzag(continuousPoints, 0.5);
-          pivots.forEach(pivot => {
-              const target = iData[pivot.idx];
-              if (target) target.zz = pivot.unitNAV;
-          });
+          for (let i = 0; i < pivots.length - 1; i++) {
+              const p1 = pivots[i];
+              const p2 = pivots[i + 1];
+              const segKey = `zz_seg_${i}`;
+              if (iData[p1.idx]) iData[p1.idx][segKey] = p1.unitNAV;
+              if (iData[p2.idx]) iData[p2.idx][segKey] = p2.unitNAV;
+              m0Segs.push(segKey);
+          }
       }
 
       const tOnlyData = todayTurnoverPoints.map((p) => ({
@@ -184,10 +189,10 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           t: p.t,
           val: p.ind,
           v0: p.ind > 0 ? p.ind : null,
-          turnoverVal: p.val,
-          zz: undefined as number | undefined
-      }));
+          turnoverVal: p.val
+      } as any));
 
+      const m1Segs: string[] = [];
       if (todayTurnoverPoints.length > 0) {
           const mode1Points = todayTurnoverPoints.map(p => ({
               unitNAV: p.ind,
@@ -195,10 +200,16 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
               idx: timeToIndex(p.t)
           }));
           const mode1Pivots = calculateZigzag(mode1Points, 0.1);
-          mode1Pivots.forEach(pivot => {
-              const target = tOnlyData.find(d => d.idx === pivot.idx);
-              if (target) target.zz = pivot.unitNAV;
-          });
+          for (let i = 0; i < mode1Pivots.length - 1; i++) {
+              const p1 = mode1Pivots[i];
+              const p2 = mode1Pivots[i + 1];
+              const segKey = `zz_seg_${i}`;
+              const d1 = tOnlyData.find((d: any) => d.idx === p1.idx);
+              const d2 = tOnlyData.find((d: any) => d.idx === p2.idx);
+              if (d1) d1[segKey] = p1.unitNAV;
+              if (d2) d2[segKey] = p2.unitNAV;
+              m1Segs.push(segKey);
+          }
       }
 
       const turnoverMaps = allDates.map((date, dIdx) => {
@@ -219,8 +230,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           startIdx = timeToIndex(`${String(Math.floor(currentStartMins / 60)).padStart(2, '0')}:${String(currentStartMins % 60).padStart(2, '0')}`);
       }
 
-      const validTimes = Array.from(new Set(allDates.flatMap((d, dIdx) => {
-          const points = (isTradingSession && dIdx === allDates.length - 1 && d === todayDate) ? todayTurnoverPoints : (history[d] || []);
+      const validTimes = Array.from(new Set(allDates.flatMap((date, dIdx) => {
+          const points = (isTradingSession && dIdx === allDates.length - 1 && date === todayDate) ? todayTurnoverPoints : (history[date] || []);
           return points.map(p => p.t);
       })))
       .sort()
@@ -243,10 +254,10 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       let dots: number[] = [];
       if (todayTurnoverPoints.length > 0) {
           const curT = todayTurnoverPoints[todayTurnoverPoints.length - 1].t;
-          const vals = turnoverMaps.map(m => m.get(curT) || 0).filter(v => v > 0);
-          if (vals.length) {
-              const minV = Math.min(...vals), maxV = Math.max(...vals);
-              dots = vals.map(v => maxV > minV ? (v - minV) / (maxV - minV) : 0.5).reverse();
+          const dotsVals = turnoverMaps.map(m => m.get(curT) || 0).filter(v => v > 0);
+          if (dotsVals.length) {
+              const minV = Math.min(...dotsVals), maxV = Math.max(...dotsVals);
+              dots = dotsVals.map(v => maxV > minV ? (v - minV) / (maxV - minV) : 0.5).reverse();
           }
       }
 
@@ -257,7 +268,9 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           dayIndices: dayIdxArr, 
           intraDayRefIndices: dayRefLines,
           distributionDots: dots,
-          turnoverDomain: [startIdx, 256] 
+          turnoverDomain: [startIdx, 256],
+          mode0Segments: m0Segs,
+          mode1Segments: m1Segs
       };
   }, [isHovering, todayTurnoverPoints]);
 
@@ -292,16 +305,30 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                         <ResponsiveContainer width="100%" height="100%">
                             {chartMode === 0 ? (
                                 <LineChart data={indexChartData} margin={{ top: 1, right: 1, left: 1, bottom: 1 }}>
+                                    <defs>
+                                      <linearGradient id="zzSegmentGradient" x1="0" y1="1" x2="0" y2="0">
+                                        <stop offset="0%" stopColor={theme.sub} stopOpacity={1} />
+                                        <stop offset="100%" stopColor={theme.main} stopOpacity={1} />
+                                      </linearGradient>
+                                    </defs>
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     {dayIndices.map(idx => <ReferenceLine key={`day-${idx}`} x={idx} stroke={theme.ref} strokeWidth={1.33} />)}
                                     {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />)}
                                     <Line key="v_all" type="linear" dataKey="val" stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
                                     {theme.lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />)}
-                                    <Line type="linear" dataKey="zz" stroke={theme.main} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+                                    {mode0Segments.map(segKey => (
+                                        <Line key={segKey} type="linear" dataKey={segKey} stroke="url(#zzSegmentGradient)" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+                                    ))}
                                 </LineChart>
                             ) : chartMode === 1 ? (
                                 <ComposedChart data={todayOnlyIndexData} margin={{ top: 1, right: 1, left: 1, bottom: 1 }}>
+                                    <defs>
+                                      <linearGradient id="zzSegmentGradient" x1="0" y1="1" x2="0" y2="0">
+                                        <stop offset="0%" stopColor={theme.sub} stopOpacity={1} />
+                                        <stop offset="100%" stopColor={theme.main} stopOpacity={1} />
+                                      </linearGradient>
+                                    </defs>
                                     <XAxis dataKey="idx" type="number" hide domain={[0, 256]} padding={{ left: 0, right: 0 }} />
                                     <YAxis yAxisId="price" hide domain={['dataMin', 'dataMax']} />
                                     <YAxis yAxisId="volume" hide domain={['dataMin', 'dataMax']} />
@@ -309,7 +336,9 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <ReferenceLine yAxisId="price" x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />
                                     <Bar yAxisId="volume" dataKey="turnoverVal" fill={theme.sub} opacity={isDark ? 0.2 : 0.55} isAnimationActive={false} />
                                     <Line yAxisId="price" type="linear" dataKey="v0" stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
-                                    <Line yAxisId="price" type="linear" dataKey="zz" stroke={theme.main} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+                                    {mode1Segments.map(segKey => (
+                                        <Line key={segKey} yAxisId="price" type="linear" dataKey={segKey} stroke="url(#zzSegmentGradient)" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+                                    ))}
                                 </ComposedChart>
                             ) : (
                                 <LineChart data={turnoverChartData} margin={{ top: 1, right: 1, left: 1, bottom: 1 }}>
