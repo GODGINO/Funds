@@ -173,6 +173,14 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
 
       const m0Segs: string[] = [];
       if (continuousPoints.length > 0) {
+          // Overall trend line for Mode 0 (5-day)
+          const firstPoint = iData.find(d => d.val !== undefined);
+          const lastPoint = [...iData].reverse().find(d => d.val !== undefined);
+          if (firstPoint && lastPoint) {
+              firstPoint.overall = firstPoint.val;
+              lastPoint.overall = lastPoint.val;
+          }
+
           const pivots = calculateZigzag(continuousPoints, 0.5);
           for (let i = 0; i < pivots.length - 1; i++) {
               const p1 = pivots[i];
@@ -191,6 +199,16 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           v0: p.ind > 0 ? p.ind : null,
           turnoverVal: p.val
       } as any));
+
+      // Overall trend line for Mode 1 (Today only)
+      if (tOnlyData.length > 0) {
+          const firstToday = tOnlyData.find(d => d.val !== undefined);
+          const lastToday = [...tOnlyData].reverse().find(d => d.val !== undefined);
+          if (firstToday && lastToday) {
+              firstToday.overallToday = firstToday.val;
+              lastToday.overallToday = lastToday.val;
+          }
+      }
 
       const m1Segs: string[] = [];
       if (todayTurnoverPoints.length > 0) {
@@ -317,8 +335,9 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />)}
                                     <Line key="v_all" type="linear" dataKey="val" stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
                                     {theme.lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />)}
+                                    <Line type="linear" dataKey="overall" stroke="url(#zzSegmentGradient)" strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
                                     {mode0Segments.map(segKey => (
-                                        <Line key={segKey} type="linear" dataKey={segKey} stroke="url(#zzSegmentGradient)" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+                                        <Line key={segKey} type="linear" dataKey={segKey} stroke="url(#zzSegmentGradient)" strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls />
                                     ))}
                                 </LineChart>
                             ) : chartMode === 1 ? (
@@ -336,8 +355,9 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <ReferenceLine yAxisId="price" x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />
                                     <Bar yAxisId="volume" dataKey="turnoverVal" fill={theme.sub} opacity={isDark ? 0.2 : 0.55} isAnimationActive={false} />
                                     <Line yAxisId="price" type="linear" dataKey="v0" stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
+                                    <Line yAxisId="price" type="linear" dataKey="overallToday" stroke="url(#zzSegmentGradient)" strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
                                     {mode1Segments.map(segKey => (
-                                        <Line key={segKey} yAxisId="price" type="linear" dataKey={segKey} stroke="url(#zzSegmentGradient)" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+                                        <Line key={segKey} yAxisId="price" type="linear" dataKey={segKey} stroke="url(#zzSegmentGradient)" strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls />
                                     ))}
                                 </ComposedChart>
                             ) : (
