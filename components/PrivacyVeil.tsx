@@ -118,8 +118,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       };
   }, [isDark]);
 
-  const { turnoverChartData, indexChartData, todayOnlyIndexData, dayIndices, intraDayRefIndices, distributionDots, turnoverDomain, mode0Segments, mode1Segments } = useMemo(() => {
-      if (!isHovering) return { turnoverChartData: [], indexChartData: [], todayOnlyIndexData: [], dayIndices: [], intraDayRefIndices: [], distributionDots: [], turnoverDomain: [15, 256], mode0Segments: [], mode1Segments: [] };
+  const { turnoverChartData, indexChartData, todayOnlyIndexData, dayIndices, intraDayRefIndices, distributionDots, turnoverDomain, mode0Segments, mode1Segments, mode0OverallIsUp, mode1OverallIsUp } = useMemo(() => {
+      if (!isHovering) return { turnoverChartData: [], indexChartData: [], todayOnlyIndexData: [], dayIndices: [], intraDayRefIndices: [], distributionDots: [], turnoverDomain: [15, 256], mode0Segments: [], mode1Segments: [], mode0OverallIsUp: true, mode1OverallIsUp: true };
       
       const history = getLocalMarketHistory();
       const todayDate = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[0].t.split(' ')[0] : '';
@@ -171,14 +171,15 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           });
       });
 
-      const m0Segs: string[] = [];
+      const m0Segs: { key: string, isUp: boolean }[] = [];
+      let m0OverallIsUp = true;
       if (continuousPoints.length > 0) {
-          // Overall trend line for Mode 0 (5-day)
           const firstPoint = iData.find(d => d.val !== undefined);
           const lastPoint = [...iData].reverse().find(d => d.val !== undefined);
           if (firstPoint && lastPoint) {
               firstPoint.overall = firstPoint.val;
               lastPoint.overall = lastPoint.val;
+              m0OverallIsUp = lastPoint.val >= firstPoint.val;
           }
 
           const pivots = calculateZigzag(continuousPoints, 0.5);
@@ -188,7 +189,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
               const segKey = `zz_seg_${i}`;
               if (iData[p1.idx]) iData[p1.idx][segKey] = p1.unitNAV;
               if (iData[p2.idx]) iData[p2.idx][segKey] = p2.unitNAV;
-              m0Segs.push(segKey);
+              m0Segs.push({ key: segKey, isUp: p2.unitNAV >= p1.unitNAV });
           }
       }
 
@@ -200,17 +201,18 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           turnoverVal: p.val
       } as any));
 
-      // Overall trend line for Mode 1 (Today only)
+      let m1OverallIsUp = true;
       if (tOnlyData.length > 0) {
           const firstToday = tOnlyData.find(d => d.val !== undefined);
           const lastToday = [...tOnlyData].reverse().find(d => d.val !== undefined);
           if (firstToday && lastToday) {
               firstToday.overallToday = firstToday.val;
               lastToday.overallToday = lastToday.val;
+              m1OverallIsUp = lastToday.val >= firstToday.val;
           }
       }
 
-      const m1Segs: string[] = [];
+      const m1Segs: { key: string, isUp: boolean }[] = [];
       if (todayTurnoverPoints.length > 0) {
           const mode1Points = todayTurnoverPoints.map(p => ({
               unitNAV: p.ind,
@@ -226,7 +228,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
               const d2 = tOnlyData.find((d: any) => d.idx === p2.idx);
               if (d1) d1[segKey] = p1.unitNAV;
               if (d2) d2[segKey] = p2.unitNAV;
-              m1Segs.push(segKey);
+              m1Segs.push({ key: segKey, isUp: p2.unitNAV >= p1.unitNAV });
           }
       }
 
@@ -288,7 +290,9 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           distributionDots: dots,
           turnoverDomain: [startIdx, 256],
           mode0Segments: m0Segs,
-          mode1Segments: m1Segs
+          mode1Segments: m1Segs,
+          mode0OverallIsUp: m0OverallIsUp,
+          mode1OverallIsUp: m1OverallIsUp
       };
   }, [isHovering, todayTurnoverPoints]);
 
@@ -324,9 +328,13 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                             {chartMode === 0 ? (
                                 <LineChart data={indexChartData} margin={{ top: 1, right: 1, left: 1, bottom: 1 }}>
                                     <defs>
-                                      <linearGradient id="zzSegmentGradient" x1="0" y1="1" x2="0" y2="0">
+                                      <linearGradient id="zzUpGradient" x1="0" y1="1" x2="1" y2="0">
                                         <stop offset="0%" stopColor={theme.sub} stopOpacity={1} />
                                         <stop offset="100%" stopColor={theme.main} stopOpacity={1} />
+                                      </linearGradient>
+                                      <linearGradient id="zzDownGradient" x1="0" y1="0" x2="1" y2="1">
+                                        <stop offset="0%" stopColor={theme.main} stopOpacity={1} />
+                                        <stop offset="100%" stopColor={theme.sub} stopOpacity={1} />
                                       </linearGradient>
                                     </defs>
                                     <XAxis dataKey="idx" type="number" hide domain={['dataMin', 'dataMax']} padding={{ left: 0, right: 0 }} />
@@ -335,17 +343,21 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />)}
                                     <Line key="v_all" type="linear" dataKey="val" stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
                                     {theme.lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />)}
-                                    <Line type="linear" dataKey="overall" stroke="url(#zzSegmentGradient)" strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
-                                    {mode0Segments.map(segKey => (
-                                        <Line key={segKey} type="linear" dataKey={segKey} stroke="url(#zzSegmentGradient)" strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls />
+                                    <Line type="linear" dataKey="overall" stroke={mode0OverallIsUp ? "url(#zzUpGradient)" : "url(#zzDownGradient)"} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
+                                    {mode0Segments.map(seg => (
+                                        <Line key={seg.key} type="linear" dataKey={seg.key} stroke={seg.isUp ? "url(#zzUpGradient)" : "url(#zzDownGradient)"} strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls />
                                     ))}
                                 </LineChart>
                             ) : chartMode === 1 ? (
                                 <ComposedChart data={todayOnlyIndexData} margin={{ top: 1, right: 1, left: 1, bottom: 1 }}>
                                     <defs>
-                                      <linearGradient id="zzSegmentGradient" x1="0" y1="1" x2="0" y2="0">
+                                      <linearGradient id="zzUpGradient" x1="0" y1="1" x2="1" y2="0">
                                         <stop offset="0%" stopColor={theme.sub} stopOpacity={1} />
                                         <stop offset="100%" stopColor={theme.main} stopOpacity={1} />
+                                      </linearGradient>
+                                      <linearGradient id="zzDownGradient" x1="0" y1="0" x2="1" y2="1">
+                                        <stop offset="0%" stopColor={theme.main} stopOpacity={1} />
+                                        <stop offset="100%" stopColor={theme.sub} stopOpacity={1} />
                                       </linearGradient>
                                     </defs>
                                     <XAxis dataKey="idx" type="number" hide domain={[0, 256]} padding={{ left: 0, right: 0 }} />
@@ -355,9 +367,9 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <ReferenceLine yAxisId="price" x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />
                                     <Bar yAxisId="volume" dataKey="turnoverVal" fill={theme.sub} opacity={isDark ? 0.2 : 0.55} isAnimationActive={false} />
                                     <Line yAxisId="price" type="linear" dataKey="v0" stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
-                                    <Line yAxisId="price" type="linear" dataKey="overallToday" stroke="url(#zzSegmentGradient)" strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
-                                    {mode1Segments.map(segKey => (
-                                        <Line key={segKey} yAxisId="price" type="linear" dataKey={segKey} stroke="url(#zzSegmentGradient)" strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls />
+                                    <Line yAxisId="price" type="linear" dataKey="overallToday" stroke={mode1OverallIsUp ? "url(#zzUpGradient)" : "url(#zzDownGradient)"} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
+                                    {mode1Segments.map(seg => (
+                                        <Line key={seg.key} yAxisId="price" type="linear" dataKey={seg.key} stroke={seg.isUp ? "url(#zzUpGradient)" : "url(#zzDownGradient)"} strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls />
                                     ))}
                                 </ComposedChart>
                             ) : (
