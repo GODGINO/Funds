@@ -343,7 +343,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />)}
                                     <Line key="v_all" type="linear" dataKey="val" stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
                                     {theme.lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />)}
-                                    <Line type="linear" dataKey="overall" stroke={mode0OverallIsUp ? "url(#zzUpGradient)" : "url(#zzDownGradient)"} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
+                                    <Line type="linear" dataKey="overall" stroke={mode0OverallIsUp ? "url(#zzUpGradient)" : "url(#zzDownGradient)"} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
                                     {mode0Segments.map(seg => (
                                         <Line key={seg.key} type="linear" dataKey={seg.key} stroke={seg.isUp ? "url(#zzUpGradient)" : "url(#zzDownGradient)"} strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls />
                                     ))}
@@ -367,7 +367,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <ReferenceLine yAxisId="price" x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />
                                     <Bar yAxisId="volume" dataKey="turnoverVal" fill={theme.sub} opacity={isDark ? 0.2 : 0.55} isAnimationActive={false} />
                                     <Line yAxisId="price" type="linear" dataKey="v0" stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
-                                    <Line yAxisId="price" type="linear" dataKey="overallToday" stroke={mode1OverallIsUp ? "url(#zzUpGradient)" : "url(#zzDownGradient)"} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
+                                    <Line yAxisId="price" type="linear" dataKey="overallToday" stroke={mode1OverallIsUp ? "url(#zzUpGradient)" : "url(#zzDownGradient)"} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
                                     {mode1Segments.map(seg => (
                                         <Line key={seg.key} yAxisId="price" type="linear" dataKey={seg.key} stroke={seg.isUp ? "url(#zzUpGradient)" : "url(#zzDownGradient)"} strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls />
                                     ))}
