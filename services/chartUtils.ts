@@ -74,3 +74,27 @@ export function calculateZigzag<T extends Partial<FundDataPoint>>(data: T[], dev
 
   return zigzagPoints;
 }
+
+/**
+ * Calculates the Simple Moving Average (SMA) for a given numeric array.
+ * @param data Array of numbers (typically NAVs).
+ * @param period The sliding window size.
+ * @returns Array of SMA values, with nulls for the initial padding.
+ */
+export function calculateSMA(data: number[], period: number): (number | null)[] {
+  const sma: (number | null)[] = [];
+  if (period <= 0) return data.map(() => null);
+  
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) {
+      sma.push(null);
+    } else {
+      let sum = 0;
+      for (let j = 0; j < period; j++) {
+        sum += data[i - j];
+      }
+      sma.push(sum / period);
+    }
+  }
+  return sma;
+}

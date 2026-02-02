@@ -1,7 +1,7 @@
-
 import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine, XAxis, ReferenceArea, Tooltip, ReferenceDot } from 'recharts';
 import { FundDataPoint, TradingRecord, TransactionType } from '../types';
+import { calculateSMA } from '../services/chartUtils';
 
 interface ChartDataPoint {
   date?: string;
@@ -12,6 +12,9 @@ interface ChartDataPoint {
   redemptionStatus?: string;
   dividendDistribution?: string;
   zigzagNAV?: number;
+  ma5?: number | null;
+  ma10?: number | null;
+  ma20?: number | null;
   dailyProfit?: number;
   changeSinceDate?: number; 
   changeFromBaseline?: number; 
@@ -70,7 +73,7 @@ const getTransactionLabelColorClass = (type: TransactionType) => {
 const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload as ChartDataPoint;
-        const { date, dailyGrowthRate, dailyProfit, changeSinceDate, changeFromBaseline, tradeRecord } = data;
+        const { date, dailyGrowthRate, dailyProfit, changeSinceDate, changeFromBaseline, tradeRecord, ma5, ma10, ma20 } = data;
         if (!date) return null;
         const displayDate = date.split(' ')[0];
         const displayBaselineDate = localBaselineDate ? localBaselineDate.split(' ')[0] : '';
@@ -103,7 +106,14 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
                     </div>
                     {dailyProfit !== undefined && <div className="flex justify-between items-baseline gap-4"><span className="text-gray-500 dark:text-gray-400">当日收益:</span><span className={`font-mono font-bold ${getProfitColor(dailyProfit)}`}>{dailyProfit.toFixed(2)}</span></div>}
                     {relChangeValue !== undefined && <div className="flex justify-between items-baseline gap-4"><span className={localBaselineDate ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-500 dark:text-gray-400'}>{localBaselineDate ? "较基准涨跌:" : "距今涨跌:"}</span><span className={`font-mono font-bold ${getProfitColor(relChangeValue)}`}>{relChangeValue > 0 ? '+' : ''}{relChangeValue.toFixed(2)}%</span></div>}
-                    {tradeRecord && <div className="flex justify-between items-baseline gap-4 pt-0.5"><span className={`font-semibold ${getTransactionLabelColorClass(tradeRecord.type)}`}>{getTransactionLabel(tradeRecord.type)}:</span><span className="font-mono font-bold text-gray-800 dark:text-gray-100">{tradeRecord.type === 'buy' ? `${tradeRecord.amount!.toFixed(2)} 元` : tradeRecord.type === 'sell' ? `${Math.abs(tradeRecord.sharesChange!).toFixed(2)} 份` : tradeRecord.type === 'dividend-cash' ? `${tradeRecord.realizedProfitChange!.toFixed(2)} 元` : `${tradeRecord.sharesChange!.toFixed(2)} 份`}</span></div>}
+                    
+                    <div className="border-t border-gray-100 dark:border-gray-700/50 mt-1 pt-1 space-y-0.5">
+                        {ma5 != null && <div className="flex justify-between items-baseline gap-4"><span className="text-[#EAB308] opacity-80">MA5:</span><span className="font-mono text-gray-700 dark:text-gray-300">{ma5.toFixed(4)}</span></div>}
+                        {ma10 != null && <div className="flex justify-between items-baseline gap-4"><span className="text-[#A855F7] opacity-80">MA10:</span><span className="font-mono text-gray-700 dark:text-gray-300">{ma10.toFixed(4)}</span></div>}
+                        {ma20 != null && <div className="flex justify-between items-baseline gap-4"><span className="text-[#22C55E] opacity-80">MA20:</span><span className="font-mono text-gray-700 dark:text-gray-300">{ma20.toFixed(4)}</span></div>}
+                    </div>
+
+                    {tradeRecord && <div className="flex justify-between items-baseline gap-4 pt-1 border-t border-gray-100 dark:border-gray-700/50 mt-1"><span className={`font-semibold ${getTransactionLabelColorClass(tradeRecord.type)}`}>{getTransactionLabel(tradeRecord.type)}:</span><span className="font-mono font-bold text-gray-800 dark:text-gray-100">{tradeRecord.type === 'buy' ? `${tradeRecord.amount!.toFixed(2)} 元` : tradeRecord.type === 'sell' ? `${Math.abs(tradeRecord.sharesChange!).toFixed(2)} 份` : tradeRecord.type === 'dividend-cash' ? `${tradeRecord.realizedProfitChange!.toFixed(2)} 元` : `${tradeRecord.sharesChange!.toFixed(2)} 份`}</span></div>}
                 </div>
             </div>
         );
@@ -127,12 +137,29 @@ const FundChart: React.FC<FundChartProps> = ({ baseChartData, zigzagPoints, shar
     const zigzagMap = new Map(zigzagPoints.map(p => [p.date, p.unitNAV]));
     const tradeMap = new Map(confirmedTradingRecords?.map(r => [r.date, r]));
     const latestNAV = baseChartData.length > 0 ? (baseChartData[baseChartData.length - 1].unitNAV ?? 0) : 0;
+    
+    // Pre-calculate Moving Averages
+    const navs = baseChartData.map(p => p.unitNAV || 0);
+    const ma5Values = calculateSMA(navs, 5);
+    const ma10Values = calculateSMA(navs, 10);
+    const ma20Values = calculateSMA(navs, 20);
+
     return baseChartData.map((p, index, arr) => {
         const tradeRecord = p.date ? tradeMap.get(p.date.split(' ')[0]) : undefined;
         let dailyProfit = (index > 0 && shares > 0) ? (p.unitNAV! - arr[index - 1].unitNAV!) * shares : 0;
         let changeSinceDate = (p.unitNAV && p.unitNAV > 0 && latestNAV > 0) ? ((latestNAV - p.unitNAV) / p.unitNAV) * 100 : 0;
         let changeFromBaseline = (localBaselineNAV && localBaselineNAV > 0 && p.unitNAV !== undefined) ? ((p.unitNAV - localBaselineNAV) / localBaselineNAV) * 100 : 0;
-        return { ...p, zigzagNAV: zigzagMap.get(p.date), dailyProfit, changeSinceDate, changeFromBaseline, tradeRecord };
+        return { 
+          ...p, 
+          zigzagNAV: zigzagMap.get(p.date), 
+          ma5: ma5Values[index],
+          ma10: ma10Values[index],
+          ma20: ma20Values[index],
+          dailyProfit, 
+          changeSinceDate, 
+          changeFromBaseline, 
+          tradeRecord 
+        };
     });
   }, [baseChartData, zigzagPoints, shares, confirmedTradingRecords, localBaselineNAV]);
 
@@ -202,26 +229,32 @@ const FundChart: React.FC<FundChartProps> = ({ baseChartData, zigzagPoints, shar
   return (
     <div className="relative w-full h-full" onMouseDown={handleContainerMouseDown} onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress} onTouchStart={handleContainerMouseDown} onTouchEnd={cancelLongPress}>
       <ResponsiveContainer minWidth={0}>
-        {/* FIX: Removed invalid 'activeTooltipIndex' prop from LineChart as it is not supported in recharts and caused a type error. */}
         <LineChart data={chartDataForRender} margin={{ top: 5, right: 5, left: 5, bottom: 5 }} onClick={handleChartClick} onMouseMove={handleMouseMove} onMouseLeave={() => { setHoveredNAV(null); setHoveredIndex(null); if (onHoverDateChange) onHoverDateChange(null); cancelLongPress(); }} style={{ cursor: 'pointer' }}>
           <defs><linearGradient id="costAreaGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ef4444" stopOpacity={0.2}/><stop offset="100%" stopColor="#ef4444" stopOpacity={0.05}/></linearGradient></defs>
           <XAxis dataKey="date" type="category" hide /><YAxis hide domain={domain} yAxisId="main" />
           <Tooltip content={<CustomTooltip localBaselineDate={localBaselineDate} />} cursor={{ stroke: '#a0a0a0', strokeWidth: 1.33, strokeDasharray: '3 3' }} wrapperStyle={{ zIndex: 100, pointerEvents: 'none' }} />
           {clampedCostPrice && clampedCostPrice > minVal && <ReferenceArea yAxisId="main" y1={minVal} y2={clampedCostPrice} fill="url(#costAreaGradient)" strokeOpacity={0} ifOverflow="hidden" />}
+          
+          {/* MA Lines - Rendered below NAV and Zigzag for clarity */}
+          <Line yAxisId="main" type="linear" dataKey="ma5" stroke="#EAB308" strokeWidth={1} dot={false} isAnimationActive={false} opacity={0.6} />
+          <Line yAxisId="main" type="linear" dataKey="ma10" stroke="#A855F7" strokeWidth={1} dot={false} isAnimationActive={false} opacity={0.6} />
+          <Line yAxisId="main" type="linear" dataKey="ma20" stroke="#22C55E" strokeWidth={1} dot={false} isAnimationActive={false} opacity={0.6} />
+
           {lastPivotDate && <ReferenceLine yAxisId="main" x={lastPivotDate} stroke="#a0a0a0" strokeDasharray="3 3" strokeWidth={1.33} />}
           {lastPivotNAV !== null && <ReferenceLine yAxisId="main" y={lastPivotNAV} stroke="#a0a0a0" strokeDasharray="3 3" strokeWidth={1.33} />}
           {localBaselineDate && <ReferenceLine yAxisId="main" x={localBaselineDate} stroke="#3b82f6" strokeDasharray="5 5" strokeWidth={2}/>}
           {costPrice && clampedCostPrice !== null && <ReferenceLine yAxisId="main" y={clampedCostPrice} stroke="#ef4444" strokeWidth={1.33} label={showLabels ? { value: `成本: ${costPrice.toFixed(4)}`, position: clampedCostPrice <= minVal + (maxVal - minVal) * 0.1 ? 'insideBottomLeft' : 'insideTopLeft', fill: '#ef4444', fontSize: 10, dy: -2 } : undefined} />}
           {actualCostPrice && clampedActualCostPrice !== null && actualCostPrice.toFixed(4) !== costPrice?.toFixed(4) && <ReferenceLine yAxisId="main" y={clampedActualCostPrice} stroke="#6b7280" strokeDasharray="3 3" strokeWidth={1.33} label={showLabels ? { value: `实际: ${actualCostPrice.toFixed(4)}`, position: clampedActualCostPrice <= minVal + (maxVal - minVal) * 0.1 ? 'insideBottomLeft' : 'insideTopLeft', fill: '#374151', fontSize: 10, dy: -2 } : undefined} />}
-          <Line yAxisId="main" type="linear" dataKey="unitNAV" stroke="#3b82f6" strokeWidth={1.33} dot={false} isAnimationActive={false} />
+          
           <Line yAxisId="main" type="linear" dataKey="zigzagNAV" connectNulls stroke="#a0a0a0" strokeWidth={1.33} dot={false} isAnimationActive={false} />
+          <Line yAxisId="main" type="linear" dataKey="unitNAV" stroke="#3b82f6" strokeWidth={1.33} dot={false} isAnimationActive={false} />
+
           {confirmedTradingRecords?.map(record => (
             <ReferenceDot yAxisId="main" key={record.date} x={record.date} y={record.nav!} r={4} fill={getTransactionColor(record.type)} stroke="#ffffff" strokeWidth={1.33} className="cursor-pointer transition-transform hover:scale-125" onMouseDown={(e: any) => { e.stopPropagation(); startLongPress(record.date); }} onMouseUp={(e: any) => { e.stopPropagation(); cancelLongPress(); }} onTouchStart={(e: any) => { e.stopPropagation(); startLongPress(record.date); }} onTouchEnd={(e: any) => { e.stopPropagation(); cancelLongPress(); }} />
           ))}
           {(hoveredNAV !== null || (externalHoverDate && activeTooltipIndex !== undefined)) && (
             <ReferenceLine yAxisId="main" y={hoveredNAV !== null ? hoveredNAV : chartDataForRender[activeTooltipIndex!].unitNAV} stroke="#a0a0a0" strokeDasharray="3 3" strokeWidth={1.33} ifOverflow="visible" />
           )}
-          {/* FIX: Added vertical ReferenceLine for external hover to provide visual feedback when the chart is not directly hovered. */}
           {hoveredIndex === null && externalHoverDate && activeTooltipIndex !== undefined && chartDataForRender[activeTooltipIndex] && (
             <ReferenceLine yAxisId="main" x={chartDataForRender[activeTooltipIndex].date} stroke="#a0a0a0" strokeDasharray="3 3" strokeWidth={1.33} ifOverflow="visible" />
           )}
