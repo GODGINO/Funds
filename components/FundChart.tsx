@@ -246,7 +246,7 @@ const FundChart: React.FC<FundChartProps> = ({ baseChartData, zigzagPoints, shar
           {costPrice && clampedCostPrice !== null && <ReferenceLine yAxisId="main" y={clampedCostPrice} stroke="#ef4444" strokeWidth={1.33} label={showLabels ? { value: `成本: ${costPrice.toFixed(4)}`, position: clampedCostPrice <= minVal + (maxVal - minVal) * 0.1 ? 'insideBottomLeft' : 'insideTopLeft', fill: '#ef4444', fontSize: 10, dy: -2 } : undefined} />}
           {actualCostPrice && clampedActualCostPrice !== null && actualCostPrice.toFixed(4) !== costPrice?.toFixed(4) && <ReferenceLine yAxisId="main" y={clampedActualCostPrice} stroke="#6b7280" strokeDasharray="3 3" strokeWidth={1.33} label={showLabels ? { value: `实际: ${actualCostPrice.toFixed(4)}`, position: clampedActualCostPrice <= minVal + (maxVal - minVal) * 0.1 ? 'insideBottomLeft' : 'insideTopLeft', fill: '#374151', fontSize: 10, dy: -2 } : undefined} />}
           
-          <Line yAxisId="main" type="linear" dataKey="zigzagNAV" connectNulls stroke="#a0a0a0" strokeWidth={1.33} dot={false} isAnimationActive={false} />
+          <Line yAxisId="main" type="linear" dataKey="zigzagNAV" connectNulls stroke="#181b1c" strokeWidth={2} dot={false} isAnimationActive={false} />
           <Line yAxisId="main" type="linear" dataKey="unitNAV" stroke="#3b82f6" strokeWidth={1.33} dot={false} isAnimationActive={false} />
 
           {confirmedTradingRecords?.map(record => (
