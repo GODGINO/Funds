@@ -1,3 +1,4 @@
+
 import React, { useRef } from 'react';
 import { SortByType, IndexData } from '../types';
 
@@ -68,7 +69,7 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
     longPressTimer.current = window.setTimeout(() => {
       longPressTriggered.current = true;
       onLongPressRefresh();
-    }, 3000);
+    }, 1000); // Changed from 3000 to 1000
   };
 
   const handlePressEnd = () => {
@@ -240,7 +241,7 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
           disabled={isDisabled}
           className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Refresh real-time data. Long press to reload all historical data."
-          title="单击刷新实时估值, 长按3秒重载历史数据"
+          title="单击刷新实时估值, 长按1秒重载历史数据"
         >
           {isRefreshing ? (
             <svg className="animate-spin h-5 w-5 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

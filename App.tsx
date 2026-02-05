@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Fund, UserPosition, ProcessedFund, TagAnalysisData, TagSortOrder, IndexData, TradingRecord, TradeModalState, PortfolioSnapshot, RealTimeData, TransactionType, SortByType, MarketDataPoint, SyncMetadata } from './types';
 import { fetchFundData, fetchFundDetails, fetchIndexData, fetchTotalTurnover } from './services/fundService';
@@ -48,6 +49,13 @@ const ORDERED_SYSTEM_TAGS = [
   SYSTEM_TAGS.STRONG_SELL,
 ];
 
+const LAST_FULL_RELOAD_KEY = 'LAST_FULL_RELOAD_DATE';
+
+const getLocalDateString = () => {
+    // 使用瑞典语区域设置 (sv-SE) 是获取 YYYY-MM-DD 本地日期字符串的快捷可靠方式
+    return new Date().toLocaleDateString('sv-SE');
+};
+
 const validatePositions = (data: any): data is UserPosition[] => {
     if (!Array.isArray(data)) return false;
     for (const item of data) {
@@ -86,7 +94,7 @@ const shouldAutoRefresh = (): boolean => {
     const now = new Date();
     const dayOfWeek = now.getDay();
     const hour = now.getHours();
-    return dayOfWeek >= 1 && dayOfWeek <= 5 && hour >= 9 && hour < 16;
+    return dayOfWeek >= 1 && dayOfWeek <= 5 && hour >= 9 && hour < 18;
 };
 
 const isMobileDevice = (): boolean => {
@@ -291,6 +299,8 @@ const App: React.FC = () => {
         });
         if (loadedFunds.length > 0) {
           setFunds(loadedFunds.map((fund, index) => ({ ...fund, color: COLORS[index % COLORS.length] })));
+          // 初始化加载即包含全量历史，打上今日标记
+          localStorage.setItem(LAST_FULL_RELOAD_KEY, getLocalDateString());
         } else {
           setFunds([]);
         }
@@ -409,11 +419,43 @@ const App: React.FC = () => {
     } catch (err) {} finally { setIsRefreshing(false); }
 }, [funds, getCurrentTimeString]);
 
+  const handleFullReload = useCallback(async () => {
+    if (funds.length === 0) return;
+    setIsLoading(true); setError(null);
+    try {
+      const updatedFundsPromises = funds.map(async (fund) => {
+        const newData = await fetchFundData(fund.code, recordCount);
+        const latestData = newData[newData.length - 1];
+        return { ...fund, data: newData, latestNAV: latestData?.unitNAV, latestChange: latestData?.dailyGrowthRate };
+      });
+      setFunds(await Promise.all(updatedFundsPromises));
+      // 标记今日全量更新已完成
+      localStorage.setItem(LAST_FULL_RELOAD_KEY, getLocalDateString());
+    } catch (err) { setError(err instanceof Error ? err.message : 'An unknown error occurred while fully reloading funds.'); }
+    finally { setIsLoading(false); }
+  }, [funds, recordCount]);
+
   useEffect(() => {
-    if (isRefreshing) return;
-    const intervalId = setInterval(() => { if (shouldAutoRefresh()) handleRefresh(); }, 3 * 60 * 1000);
+    if (isRefreshing || isLoading || isAppLoading) return;
+    
+    const intervalId = setInterval(async () => {
+      if (!shouldAutoRefresh()) return;
+
+      const today = getLocalDateString();
+      const lastFullReload = localStorage.getItem(LAST_FULL_RELOAD_KEY);
+
+      if (lastFullReload !== today) {
+          // 每日首次触发：进行全量历史重载
+          console.log(`[AutoRefresh] 发现新的一天 (${today})，正在执行每日全量校准...`);
+          await handleFullReload();
+      } else {
+          // 今日已全量过：仅进行轻量实时刷新
+          handleRefresh();
+      }
+    }, 3 * 60 * 1000);
+    
     return () => clearInterval(intervalId);
-  }, [handleRefresh, isRefreshing]);
+  }, [handleRefresh, handleFullReload, isRefreshing, isLoading, isAppLoading]);
 
   useEffect(() => {
     document.body.style.cursor = (isLoading || isRefreshing || isAppLoading) ? 'wait' : 'default';
@@ -434,20 +476,6 @@ const App: React.FC = () => {
     } catch (err) { setError(err instanceof Error ? err.message : 'An unknown error occurred while updating funds.'); }
     finally { setIsLoading(false); }
   }, [funds]);
-
-  const handleFullReload = useCallback(async () => {
-    if (funds.length === 0) return;
-    setIsLoading(true); setError(null);
-    try {
-      const updatedFundsPromises = funds.map(async (fund) => {
-        const newData = await fetchFundData(fund.code, recordCount);
-        const latestData = newData[newData.length - 1];
-        return { ...fund, data: newData, latestNAV: latestData?.unitNAV, latestChange: latestData?.dailyGrowthRate };
-      });
-      setFunds(await Promise.all(updatedFundsPromises));
-    } catch (err) { setError(err instanceof Error ? err.message : 'An unknown error occurred while fully reloading funds.'); }
-    finally { setIsLoading(false); }
-  }, [funds, recordCount]);
 
   const handleImportData = useCallback(async (jsonString: string) => {
     try {
