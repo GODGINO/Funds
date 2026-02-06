@@ -844,20 +844,28 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => 
   useEffect(() => { if (!isAppLoading && funds.length > 0) processPendingTasks(); }, [isAppLoading, funds, processPendingTasks]);
 
   const currentPortfolioJSON = useMemo(() => JSON.stringify(funds.map(f => f.userPosition).filter((p): p is UserPosition => !!p), null, 2), [funds]);
+  const fishingFundsJSON = useMemo(() => JSON.stringify(processedFunds.map((fund, index) => ({
+      name: fund.name,
+      code: fund.code,
+      cyfe: fund.userPosition?.shares ?? 0,
+      cbj: fund.userPosition?.cost ?? 0,
+      originSort: index
+  })), null, 2), [processedFunds]);
+
   const handleToggleAutoSync = useCallback((enabled: boolean) => {
     setIsAutoSyncEnabled(enabled); localStorage.setItem('AUTO_SYNC_ENABLED', String(enabled));
     if (enabled) {
         const token = localStorage.getItem('GITHUB_TOKEN'); const deviceId = localStorage.getItem('GINOS_DEVICE_ID');
-        if (token && deviceId) updateGistData(token, currentPortfolioJSON, { masterId: deviceId, lastActive: Date.now() }).catch(e => console.error(e));
+        if (token && deviceId) updateGistData(token, currentPortfolioJSON, fishingFundsJSON, { masterId: deviceId, lastActive: Date.now() }).catch(e => console.error(e));
     }
-  }, [currentPortfolioJSON]);
+  }, [currentPortfolioJSON, fishingFundsJSON]);
   
   useEffect(() => {
      if (isAppLoading || !isAutoSyncEnabled) return;
      const token = localStorage.getItem('GITHUB_TOKEN'); if (!token) return;
-     const timer = setTimeout(() => { updateGistData(token, currentPortfolioJSON).catch(e => console.error(e)); }, 2000); 
+     const timer = setTimeout(() => { updateGistData(token, currentPortfolioJSON, fishingFundsJSON).catch(e => console.error(e)); }, 2000); 
      return () => clearTimeout(timer);
-  }, [currentPortfolioJSON, isAutoSyncEnabled, isAppLoading]);
+  }, [currentPortfolioJSON, fishingFundsJSON, isAutoSyncEnabled, isAppLoading]);
 
   const portfolioSnapshots = useMemo((): PortfolioSnapshot[] => {
     const allTransactionDates = new Set<string>();

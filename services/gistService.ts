@@ -2,6 +2,7 @@ import { SyncMetadata } from '../types';
 
 export const GIST_ID = '32c1c67e4610e63f15aa68041282cad7';
 export const GIST_FILENAME = 'fund_data.json';
+export const EXPORT_FILENAME = 'fishing_funds.json';
 export const METADATA_FILENAME = 'sync_metadata.json';
 export const MARKET_HISTORY_FILENAME = 'market_history.json';
 
@@ -71,10 +72,13 @@ export async function updateGistFiles(token: string, files: Record<string, { con
     }
 }
 
-export async function updateGistData(token: string, content: string, metadata?: SyncMetadata): Promise<void> {
+export async function updateGistData(token: string, content: string, exportContent: string, metadata?: SyncMetadata): Promise<void> {
       const files: any = {
           [GIST_FILENAME]: {
               content: content
+          },
+          [EXPORT_FILENAME]: {
+              content: exportContent
           }
       };
 
