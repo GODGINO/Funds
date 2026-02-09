@@ -118,8 +118,8 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       };
   }, [isDark]);
 
-  const { turnoverChartData, indexChartData, todayOnlyIndexData, dayIndices, intraDayRefIndices, distributionDots, turnoverDomain, mode0Segments, mode1Segments, mode0OverallIsUp, mode1OverallIsUp } = useMemo(() => {
-      if (!isHovering) return { turnoverChartData: [], indexChartData: [], todayOnlyIndexData: [], dayIndices: [], intraDayRefIndices: [], distributionDots: [], turnoverDomain: [15, 256], mode0Segments: [], mode1Segments: [], mode0OverallIsUp: true, mode1OverallIsUp: true };
+  const { turnoverChartData, indexChartData, todayOnlyIndexData, dayIndices, intraDayRefIndices, distributionDots, turnoverDomain, mode0Segments, mode1Segments, mode0OverallIsUp, mode1OverallIsUp, mode0LatestVal, mode1LatestVal } = useMemo(() => {
+      if (!isHovering) return { turnoverChartData: [], indexChartData: [], todayOnlyIndexData: [], dayIndices: [], intraDayRefIndices: [], distributionDots: [], turnoverDomain: [15, 256], mode0Segments: [], mode1Segments: [], mode0OverallIsUp: true, mode1OverallIsUp: true, mode0LatestVal: undefined, mode1LatestVal: undefined };
       
       const history = getLocalMarketHistory();
       const todayDate = todayTurnoverPoints.length > 0 ? todayTurnoverPoints[0].t.split(' ')[0] : '';
@@ -172,14 +172,16 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
       });
 
       const m0Segs: { key: string, isUp: boolean }[] = [];
-      let m0OverallIsUp = true;
+      let mode0OverallIsUp = true;
+      let mode0LatestVal: number | undefined = undefined;
       if (continuousPoints.length > 0) {
           const firstPoint = iData.find(d => d.val !== undefined);
           const lastPoint = [...iData].reverse().find(d => d.val !== undefined);
           if (firstPoint && lastPoint) {
               firstPoint.overall = firstPoint.val;
               lastPoint.overall = lastPoint.val;
-              m0OverallIsUp = lastPoint.val >= firstPoint.val;
+              mode0OverallIsUp = lastPoint.val >= firstPoint.val;
+              mode0LatestVal = lastPoint.val;
           }
 
           const pivots = calculateZigzag(continuousPoints, 0.5);
@@ -201,14 +203,16 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           turnoverVal: p.val
       } as any));
 
-      let m1OverallIsUp = true;
+      let mode1OverallIsUp = true;
+      let mode1LatestVal: number | undefined = undefined;
       if (tOnlyData.length > 0) {
           const firstToday = tOnlyData.find(d => d.val !== undefined);
           const lastToday = [...tOnlyData].reverse().find(d => d.val !== undefined);
           if (firstToday && lastToday) {
               firstToday.overallToday = firstToday.val;
               lastToday.overallToday = lastToday.val;
-              m1OverallIsUp = lastToday.val >= firstToday.val;
+              mode1OverallIsUp = lastToday.val >= firstToday.val;
+              mode1LatestVal = lastToday.val;
           }
       }
 
@@ -291,8 +295,10 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
           turnoverDomain: [startIdx, 256],
           mode0Segments: m0Segs,
           mode1Segments: m1Segs,
-          mode0OverallIsUp: m0OverallIsUp,
-          mode1OverallIsUp: m1OverallIsUp
+          mode0OverallIsUp,
+          mode1OverallIsUp,
+          mode0LatestVal,
+          mode1LatestVal
       };
   }, [isHovering, todayTurnoverPoints]);
 
@@ -341,6 +347,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <YAxis hide domain={['dataMin', 'dataMax']} />
                                     {dayIndices.map(idx => <ReferenceLine key={`day-${idx}`} x={idx} stroke={theme.ref} strokeWidth={1.33} />)}
                                     {intraDayRefIndices.map(idx => <ReferenceLine key={`ref-${idx}`} x={idx} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />)}
+                                    {mode0LatestVal !== undefined && <ReferenceLine y={mode0LatestVal} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />}
                                     <Line key="v_all" type="linear" dataKey="val" stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
                                     {theme.lineColors.map((_, i) => <Line key={i} type="linear" dataKey={`v${i}`} stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />)}
                                     <Line type="linear" dataKey="overall" stroke={mode0OverallIsUp ? "url(#zzUpGradient)" : "url(#zzDownGradient)"} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
@@ -365,6 +372,7 @@ const PrivacyVeil: React.FC<PrivacyVeilProps> = ({
                                     <YAxis yAxisId="volume" hide domain={['dataMin', 'dataMax']} />
                                     <ReferenceLine yAxisId="price" x={15} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />
                                     <ReferenceLine yAxisId="price" x={135} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1.33} />
+                                    {mode1LatestVal !== undefined && <ReferenceLine yAxisId="price" y={mode1LatestVal} stroke={theme.ref} strokeDasharray="3 3" strokeWidth={1} />}
                                     <Bar yAxisId="volume" dataKey="turnoverVal" fill={theme.sub} opacity={isDark ? 0.2 : 0.55} isAnimationActive={false} />
                                     <Line yAxisId="price" type="linear" dataKey="v0" stroke={theme.sub} strokeWidth={1.33} dot={false} isAnimationActive={false} connectNulls />
                                     <Line yAxisId="price" type="linear" dataKey="overallToday" stroke={mode1OverallIsUp ? "url(#zzUpGradient)" : "url(#zzDownGradient)"} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
