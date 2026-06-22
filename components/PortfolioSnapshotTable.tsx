@@ -60,14 +60,15 @@ interface HeaderSparklineProps {
 }
 
 const HeaderSparkline = React.memo<HeaderSparklineProps>(({ data, dataKey, stroke, hoveredChartIndex, onHoverChange }) => {
-    const { yDomain, maxIndex } = useMemo(() => {
-        if (!data || data.length === 0) return { yDomain: ['auto', 'auto'], maxIndex: -1 };
+    const { yDomain, maxIndex, hasZeroCross } = useMemo(() => {
+        if (!data || data.length === 0) return { yDomain: ['auto', 'auto'], maxIndex: -1, hasZeroCross: false };
         const values = data.map(p => p[dataKey]).filter((v): v is number => typeof v === 'number' && isFinite(v));
-        if (values.length < 1) return { yDomain: ['auto', 'auto'], maxIndex: -1 };
+        if (values.length < 1) return { yDomain: ['auto', 'auto'], maxIndex: -1, hasZeroCross: false };
         const min = Math.min(...values);
         const max = Math.max(...values);
         const maxIdx = data.findIndex(p => p[dataKey] === max);
-        return { yDomain: min === max ? [min * 0.99, max * 1.01] : [min, max], maxIndex: maxIdx };
+        const zeroCross = min <= 0 && max >= 0;
+        return { yDomain: min === max ? [min * 0.99, max * 1.01] : [min, max], maxIndex: maxIdx, hasZeroCross: zeroCross };
     }, [data, dataKey]);
 
     const handleMouseMove = useCallback((e: any) => {
@@ -82,6 +83,7 @@ const HeaderSparkline = React.memo<HeaderSparklineProps>(({ data, dataKey, strok
                 <LineChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 2 }} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
                     <YAxis hide domain={yDomain} />
                     {maxIndex !== -1 && <ReferenceLine x={maxIndex} stroke="#ef4444" strokeWidth={1} />}
+                    {hasZeroCross && <ReferenceLine y={0} stroke="#ef4444" strokeWidth={1} />}
                     <Line type="linear" dataKey={dataKey} stroke={stroke} strokeWidth={1.5} dot={false} isAnimationActive={false} />
                     {hoveredChartIndex !== null && data[hoveredChartIndex] && (
                         <ReferenceDot x={hoveredChartIndex} y={data[hoveredChartIndex][dataKey]} r={3} fill={stroke} stroke="#fff" strokeWidth={1} />
