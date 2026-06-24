@@ -57,8 +57,25 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
 
   const { trendInfo, baseChartData, zigzagPoints, lastPivotDate, navPercentile } = fund;
   const dataMap = useMemo(() => new Map<string, FundDataPoint>(fund.data.map(p => [p.date, p])), [fund.data]);
-  const confirmedRecordMap = useMemo(() => new Map<string, TradingRecord>((fund.userPosition?.tradingRecords || []).filter(r => r.nav !== undefined).map(r => [r.date, r])), [fund.userPosition?.tradingRecords]);
-  const pendingRecordMap = useMemo(() => new Map<string, TradingRecord>((fund.userPosition?.tradingRecords || []).filter(r => r.nav === undefined).map(r => [r.date, r])), [fund.userPosition?.tradingRecords]);
+  const confirmedRecordMap = useMemo(() => {
+    const map = new Map<string, TradingRecord[]>();
+    (fund.userPosition?.tradingRecords || []).filter(r => r.nav !== undefined).forEach(r => {
+        const arr = map.get(r.date) || [];
+        arr.push(r);
+        map.set(r.date, arr);
+    });
+    return map;
+  }, [fund.userPosition?.tradingRecords]);
+
+  const pendingRecordMap = useMemo(() => {
+    const map = new Map<string, TradingRecord[]>();
+    (fund.userPosition?.tradingRecords || []).filter(r => r.nav === undefined).forEach(r => {
+        const arr = map.get(r.date) || [];
+        arr.push(r);
+        map.set(r.date, arr);
+    });
+    return map;
+  }, [fund.userPosition?.tradingRecords]);
   const historicalDataForToday = useMemo(() => { if (!fund.realTimeData) return undefined; return dataMap.get(fund.realTimeData.estimationTime.split(' ')[0]); }, [dataMap, fund.realTimeData]);
   const pivotDateSet = useMemo(() => new Set(zigzagPoints.map(p => p.date)), [zigzagPoints]);
   const latestNAVForComparison = useMemo(() => fund.baseChartData.length > 0 ? fund.baseChartData[fund.baseChartData.length - 1].unitNAV ?? 0 : 0, [fund.baseChartData]);
@@ -90,7 +107,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
   };
 
   const todayDateStr = historicalDataForToday?.date || fund.realTimeData?.estimationTime.split(' ')[0];
-  const todayTransaction = todayDateStr ? (confirmedRecordMap.get(todayDateStr) || pendingRecordMap.get(todayDateStr)) : undefined;
+  const todayTransaction = todayDateStr ? (confirmedRecordMap.get(todayDateStr)?.[0] || pendingRecordMap.get(todayDateStr)?.[0]) : undefined;
 
   const dailyChangeDisplay = useMemo(() => {
     if (fund.realTimeData?.estimatedChange) { const value = parseFloat(fund.realTimeData.estimatedChange); if (isNaN(value)) return null; return { text: `今日${value >= 0 ? '⬆︎' : '⬇︎'} ${Math.abs(value).toFixed(2)}%`, colorClass: value >= 0 ? 'text-red-500' : 'text-green-600' }; }
@@ -193,11 +210,24 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
             ) : (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) ? (
               <><div className="font-normal font-mono text-xs text-gray-800 dark:text-gray-200">{fund.realTimeData.estimatedNAV.toFixed(4)}</div><div className={`text-sm font-semibold ${fund.realTimeData.estimatedChange.startsWith('-') ? 'text-green-600' : 'text-red-500'}`}>{fund.realTimeData.estimatedChange}%</div><div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{fund.realTimeData.estimationTime.split(' ')[1] || fund.realTimeData.estimationTime}</div></>
             ) : <span className="text-gray-400">-</span>}
-            {confirmedRecordMap.get(todayDateStr || '') ? <RecordLink onClick={() => onTrade(fund, todayDateStr!, 'buy', (confirmedRecordMap.get(todayDateStr!)?.nav || 0), true, confirmedRecordMap.get(todayDateStr!))} /> : pendingRecordMap.get(todayDateStr || '') ? <RecordLink onClick={() => onTrade(fund, todayDateStr!, 'buy', fund.realTimeData?.estimatedNAV || fund.latestNAV || 0, false, pendingRecordMap.get(todayDateStr!))} /> : ((historicalDataForToday || fund.realTimeData?.estimatedNAV) && <TradeLinks onTradeClick={handleTodayTrade} />)}
+            {(() => {
+                const confRecords = confirmedRecordMap.get(todayDateStr || '');
+                const pendRecords = pendingRecordMap.get(todayDateStr || '');
+                if (confRecords && confRecords.length > 0) {
+                    return <RecordLink onClick={() => onTrade(fund, todayDateStr!, 'buy', (confRecords[0].nav || 0), true, confRecords[0])} />;
+                } else if (pendRecords && pendRecords.length > 0) {
+                    return <RecordLink onClick={() => onTrade(fund, todayDateStr!, 'buy', fund.realTimeData?.estimatedNAV || fund.latestNAV || 0, false, pendRecords[0])} />;
+                } else {
+                    return ((historicalDataForToday || fund.realTimeData?.estimatedNAV) && <TradeLinks onTradeClick={handleTodayTrade} />);
+                }
+            })()}
         </div>
       </td>
       {dateHeaders.map(date => {
-        const point = dataMap.get(date); const record = confirmedRecordMap.get(date); const pendingRecord = pendingRecordMap.get(date); const transaction = record || pendingRecord;
+        const point = dataMap.get(date); 
+        const confRecords = confirmedRecordMap.get(date); 
+        const pendRecords = pendingRecordMap.get(date); 
+        const transaction = confRecords?.[0] || pendRecords?.[0];
         let diff = (point && latestNAVForComparison > 0) ? ((latestNAVForComparison - point.unitNAV) / point.unitNAV) * 100 : NaN;
         let cellBgClass = transaction ? (transaction.type === 'buy' || transaction.type === 'dividend-reinvest' ? (pivotDateSet.has(date) ? 'bg-red-200 dark:bg-red-900/60' : 'bg-red-50 dark:bg-red-900/20') : transaction.type === 'dividend-cash' ? (pivotDateSet.has(date) ? 'bg-yellow-200 dark:bg-yellow-900/60' : 'bg-yellow-50 dark:bg-yellow-900/20') : (pivotDateSet.has(date) ? 'bg-blue-200 dark:bg-blue-900/60' : 'bg-blue-50 dark:bg-blue-900/20')) : (pivotDateSet.has(date) ? 'bg-gray-200 dark:bg-gray-700' : '');
         return (
@@ -208,7 +238,7 @@ const FundRow: React.FC<FundRowProps> = ({ fund, dateHeaders, onShowDetails, onT
             onMouseLeave={() => setActiveHoverDate(null)}
           >
             {point ? (
-              <div className="p-0"><div className="font-normal font-mono text-xs text-gray-800 dark:text-gray-200">{point.unitNAV.toFixed(4)}</div><div className={`text-sm font-semibold ${point.dailyGrowthRate.startsWith('-') ? 'text-green-600' : 'text-red-500'}`}>{point.dailyGrowthRate}</div>{!isNaN(diff) && <div className={`text-xs font-mono mt-1 ${diff >= 0 ? 'text-red-500' : 'text-green-600'}`}>{diff >= 0 ? '+' : ''}{diff.toFixed(2)}%</div>}{record ? <RecordLink onClick={() => onTrade(fund, date, record.type, record.nav!, true, record)} /> : pendingRecord ? <RecordLink onClick={() => onTrade(fund, date, pendingRecord.type, fund.realTimeData?.estimatedNAV || fund.latestNAV || 0, false, pendingRecord)} /> : <TradeLinks onTradeClick={(type) => handleHistoricalTrade(date, type, point.unitNAV)} />}</div>
+              <div className="p-0"><div className="font-normal font-mono text-xs text-gray-800 dark:text-gray-200">{point.unitNAV.toFixed(4)}</div><div className={`text-sm font-semibold ${point.dailyGrowthRate.startsWith('-') ? 'text-green-600' : 'text-red-500'}`}>{point.dailyGrowthRate}</div>{!isNaN(diff) && <div className={`text-xs font-mono mt-1 ${diff >= 0 ? 'text-red-500' : 'text-green-600'}`}>{diff >= 0 ? '+' : ''}{diff.toFixed(2)}%</div>}{confRecords?.[0] ? <RecordLink onClick={() => onTrade(fund, date, confRecords[0].type, confRecords[0].nav!, true, confRecords[0])} /> : pendRecords?.[0] ? <RecordLink onClick={() => onTrade(fund, date, pendRecords[0].type, fund.realTimeData?.estimatedNAV || fund.latestNAV || 0, false, pendRecords[0])} /> : <TradeLinks onTradeClick={(type) => handleHistoricalTrade(date, type, point.unitNAV)} />}</div>
             ) : <span className="text-gray-400">-</span>}
           </td>
         );

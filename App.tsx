@@ -789,11 +789,12 @@ const App: React.FC = () => {
   }, [funds, todayHeaderDate]);
 
   const handleOpenTradeModal = useCallback((fund: ProcessedFund, date: string, type: TransactionType, nav: number, isConfirmed: boolean, editingRecord?: TradingRecord) => {
-    const modalState: TradeModalState = { fund, date, nav, isConfirmed, editingRecord };
+    const dayRecords = fund.userPosition?.tradingRecords?.filter(r => r.date === date) || [];
+    const modalState: TradeModalState = { fund, date, nav, isConfirmed, editingRecord, dayRecords };
     if (type === 'sell') setSellModalState(modalState); else setBuyModalState(modalState);
   }, []);
 
- const handleTradeSubmit = useCallback((fund: ProcessedFund, date: string, type: TransactionType, value: number, isConfirmed: boolean, nav: number, isEditing: boolean) => {
+  const handleTradeSubmit = useCallback((fund: ProcessedFund, date: string, type: TransactionType, value: number, isConfirmed: boolean, nav: number, originalType?: TransactionType) => {
     const fundToUpdate = funds.find(f => f.code === fund.code); if (!fundToUpdate || !fundToUpdate.userPosition) return;
     const currentRecords = fundToUpdate.userPosition.tradingRecords || []; let newRecord: TradingRecord;
     if (!isConfirmed) newRecord = { date, type, value };
@@ -804,15 +805,41 @@ const App: React.FC = () => {
         else if (type === 'dividend-reinvest') newRecord = { date, type: 'dividend-reinvest', nav, sharesChange: value, amount: 0 };
         else newRecord = { date, type, value };
     }
-    const existingRecordIndex = currentRecords.findIndex(r => r.date === date);
-    const updatedRecords = (isEditing || existingRecordIndex !== -1) ? currentRecords.map(r => r.date === date ? newRecord : r) : [...currentRecords, newRecord];
+    
+    let updatedRecords = [...currentRecords];
+    if (originalType) {
+        // Edit mode: replace the specific record matching date and originalType
+        const existingRecordIndex = updatedRecords.findIndex(r => r.date === date && r.type === originalType);
+        if (existingRecordIndex !== -1) {
+            updatedRecords[existingRecordIndex] = newRecord;
+        } else {
+            updatedRecords.push(newRecord);
+        }
+    } else {
+        // Create mode: append
+        updatedRecords.push(newRecord);
+    }
+    
     setFunds(prevFunds => prevFunds.map(f => f.code === fund.code ? { ...f, userPosition: { ...f.userPosition!, tradingRecords: updatedRecords } } : f));
     setBuyModalState(null); setSellModalState(null);
 }, [funds]);
 
-const handleTradeDelete = useCallback((fundCode: string, recordDate: string) => {
+const handleTradeDelete = useCallback((fundCode: string, recordDate: string, type?: TransactionType) => {
     const fundToUpdate = funds.find(f => f.code === fundCode); if (!fundToUpdate || !fundToUpdate.userPosition?.tradingRecords) return;
-    setFunds(prevFunds => prevFunds.map(f => f.code === fundCode ? { ...f, userPosition: { ...f.userPosition!, tradingRecords: f.userPosition!.tradingRecords!.filter(r => r.date !== recordDate) } } : f));
+    setFunds(prevFunds => prevFunds.map(f => {
+        if (f.code === fundCode) {
+            return {
+                ...f, 
+                userPosition: { 
+                    ...f.userPosition!, 
+                    tradingRecords: type 
+                        ? f.userPosition!.tradingRecords!.filter(r => !(r.date === recordDate && r.type === type))
+                        : f.userPosition!.tradingRecords!.filter(r => r.date !== recordDate) 
+                }
+            };
+        }
+        return f;
+    }));
     setBuyModalState(null); setSellModalState(null);
 }, [funds]);
 

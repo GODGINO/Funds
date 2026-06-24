@@ -5,8 +5,8 @@ import FundChart from './FundChart';
 interface BuyModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (fund: TradeModalState['fund'], date: string, type: TransactionType, value: number, isConfirmed: boolean, nav: number, isEditing: boolean) => void;
-    onDelete: (fundCode: string, recordDate: string) => void;
+    onSubmit: (fund: TradeModalState['fund'], date: string, type: TransactionType, value: number, isConfirmed: boolean, nav: number, originalType?: TransactionType) => void;
+    onDelete: (fundCode: string, recordDate: string, type?: TransactionType) => void;
     tradeState: TradeModalState;
 }
 
@@ -31,6 +31,10 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
     const [amount, setAmount] = useState('');
     const [isCopied, setIsCopied] = useState(false);
     const amountInputRef = useRef<HTMLInputElement>(null);
+
+    const [showDividendForm, setShowDividendForm] = useState(false);
+    const [inlineDividendType, setInlineDividendType] = useState<TransactionType>('dividend-cash');
+    const [inlineDividendAmount, setInlineDividendAmount] = useState('');
 
     const {
         dailyProfit,
@@ -231,12 +235,21 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
         const numericAmount = parseFloat((parseFloat(amount) || 0).toFixed(2));
         if (!numericAmount || numericAmount <= 0) return;
 
-        onSubmit(fund, date, activeTab, numericAmount, isConfirmed, nav, isEditing);
+        onSubmit(fund, date, activeTab, numericAmount, isConfirmed, nav, isEditing ? editingRecord?.type : undefined);
     };
+
+    const handleInlineDividendSubmit = () => {
+        if (!inlineDividendAmount || parseFloat(inlineDividendAmount) <= 0) return;
+        onSubmit(fund, date, inlineDividendType, parseFloat(inlineDividendAmount), isConfirmed, nav, undefined);
+        setShowDividendForm(false);
+    };
+
+    const existingDividend = tradeState.dayRecords?.find(r => r.type === 'dividend-cash' || r.type === 'dividend-reinvest');
+    const isEditingDividend = isEditing && (editingRecord?.type === 'dividend-cash' || editingRecord?.type === 'dividend-reinvest');
 
     const handleDeleteOrCancel = () => {
         if (isEditing) {
-            onDelete(fund.code, date);
+            onDelete(fund.code, date, editingRecord?.type);
         }
     };
 
@@ -465,14 +478,42 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                 </div>
 
                 {/* Modal Footer */}
-                {isEditing && (
-                    <div className="flex justify-start items-center px-6 py-3 bg-gray-50 dark:bg-gray-800 border-t dark:border-gray-700 flex-shrink-0">
-                       <button 
+                {isEditing && !isEditingDividend && (
+                    <div className="flex justify-between items-center px-6 py-3 bg-gray-50 dark:bg-gray-800 border-t dark:border-gray-700 flex-shrink-0 rounded-b-lg">
+                        <div className="flex-1">
+                            {existingDividend ? (
+                                <div className="flex justify-between items-center bg-yellow-50 dark:bg-yellow-900/20 px-3 py-1.5 rounded border border-yellow-100 dark:border-yellow-800">
+                                    <div className="text-xs text-yellow-800 dark:text-yellow-400">
+                                        <span className="font-semibold mr-1">{existingDividend.type === 'dividend-cash' ? '现金分红' : '红利再投'}:</span>
+                                        <span>{existingDividend.value}</span>
+                                    </div>
+                                    <button type="button" onClick={() => {
+                                        if (window.confirm('确定要删除分红记录吗？')) {
+                                            onDelete(fund.code, date, existingDividend.type);
+                                        }
+                                    }} className="text-red-500 text-[10px] hover:underline">删除分红</button>
+                                </div>
+                            ) : !showDividendForm ? (
+                                <button type="button" onClick={() => setShowDividendForm(true)} className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 px-3 py-1.5 rounded bg-white dark:bg-gray-700 font-medium">
+                                    + 同日分红
+                                </button>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <div className="flex rounded overflow-hidden border border-gray-300 dark:border-gray-600 text-[10px]">
+                                        <button type="button" className={`px-2 py-1 ${inlineDividendType === 'dividend-cash' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200 font-medium' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`} onClick={() => setInlineDividendType('dividend-cash')}>现金</button>
+                                        <button type="button" className={`px-2 py-1 ${inlineDividendType === 'dividend-reinvest' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200 font-medium' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`} onClick={() => setInlineDividendType('dividend-reinvest')}>再投</button>
+                                    </div>
+                                    <input type="number" step="0.01" value={inlineDividendAmount} onChange={e => setInlineDividendAmount(e.target.value)} placeholder="金额/份额" className="w-20 px-2 py-1 border rounded text-[10px] dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                                    <button type="button" onClick={handleInlineDividendSubmit} className="px-2 py-1 bg-blue-600 text-white rounded text-[10px] hover:bg-blue-700" disabled={!inlineDividendAmount || parseFloat(inlineDividendAmount) <= 0}>保存</button>
+                                </div>
+                            )}
+                        </div>
+                        <button 
                             type="button" 
                             onClick={handleDeleteOrCancel}
-                            className="bg-red-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                            className="text-sm text-red-600 hover:text-red-700 font-medium ml-4 focus:outline-none"
                         >
-                            删除记录
+                            删除卖出记录
                         </button>
                     </div>
                 )}

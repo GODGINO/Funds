@@ -7,7 +7,7 @@ interface TransactionManagerModalProps {
   onClose: () => void;
   funds: ProcessedFund[];
   onEdit: (fund: ProcessedFund, record: TradingRecord) => void;
-  onDelete: (fundCode: string, recordDate: string) => void;
+  onDelete: (fundCode: string, recordDate: string, type?: TransactionType) => void;
 }
 
 const TransactionManagerModal: React.FC<TransactionManagerModalProps> = ({ isOpen, onClose, funds, onEdit, onDelete }) => {
@@ -118,7 +118,7 @@ const TransactionManagerModal: React.FC<TransactionManagerModalProps> = ({ isOpe
                           编辑
                         </button>
                         <button
-                          onClick={() => onDelete(fund.code, record.date)}
+                          onClick={() => onDelete(fund.code, record.date, record.type)}
                           className="font-medium text-red-600 hover:text-red-500"
                         >
                           删除

@@ -132,6 +132,7 @@ export interface TradeModalState {
   nav: number; // The NAV for estimation or confirmed transaction
   isConfirmed: boolean; // True if NAV is final for that day
   editingRecord?: TradingRecord; // Optional: The record being edited (can be pending or confirmed)
+  dayRecords?: TradingRecord[]; // All records on this date
 }
 
 export interface PortfolioSnapshot {

@@ -18,7 +18,7 @@ interface ChartDataPoint {
   dailyProfit?: number;
   changeSinceDate?: number; 
   changeFromBaseline?: number; 
-  tradeRecord?: TradingRecord; 
+  tradeRecords?: TradingRecord[]; 
 }
 
 interface FundChartProps {
@@ -73,7 +73,7 @@ const getTransactionLabelColorClass = (type: TransactionType) => {
 const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload as ChartDataPoint;
-        const { date, dailyGrowthRate, dailyProfit, changeSinceDate, changeFromBaseline, tradeRecord, ma5, ma10, ma20 } = data;
+        const { date, dailyGrowthRate, dailyProfit, changeSinceDate, changeFromBaseline, tradeRecords, ma5, ma10, ma20 } = data;
         if (!date) return null;
         const displayDate = date.split(' ')[0];
         const displayBaselineDate = localBaselineDate ? localBaselineDate.split(' ')[0] : '';
@@ -113,7 +113,17 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
                         {ma20 != null && <div className="flex justify-between items-baseline gap-4"><span className="text-[#22C55E] opacity-80">MA20:</span><span className="font-mono text-gray-700 dark:text-gray-300">{ma20.toFixed(4)}</span></div>}
                     </div>
 
-                    {tradeRecord && <div className="flex justify-between items-baseline gap-4 pt-1 border-t border-gray-100 dark:border-gray-700/50 mt-1"><span className={`font-semibold ${getTransactionLabelColorClass(tradeRecord.type)}`}>{getTransactionLabel(tradeRecord.type)}:</span><span className="font-mono font-bold text-gray-800 dark:text-gray-100">{tradeRecord.type === 'buy' ? `${tradeRecord.amount!.toFixed(2)} 元` : tradeRecord.type === 'sell' ? `${Math.abs(tradeRecord.sharesChange!).toFixed(2)} 份` : tradeRecord.type === 'dividend-cash' ? `${tradeRecord.realizedProfitChange!.toFixed(2)} 元` : `${tradeRecord.sharesChange!.toFixed(2)} 份`}</span></div>}
+                    {tradeRecords && tradeRecords.map((tr, i) => (
+                        <div key={i} className="flex justify-between items-baseline gap-4 pt-1 border-t border-gray-100 dark:border-gray-700/50 mt-1">
+                            <span className={`font-semibold ${getTransactionLabelColorClass(tr.type)}`}>{getTransactionLabel(tr.type)}:</span>
+                            <span className="font-mono font-bold text-gray-800 dark:text-gray-100">
+                                {tr.type === 'buy' ? `${tr.amount!.toFixed(2)} 元` : 
+                                 tr.type === 'sell' ? `${Math.abs(tr.sharesChange!).toFixed(2)} 份` : 
+                                 tr.type === 'dividend-cash' ? `${tr.realizedProfitChange!.toFixed(2)} 元` : 
+                                 `${tr.sharesChange!.toFixed(2)} 份`}
+                            </span>
+                        </div>
+                    ))}
                 </div>
             </div>
         );
@@ -135,7 +145,14 @@ const FundChart: React.FC<FundChartProps> = ({ baseChartData, zigzagPoints, shar
 
   const chartDataForRender = useMemo(() => {
     const zigzagMap = new Map(zigzagPoints.map(p => [p.date, p.unitNAV]));
-    const tradeMap = new Map(confirmedTradingRecords?.map(r => [r.date, r]));
+    const tradeMap = new Map<string, TradingRecord[]>();
+    confirmedTradingRecords?.forEach(r => {
+        if (r.nav !== undefined) {
+            const arr = tradeMap.get(r.date) || [];
+            arr.push(r);
+            tradeMap.set(r.date, arr);
+        }
+    });
     const latestNAV = baseChartData.length > 0 ? (baseChartData[baseChartData.length - 1].unitNAV ?? 0) : 0;
     
     // Pre-calculate Moving Averages
@@ -145,7 +162,7 @@ const FundChart: React.FC<FundChartProps> = ({ baseChartData, zigzagPoints, shar
     const ma20Values = calculateSMA(navs, 20);
 
     return baseChartData.map((p, index, arr) => {
-        const tradeRecord = p.date ? tradeMap.get(p.date.split(' ')[0]) : undefined;
+        const tradeRecords = p.date ? tradeMap.get(p.date.split(' ')[0]) : undefined;
         let dailyProfit = (index > 0 && shares > 0) ? (p.unitNAV! - arr[index - 1].unitNAV!) * shares : 0;
         let changeSinceDate = (p.unitNAV && p.unitNAV > 0 && latestNAV > 0) ? ((latestNAV - p.unitNAV) / p.unitNAV) * 100 : 0;
         let changeFromBaseline = (localBaselineNAV && localBaselineNAV > 0 && p.unitNAV !== undefined) ? ((p.unitNAV - localBaselineNAV) / localBaselineNAV) * 100 : 0;
@@ -158,7 +175,7 @@ const FundChart: React.FC<FundChartProps> = ({ baseChartData, zigzagPoints, shar
           dailyProfit, 
           changeSinceDate, 
           changeFromBaseline, 
-          tradeRecord 
+          tradeRecords 
         };
     });
   }, [baseChartData, zigzagPoints, shares, confirmedTradingRecords, localBaselineNAV]);
@@ -212,7 +229,7 @@ const FundChart: React.FC<FundChartProps> = ({ baseChartData, zigzagPoints, shar
   const handleContainerMouseDown = useCallback(() => {
     if (hoveredIndex !== null) {
         const point = chartDataForRender[hoveredIndex];
-        if (point?.tradeRecord && point.date) startLongPress(point.date.split(' ')[0]);
+        if (point?.tradeRecords && point.tradeRecords.length > 0 && point.date) startLongPress(point.date.split(' ')[0]);
     }
   }, [hoveredIndex, chartDataForRender, startLongPress]);
 
