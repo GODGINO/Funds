@@ -162,33 +162,74 @@ export function fetchFundDetails(code: string): Promise<{ name: string; realTime
     return robustFetch;
 }
 
-let fundDataPagePromise: Promise<void> = Promise.resolve();
+// 2026-07-16 历史请求并行化：新接口用唯一 callback 名，已无 window.apidata 全局变量冲突，
+// 故去掉原全局串行队列 fundDataPagePromise，改为「最多同时 N 个」的轻量并发限流（防东财限频）。
+const HISTORY_CONCURRENCY = 10;
+let _histActive = 0;
+const _histQueue: Array<() => void> = [];
+function _histAcquire(): Promise<void> {
+    if (_histActive < HISTORY_CONCURRENCY) { _histActive++; return Promise.resolve(); }
+    return new Promise<void>(res => _histQueue.push(res));
+}
+function _histRelease(): void {
+    const next = _histQueue.shift();
+    if (next) { next(); } else { _histActive--; } // 有等待者则直接转让槽位、活跃数不变
+}
+
+// 2026-07-16 数据源迁移：东财旧接口 fund.eastmoney.com/f10/F10DataApi.aspx 已下线（302→空）。
+// 改用新 JSON 接口 api.fund.eastmoney.com/f10/lsjz，无 CORS 头故仍走 JSONP（callback=）绕过跨域。
+// 输出结构与原 parseHtmlTable 完全一致（同 7 字段），其余分页/重试/合并逻辑不变。
+function parseLsjzList(list: any[]): FundDataPoint[] {
+    const data: FundDataPoint[] = [];
+    if (!Array.isArray(list)) return data;
+    for (const it of list) {
+        const unitNAV = parseFloat(it && it.DWJZ);
+        if (isNaN(unitNAV) || unitNAV === 0) continue;
+        const zzl = (it.JZZZL === null || it.JZZZL === undefined || it.JZZZL === '') ? '' : `${it.JZZZL}%`;
+        const fh = (it.FHSP && String(it.FHSP).trim()) ? String(it.FHSP).trim() : 'N/A';
+        data.push({
+            date: it.FSRQ,
+            unitNAV: unitNAV,
+            cumulativeNAV: parseFloat(it.LJJZ),
+            dailyGrowthRate: zzl,
+            subscriptionStatus: it.SGZT || 'N/A',
+            redemptionStatus: it.SHZT || 'N/A',
+            dividendDistribution: fh,
+        });
+    }
+    return data;
+}
 
 function fetchEastmoneyPage(url: string): Promise<FundDataPoint[]> {
     const fetchPromise = () => new Promise<FundDataPoint[]>((resolve, reject) => {
+        // JSONP：新接口返回 CB({Data:{LSJZList:[...]}})，用唯一回调名捕获后解析
+        const cbName = `__ginosLsjz_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
         const script = document.createElement('script');
-        script.src = url;
+        let settled = false;
+        const cleanup = () => {
+            if (script.parentNode) { script.parentNode.removeChild(script); }
+            try { delete (window as any)[cbName]; } catch { (window as any)[cbName] = undefined; }
+        };
+        (window as any)[cbName] = (json: any) => {
+            settled = true;
+            const list = (json && json.Data && Array.isArray(json.Data.LSJZList)) ? json.Data.LSJZList : [];
+            cleanup();
+            resolve(parseLsjzList(list));
+        };
+        const sep = url.includes('?') ? '&' : '?';
+        script.src = `${url}${sep}callback=${cbName}`;
         script.charset = 'utf-8';
         script.onload = () => {
-            const apiData = (window as any).apidata;
-            document.head.removeChild(script);
-            (window as any).apidata = undefined;
-            if (!apiData || !apiData.content) {
-                resolve([]);
-                return;
-            }
-            resolve(parseHtmlTable(apiData.content));
+            // 正常时回调已 resolve；兜底：脚本执行完仍未回调则视为空页
+            setTimeout(() => { if (!settled) { cleanup(); resolve([]); } }, 0);
         };
         script.onerror = () => {
-            if (script.parentNode) { script.parentNode.removeChild(script); }
-            if ((window as any).apidata) { (window as any).apidata = undefined; }
-            reject(new Error(`Failed to load script from ${url}.`));
+            if (!settled) { cleanup(); reject(new Error(`Failed to load script from ${url}.`)); }
         };
         document.head.appendChild(script);
     });
-    const result = fundDataPagePromise.then(() => fetchPromise());
-    fundDataPagePromise = result.then(() => {}, () => {}); 
-    return result;
+    // 并行 + 限流：拿到并发槽后立即发起，完成/失败都释放槽位（不再全局串行排队）
+    return _histAcquire().then(() => fetchPromise()).finally(() => _histRelease());
 }
 
 export async function fetchFundData(
@@ -207,7 +248,7 @@ export async function fetchFundData(
     let lastError: unknown = null;
     while (!success && attempts < MAX_RETRIES) {
       try {
-        const targetUrl = `https://fund.eastmoney.com/f10/F10DataApi.aspx?type=lsjz&code=${code}&page=${page}&per=${recordsPerPage}&_=${new Date().getTime()}`;
+        const targetUrl = `https://api.fund.eastmoney.com/f10/lsjz?fundCode=${code}&pageIndex=${page}&pageSize=${recordsPerPage}&_=${new Date().getTime()}`;
         pageData = await fetchEastmoneyPage(targetUrl);
         success = true;
       } catch (error) { attempts++; lastError = error; }
