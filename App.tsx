@@ -107,7 +107,7 @@ const App: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [isAppLoading, setIsAppLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [recordCount, setRecordCount] = useState<number>(100);
+  const [recordCount, setRecordCount] = useState<number>(200);
   const [zigzagThreshold, setZigzagThreshold] = useState<number>(2);
   const [selectedFundForModal, setSelectedFundForModal] = useState<Fund | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
