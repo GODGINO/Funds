@@ -126,12 +126,12 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
         <table className="w-full text-[11px] text-center border-collapse table-fixed">
           {/* 2026-07-16 三档列宽(共100%)：大L=6.2%(标签+金额) / 中M=5.8%(效率+率·效率加大避免"近期效率"表头换行) / 小S=3.6%(分位) */}
           <colgroup>
-            <col style={{ width: '6.2%' }} />{/* 标签 · 大 */}
+            <col style={{ width: '5.2%' }} />{/* 标签 · 大(板块名短·收窄补给累计收益) */}
             <col style={{ width: '6.2%' }} />{/* 总成本 · 大 */}
             <col style={{ width: '6.2%' }} />{/* 估算总值 · 大 */}
             <col style={{ width: '6.2%' }} />{/* 累计总值 · 大 */}
             <col style={{ width: '6.2%' }} />{/* 持有收益 · 大 */}
-            <col style={{ width: '6.2%' }} />{/* 累计收益 · 大 */}
+            <col style={{ width: '7.2%' }} />{/* 累计收益 · 特宽(占比分母小·占比可达几百%·防换行) */}
             <col style={{ width: '5.8%' }} />{/* 收益效率 · 中 */}
             <col style={{ width: '5.8%' }} />{/* 持有收益率 · 中 */}
             <col style={{ width: '5.8%' }} />{/* 累计收益率 · 中 */}
@@ -275,7 +275,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                     </div>
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.grandTotalProfit)}`} style={getBarStyle(item.grandTotalProfit, maxAbsValues.grandTotalProfit)}>
-                    <div className="relative">
+                    <div className="relative whitespace-nowrap">
                       <span>{formatIntegerWithCommas(item.grandTotalProfit)}</span>
                       {totals.grandTotalProfit !== 0 && (
                         <span className="text-gray-500 dark:text-gray-400 ml-1">{((item.grandTotalProfit / Math.abs(totals.grandTotalProfit)) * 100).toFixed(0)}%</span>
