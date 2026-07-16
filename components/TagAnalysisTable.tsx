@@ -69,8 +69,16 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
     }
     
     const backgroundImage = `linear-gradient(to left, ${color} ${widthPercent}%, transparent ${widthPercent}%)`;
-    
+
     return { backgroundImage };
+  };
+
+  // 分位专用进度条：条宽=分位值本身(0-100 绝对填充度)，颜色高位红(≥50)/低位绿(<50)
+  const getPercentileBarStyle = (value: number | null | undefined) => {
+    if (value == null || isNaN(value)) return {};
+    const widthPercent = Math.max(0, Math.min(100, value));
+    const color = value >= 50 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)';
+    return { backgroundImage: `linear-gradient(to left, ${color} ${widthPercent}%, transparent ${widthPercent}%)` };
   };
 
   const getSortIndicator = (key: keyof TagAnalysisData) => {
@@ -297,7 +305,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalRecentOperationAmount)}`} style={getBarStyle(item.totalRecentOperationAmount, maxAbsValues.totalRecentOperationAmount)}>
                     <div className="relative">{formatIntegerWithCommas(item.totalRecentOperationAmount)}</div>
                   </td>
-                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right">
+                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right" style={getPercentileBarStyle(item.avgNavPercentile)}>
                     <div className="relative">{item.avgNavPercentile == null ? '—' : `${item.avgNavPercentile.toFixed(0)}%`}</div>
                   </td>
                 </tr>
