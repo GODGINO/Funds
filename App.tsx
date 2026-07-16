@@ -655,19 +655,19 @@ const App: React.FC = () => {
         const recentOps = (fund.userPosition?.tradingRecords || []).filter(r => r.nav !== undefined && fund.lastPivotDate && new Date(r.date).getTime() >= new Date(fund.lastPivotDate!).getTime());
         const hasRecentTx = recentOps.length > 0; let fundRecentOpAmount = 0;
         if (hasRecentTx) recentOps.forEach(r => { if (r.type === 'dividend-cash') fundRecentOpAmount -= (r.realizedProfitChange || 0); else fundRecentOpAmount += (r.amount || 0); });
+        // 统一判据：这只基金今日是否有净值/实时估值(QDII T+2 今日无→false)。今日收益率、分位等等权计算都据此剔除今日无净值的基金
+        const hasTodayNav = !!(fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0);
         const position = fund.userPosition; if (!position || !position.tag) return;
         position.tag.split(',').map(t => t.trim()).filter(Boolean).forEach(tag => {
             if (!metricsByTag[tag]) metricsByTag[tag] = { totalCostBasis: 0, totalMarketValue: 0, totalHoldingProfit: 0, totalRealizedProfit: 0, totalDailyProfit: 0, totalYesterdayMarketValue: 0, totalRecentProfit: 0, totalInitialMarketValueForTrend: 0, totalRecentOperationAmount: 0, fundCodes: new Set<string>(), sumDailyRates: 0, dailyRateCount: 0, sumRecentRates: 0, recentRateCount: 0, hasRecentTransaction: false, sumNavPctWeighted: 0, sumNavPctWeight: 0, sumNavPctEqual: 0, navPctEqualCount: 0, hasZeroPositionFund: false };
             metricsByTag[tag].fundCodes.add(fund.code); metricsByTag[tag].totalRealizedProfit += position.realizedProfit || 0; metricsByTag[tag].totalRecentOperationAmount += fundRecentOpAmount;
             if (hasRecentTx) metricsByTag[tag].hasRecentTransaction = true;
-            // 今日收益率等权：仅计入「今日有实时估值」的基金。QDII T+2 今日无估值(fundgz 返回空)→剔除，
-            // 不再 fallback 到历史 latestChange，避免把"今天没净值的基金"按历史涨跌混入今日等权。
-            const rtDailyStr = (fund.realTimeData && !isNaN(fund.realTimeData.estimatedNAV) && fund.realTimeData.estimatedNAV > 0) ? fund.realTimeData.estimatedChange : null;
-            const dailyChange = rtDailyStr ? parseFloat(rtDailyStr) : null;
+            // 今日收益率等权：仅计入「今日有净值」的基金(hasTodayNav)，今日无净值(QDII T+2)剔除，不 fallback 历史涨跌
+            const dailyChange = hasTodayNav ? parseFloat(fund.realTimeData!.estimatedChange) : null;
             if (dailyChange !== null && !isNaN(dailyChange)) { metricsByTag[tag].sumDailyRates += dailyChange; metricsByTag[tag].dailyRateCount++; }
             if (fund.trendInfo?.change) { metricsByTag[tag].sumRecentRates += fund.trendInfo.change; metricsByTag[tag].recentRateCount++; }
-            // 等权分位：所有基金(含无仓位)都计入；并标记该标签是否含无仓位基金
-            if (fund.navPercentile != null && !isNaN(fund.navPercentile)) {
+            // 等权分位：仅计入「今日有净值」的基金(hasTodayNav)——今日无净值(QDII T+2)剔除，与今日收益率口径一致
+            if (hasTodayNav && fund.navPercentile != null && !isNaN(fund.navPercentile)) {
                 metricsByTag[tag].sumNavPctEqual += fund.navPercentile;
                 metricsByTag[tag].navPctEqualCount++;
             }
@@ -681,8 +681,8 @@ const App: React.FC = () => {
                 metricsByTag[tag].totalCostBasis += fund.costBasis ?? 0; metricsByTag[tag].totalMarketValue += fund.marketValue ?? 0; metricsByTag[tag].totalHoldingProfit += fund.holdingProfit ?? 0;
                 metricsByTag[tag].totalDailyProfit += dailyProfit; metricsByTag[tag].totalYesterdayMarketValue += yesterdayMarketValue; metricsByTag[tag].totalRecentProfit += fund.recentProfit ?? 0;
                 metricsByTag[tag].totalInitialMarketValueForTrend += fund.initialMarketValueForTrend ?? 0;
-                // 市值加权净值分位：仅 shares>0 且 分位有效 时计入
-                if (fund.navPercentile != null && !isNaN(fund.navPercentile) && (fund.marketValue ?? 0) > 0) {
+                // 市值加权净值分位：仅 shares>0 且 今日有净值 且 分位有效 时计入
+                if (hasTodayNav && fund.navPercentile != null && !isNaN(fund.navPercentile) && (fund.marketValue ?? 0) > 0) {
                     metricsByTag[tag].sumNavPctWeighted += fund.navPercentile * (fund.marketValue ?? 0);
                     metricsByTag[tag].sumNavPctWeight += (fund.marketValue ?? 0);
                 }
