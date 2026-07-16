@@ -124,6 +124,26 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
     <div className="mb-4 bg-white dark:bg-gray-900 rounded-lg shadow-md p-4 select-none">
       <div className="w-full">
         <table className="w-full text-[11px] text-center border-collapse table-fixed">
+          {/* 2026-07-16 按内容长度差异化列宽(百分比·共100%)：短列(分位/效率)压窄、长列(金额)给足 */}
+          <colgroup>
+            <col style={{ width: '9%' }} />{/* 标签 */}
+            <col style={{ width: '6.5%' }} />{/* 总成本 */}
+            <col style={{ width: '6.5%' }} />{/* 估算总值 */}
+            <col style={{ width: '6.5%' }} />{/* 累计总值 */}
+            <col style={{ width: '6.5%' }} />{/* 持有收益 */}
+            <col style={{ width: '6.5%' }} />{/* 累计收益 */}
+            <col style={{ width: '4.5%' }} />{/* 收益效率 */}
+            <col style={{ width: '5.5%' }} />{/* 持有收益率 */}
+            <col style={{ width: '6.5%' }} />{/* 累计收益率 */}
+            <col style={{ width: '6%' }} />{/* 今日收益 */}
+            <col style={{ width: '4.5%' }} />{/* 今日效率 */}
+            <col style={{ width: '5.5%' }} />{/* 今日收益率 */}
+            <col style={{ width: '6%' }} />{/* 近期收益 */}
+            <col style={{ width: '4.5%' }} />{/* 近期效率 */}
+            <col style={{ width: '5.5%' }} />{/* 近期收益率 */}
+            <col style={{ width: '6%' }} />{/* 近期操作 */}
+            <col style={{ width: '4%' }} />{/* 分位 */}
+          </colgroup>
           <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-20">
             <tr>
               <th className="px-1 py-0 border dark:border-gray-700 font-semibold text-gray-600 dark:text-gray-300 text-left sticky left-0 z-30 bg-gray-50 dark:bg-gray-800">
