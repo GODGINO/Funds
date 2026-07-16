@@ -124,25 +124,25 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
     <div className="mb-4 bg-white dark:bg-gray-900 rounded-lg shadow-md p-4 select-none">
       <div className="w-full">
         <table className="w-full text-[11px] text-center border-collapse table-fixed">
-          {/* 2026-07-16 按内容长度差异化列宽(百分比·共100%)：短列(分位/效率)压窄、长列(金额)给足 */}
+          {/* 2026-07-16 三档列宽(共100%)：大L=6.2%(标签+金额) / 中M=5.8%(效率+率·效率加大避免"近期效率"表头换行) / 小S=3.6%(分位) */}
           <colgroup>
-            <col style={{ width: '9%' }} />{/* 标签 */}
-            <col style={{ width: '6.5%' }} />{/* 总成本 */}
-            <col style={{ width: '6.5%' }} />{/* 估算总值 */}
-            <col style={{ width: '6.5%' }} />{/* 累计总值 */}
-            <col style={{ width: '6.5%' }} />{/* 持有收益 */}
-            <col style={{ width: '6.5%' }} />{/* 累计收益 */}
-            <col style={{ width: '4.5%' }} />{/* 收益效率 */}
-            <col style={{ width: '5.5%' }} />{/* 持有收益率 */}
-            <col style={{ width: '6.5%' }} />{/* 累计收益率 */}
-            <col style={{ width: '6%' }} />{/* 今日收益 */}
-            <col style={{ width: '4.5%' }} />{/* 今日效率 */}
-            <col style={{ width: '5.5%' }} />{/* 今日收益率 */}
-            <col style={{ width: '6%' }} />{/* 近期收益 */}
-            <col style={{ width: '4.5%' }} />{/* 近期效率 */}
-            <col style={{ width: '5.5%' }} />{/* 近期收益率 */}
-            <col style={{ width: '6%' }} />{/* 近期操作 */}
-            <col style={{ width: '4%' }} />{/* 分位 */}
+            <col style={{ width: '6.2%' }} />{/* 标签 · 大 */}
+            <col style={{ width: '6.2%' }} />{/* 总成本 · 大 */}
+            <col style={{ width: '6.2%' }} />{/* 估算总值 · 大 */}
+            <col style={{ width: '6.2%' }} />{/* 累计总值 · 大 */}
+            <col style={{ width: '6.2%' }} />{/* 持有收益 · 大 */}
+            <col style={{ width: '6.2%' }} />{/* 累计收益 · 大 */}
+            <col style={{ width: '5.8%' }} />{/* 收益效率 · 中 */}
+            <col style={{ width: '5.8%' }} />{/* 持有收益率 · 中 */}
+            <col style={{ width: '5.8%' }} />{/* 累计收益率 · 中 */}
+            <col style={{ width: '6.2%' }} />{/* 今日收益 · 大 */}
+            <col style={{ width: '5.8%' }} />{/* 今日效率 · 中 */}
+            <col style={{ width: '5.8%' }} />{/* 今日收益率 · 中 */}
+            <col style={{ width: '6.2%' }} />{/* 近期收益 · 大 */}
+            <col style={{ width: '5.8%' }} />{/* 近期效率 · 中 */}
+            <col style={{ width: '5.8%' }} />{/* 近期收益率 · 中 */}
+            <col style={{ width: '6.2%' }} />{/* 近期操作 · 大 */}
+            <col style={{ width: '3.6%' }} />{/* 分位 · 小 */}
           </colgroup>
           <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-20">
             <tr>
