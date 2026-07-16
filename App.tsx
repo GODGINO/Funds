@@ -657,13 +657,19 @@ const App: React.FC = () => {
         if (hasRecentTx) recentOps.forEach(r => { if (r.type === 'dividend-cash') fundRecentOpAmount -= (r.realizedProfitChange || 0); else fundRecentOpAmount += (r.amount || 0); });
         const position = fund.userPosition; if (!position || !position.tag) return;
         position.tag.split(',').map(t => t.trim()).filter(Boolean).forEach(tag => {
-            if (!metricsByTag[tag]) metricsByTag[tag] = { totalCostBasis: 0, totalMarketValue: 0, totalHoldingProfit: 0, totalRealizedProfit: 0, totalDailyProfit: 0, totalYesterdayMarketValue: 0, totalRecentProfit: 0, totalInitialMarketValueForTrend: 0, totalRecentOperationAmount: 0, fundCodes: new Set<string>(), sumDailyRates: 0, dailyRateCount: 0, sumRecentRates: 0, recentRateCount: 0, hasRecentTransaction: false, sumNavPctWeighted: 0, sumNavPctWeight: 0 };
+            if (!metricsByTag[tag]) metricsByTag[tag] = { totalCostBasis: 0, totalMarketValue: 0, totalHoldingProfit: 0, totalRealizedProfit: 0, totalDailyProfit: 0, totalYesterdayMarketValue: 0, totalRecentProfit: 0, totalInitialMarketValueForTrend: 0, totalRecentOperationAmount: 0, fundCodes: new Set<string>(), sumDailyRates: 0, dailyRateCount: 0, sumRecentRates: 0, recentRateCount: 0, hasRecentTransaction: false, sumNavPctWeighted: 0, sumNavPctWeight: 0, sumNavPctEqual: 0, navPctEqualCount: 0, hasZeroPositionFund: false };
             metricsByTag[tag].fundCodes.add(fund.code); metricsByTag[tag].totalRealizedProfit += position.realizedProfit || 0; metricsByTag[tag].totalRecentOperationAmount += fundRecentOpAmount;
             if (hasRecentTx) metricsByTag[tag].hasRecentTransaction = true;
             const dailyChangeStr = fund.realTimeData?.estimatedChange ?? fund.latestChange;
             const dailyChange = dailyChangeStr ? parseFloat(dailyChangeStr) : null;
             if (dailyChange !== null && !isNaN(dailyChange)) { metricsByTag[tag].sumDailyRates += dailyChange; metricsByTag[tag].dailyRateCount++; }
             if (fund.trendInfo?.change) { metricsByTag[tag].sumRecentRates += fund.trendInfo.change; metricsByTag[tag].recentRateCount++; }
+            // 等权分位：所有基金(含无仓位)都计入；并标记该标签是否含无仓位基金
+            if (fund.navPercentile != null && !isNaN(fund.navPercentile)) {
+                metricsByTag[tag].sumNavPctEqual += fund.navPercentile;
+                metricsByTag[tag].navPctEqualCount++;
+            }
+            if (!(position.shares > 0)) metricsByTag[tag].hasZeroPositionFund = true;
             if (position.shares > 0) {
                 const chartPoints = fund.baseChartData; let dailyProfit = 0; let yesterdayMarketValue = 0;
                 if (chartPoints.length >= 2) {
@@ -692,7 +698,10 @@ const App: React.FC = () => {
         const dailyEfficiency = marketValueContribution > 0 ? (dailyProfitContribution / marketValueContribution) : 0;
         const recentProfitContribution = totals.totalRecentProfit !== 0 ? (metrics.totalRecentProfit / Math.abs(totals.totalRecentProfit)) : 0;
         const recentEfficiency = marketValueContribution > 0 ? (recentProfitContribution / marketValueContribution) : 0;
-        const avgNavPercentile = metrics.sumNavPctWeight > 0 ? metrics.sumNavPctWeighted / metrics.sumNavPctWeight : null;
+        // 含无仓位基金→等权(纳入无仓位基金)；全部有仓位→市值加权
+        const avgNavPercentile = metrics.hasZeroPositionFund
+            ? (metrics.navPctEqualCount > 0 ? metrics.sumNavPctEqual / metrics.navPctEqualCount : null)
+            : (metrics.sumNavPctWeight > 0 ? metrics.sumNavPctWeighted / metrics.sumNavPctWeight : null);
         return { tag, fundCount: metrics.fundCodes.size, ...metrics, grandTotalProfit, cumulativeMarketValue: metrics.totalCostBasis + grandTotalProfit, holdingProfitRate: metrics.totalCostBasis > 0 ? (metrics.totalHoldingProfit / metrics.totalCostBasis) * 100 : 0, totalProfitRate: metrics.totalCostBasis > 0 ? (grandTotalProfit / metrics.totalCostBasis) * 100 : 0, dailyProfitRate, recentProfitRate, holdingEfficiency, dailyEfficiency, recentEfficiency, hasRecentTransaction: metrics.hasRecentTransaction, avgNavPercentile };
     });
     data.sort((a, b) => {
