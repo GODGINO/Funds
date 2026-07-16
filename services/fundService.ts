@@ -232,32 +232,73 @@ function fetchEastmoneyPage(url: string): Promise<FundDataPoint[]> {
     return _histAcquire().then(() => fetchPromise()).finally(() => _histRelease());
 }
 
+// 2026-07-16 历史净值改用 pingzhongdata（浏览器可执行）。
+// 原因：api.fund.eastmoney.com/f10/lsjz 的 Content-Type 是 application/json，浏览器 <script>
+// 标签拒绝执行→JSONP 回调不触发→历史拉空（折线图空白）。而 pingzhongdata 的 Content-Type 是
+// application/javascript、<script> 可执行，且一次请求即含成立以来全部历史净值(Data_netWorthTrend
+// 单位净值 + Data_ACWorthTrend 累计净值)，无需分页。输出结构与原来完全一致(同 7 字段 FundDataPoint)。
+function fetchHistoryViaPingzhong(code: string): Promise<FundDataPoint[]> {
+    const run = () => new Promise<FundDataPoint[]>((resolve, reject) => {
+        const script = document.createElement('script');
+        let settled = false;
+        const cleanup = () => {
+            if (script.parentNode) { script.parentNode.removeChild(script); }
+            try { delete (window as any).Data_netWorthTrend; } catch { (window as any).Data_netWorthTrend = undefined; }
+            try { delete (window as any).Data_ACWorthTrend; } catch { (window as any).Data_ACWorthTrend = undefined; }
+        };
+        script.src = `https://fund.eastmoney.com/pingzhongdata/${code}.js?v=${new Date().getTime()}`;
+        script.charset = 'utf-8';
+        // onload 同步读取全局：JS 单线程，此刻 window.Data_* 必是本 code 的值（并发不串号）
+        script.onload = () => {
+            settled = true;
+            const nw = (window as any).Data_netWorthTrend;
+            const ac = (window as any).Data_ACWorthTrend;
+            cleanup();
+            if (!Array.isArray(nw)) { resolve([]); return; }
+            const acMap = new Map<number, number>();
+            if (Array.isArray(ac)) { for (const p of ac) { if (Array.isArray(p)) acMap.set(p[0], p[1]); } }
+            const out: FundDataPoint[] = [];
+            for (const it of nw) {
+                const unitNAV = typeof it.y === 'number' ? it.y : parseFloat(it.y);
+                if (!isFinite(unitNAV) || unitNAV === 0) continue;
+                // x 是北京时间当日 0 点的 UTC 毫秒；+8h 后取 UTC 日期 = 正确的北京净值日期（不依赖运行时区）
+                const d = new Date(it.x + 8 * 3600 * 1000).toISOString().slice(0, 10);
+                const er = (it.equityReturn === null || it.equityReturn === undefined || it.equityReturn === '') ? '' : `${it.equityReturn}%`;
+                out.push({
+                    date: d,
+                    unitNAV,
+                    cumulativeNAV: acMap.has(it.x) ? acMap.get(it.x)! : unitNAV,
+                    dailyGrowthRate: er,
+                    subscriptionStatus: 'N/A',
+                    redemptionStatus: 'N/A',
+                    dividendDistribution: (it.unitMoney && String(it.unitMoney).trim()) ? String(it.unitMoney).trim() : 'N/A',
+                });
+            }
+            resolve(out); // 升序（旧→新）
+        };
+        script.onerror = () => {
+            if (!settled) { cleanup(); reject(new Error(`pingzhongdata load failed: ${code}`)); }
+        };
+        document.head.appendChild(script);
+    });
+    // 并发限流复用（每只基金 1 请求，同时最多 HISTORY_CONCURRENCY 只）
+    return _histAcquire().then(() => run()).finally(() => _histRelease());
+}
+
 export async function fetchFundData(
   code: string,
   recordCount: number
 ): Promise<FundDataPoint[]> {
-  const recordsPerPage = 20; // 2026-07-16 新接口 api.fund.eastmoney.com/f10/lsjz 单页硬锁 20 条（旧 HTML 接口是 49），必须同步为 20 否则翻页会漏/提前终止
-  const pagesToFetch = Math.ceil(recordCount / recordsPerPage);
-  const allData: FundDataPoint[] = [];
-  const MAX_RETRIES = 10;
-
-  for (let page = 1; page <= pagesToFetch; page++) {
-    let success = false;
-    let attempts = 0;
-    let pageData: FundDataPoint[] = [];
-    let lastError: unknown = null;
-    while (!success && attempts < MAX_RETRIES) {
-      try {
-        const targetUrl = `https://api.fund.eastmoney.com/f10/lsjz?fundCode=${code}&pageIndex=${page}&pageSize=${recordsPerPage}&_=${new Date().getTime()}`;
-        pageData = await fetchEastmoneyPage(targetUrl);
-        success = true;
-      } catch (error) { attempts++; lastError = error; }
-    }
-    if (!success) break;
-    allData.push(...pageData);
-    if (pageData.length < recordsPerPage) break;
+  const MAX_RETRIES = 3;
+  let attempts = 0;
+  let lastError: unknown = null;
+  while (attempts < MAX_RETRIES) {
+    try {
+      const all = await fetchHistoryViaPingzhong(code); // 全历史·升序（旧→新）
+      return all.slice(-recordCount); // 取最近 recordCount 条，保持旧→新（与原返回顺序一致）
+    } catch (error) { attempts++; lastError = error; }
   }
-  return allData.slice(0, recordCount).reverse();
+  return [];
 }
 
 // --- Index Data ---
