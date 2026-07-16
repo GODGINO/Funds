@@ -657,7 +657,7 @@ const App: React.FC = () => {
         if (hasRecentTx) recentOps.forEach(r => { if (r.type === 'dividend-cash') fundRecentOpAmount -= (r.realizedProfitChange || 0); else fundRecentOpAmount += (r.amount || 0); });
         const position = fund.userPosition; if (!position || !position.tag) return;
         position.tag.split(',').map(t => t.trim()).filter(Boolean).forEach(tag => {
-            if (!metricsByTag[tag]) metricsByTag[tag] = { totalCostBasis: 0, totalMarketValue: 0, totalHoldingProfit: 0, totalRealizedProfit: 0, totalDailyProfit: 0, totalYesterdayMarketValue: 0, totalRecentProfit: 0, totalInitialMarketValueForTrend: 0, totalRecentOperationAmount: 0, fundCodes: new Set<string>(), sumDailyRates: 0, dailyRateCount: 0, sumRecentRates: 0, recentRateCount: 0, hasRecentTransaction: false };
+            if (!metricsByTag[tag]) metricsByTag[tag] = { totalCostBasis: 0, totalMarketValue: 0, totalHoldingProfit: 0, totalRealizedProfit: 0, totalDailyProfit: 0, totalYesterdayMarketValue: 0, totalRecentProfit: 0, totalInitialMarketValueForTrend: 0, totalRecentOperationAmount: 0, fundCodes: new Set<string>(), sumDailyRates: 0, dailyRateCount: 0, sumRecentRates: 0, recentRateCount: 0, hasRecentTransaction: false, sumNavPctWeighted: 0, sumNavPctWeight: 0 };
             metricsByTag[tag].fundCodes.add(fund.code); metricsByTag[tag].totalRealizedProfit += position.realizedProfit || 0; metricsByTag[tag].totalRecentOperationAmount += fundRecentOpAmount;
             if (hasRecentTx) metricsByTag[tag].hasRecentTransaction = true;
             const dailyChangeStr = fund.realTimeData?.estimatedChange ?? fund.latestChange;
@@ -673,6 +673,11 @@ const App: React.FC = () => {
                 metricsByTag[tag].totalCostBasis += fund.costBasis ?? 0; metricsByTag[tag].totalMarketValue += fund.marketValue ?? 0; metricsByTag[tag].totalHoldingProfit += fund.holdingProfit ?? 0;
                 metricsByTag[tag].totalDailyProfit += dailyProfit; metricsByTag[tag].totalYesterdayMarketValue += yesterdayMarketValue; metricsByTag[tag].totalRecentProfit += fund.recentProfit ?? 0;
                 metricsByTag[tag].totalInitialMarketValueForTrend += fund.initialMarketValueForTrend ?? 0;
+                // 市值加权净值分位：仅 shares>0 且 分位有效 时计入
+                if (fund.navPercentile != null && !isNaN(fund.navPercentile) && (fund.marketValue ?? 0) > 0) {
+                    metricsByTag[tag].sumNavPctWeighted += fund.navPercentile * (fund.marketValue ?? 0);
+                    metricsByTag[tag].sumNavPctWeight += (fund.marketValue ?? 0);
+                }
             }
         });
     });
@@ -687,7 +692,8 @@ const App: React.FC = () => {
         const dailyEfficiency = marketValueContribution > 0 ? (dailyProfitContribution / marketValueContribution) : 0;
         const recentProfitContribution = totals.totalRecentProfit !== 0 ? (metrics.totalRecentProfit / Math.abs(totals.totalRecentProfit)) : 0;
         const recentEfficiency = marketValueContribution > 0 ? (recentProfitContribution / marketValueContribution) : 0;
-        return { tag, fundCount: metrics.fundCodes.size, ...metrics, grandTotalProfit, cumulativeMarketValue: metrics.totalCostBasis + grandTotalProfit, holdingProfitRate: metrics.totalCostBasis > 0 ? (metrics.totalHoldingProfit / metrics.totalCostBasis) * 100 : 0, totalProfitRate: metrics.totalCostBasis > 0 ? (grandTotalProfit / metrics.totalCostBasis) * 100 : 0, dailyProfitRate, recentProfitRate, holdingEfficiency, dailyEfficiency, recentEfficiency, hasRecentTransaction: metrics.hasRecentTransaction };
+        const avgNavPercentile = metrics.sumNavPctWeight > 0 ? metrics.sumNavPctWeighted / metrics.sumNavPctWeight : null;
+        return { tag, fundCount: metrics.fundCodes.size, ...metrics, grandTotalProfit, cumulativeMarketValue: metrics.totalCostBasis + grandTotalProfit, holdingProfitRate: metrics.totalCostBasis > 0 ? (metrics.totalHoldingProfit / metrics.totalCostBasis) * 100 : 0, totalProfitRate: metrics.totalCostBasis > 0 ? (grandTotalProfit / metrics.totalCostBasis) * 100 : 0, dailyProfitRate, recentProfitRate, holdingEfficiency, dailyEfficiency, recentEfficiency, hasRecentTransaction: metrics.hasRecentTransaction, avgNavPercentile };
     });
     data.sort((a, b) => {
       const valA = a[tagSortKey]; const valB = b[tagSortKey];

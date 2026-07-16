@@ -183,6 +183,9 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                 <div>近期操作</div>
                 <div className={`font-mono font-normal ${getProfitColor(totals.totalRecentOperationAmount)}`}>{formatIntegerWithCommas(totals.totalRecentOperationAmount)}</div>
               </SortableHeader>
+              <SortableHeader sortableKey="avgNavPercentile">
+                <div>分位</div>
+              </SortableHeader>
             </tr>
           </thead>
           <tbody>
@@ -293,6 +296,9 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                   </td>
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalRecentOperationAmount)}`} style={getBarStyle(item.totalRecentOperationAmount, maxAbsValues.totalRecentOperationAmount)}>
                     <div className="relative">{formatIntegerWithCommas(item.totalRecentOperationAmount)}</div>
+                  </td>
+                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right">
+                    <div className="relative">{item.avgNavPercentile == null ? '—' : `${item.avgNavPercentile.toFixed(0)}%`}</div>
                   </td>
                 </tr>
               )

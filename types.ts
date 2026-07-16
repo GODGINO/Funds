@@ -117,6 +117,7 @@ export interface TagAnalysisData {
   dailyEfficiency: number;
   recentEfficiency: number;
   hasRecentTransaction: boolean;
+  avgNavPercentile: number | null; // 新增：标签内市值加权净值分位(区间 min-max，0-100)
 }
 
 export interface IndexData {
