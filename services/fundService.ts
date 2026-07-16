@@ -236,7 +236,7 @@ export async function fetchFundData(
   code: string,
   recordCount: number
 ): Promise<FundDataPoint[]> {
-  const recordsPerPage = 49;
+  const recordsPerPage = 20; // 2026-07-16 新接口 api.fund.eastmoney.com/f10/lsjz 单页硬锁 20 条（旧 HTML 接口是 49），必须同步为 20 否则翻页会漏/提前终止
   const pagesToFetch = Math.ceil(recordCount / recordsPerPage);
   const allData: FundDataPoint[] = [];
   const MAX_RETRIES = 10;
