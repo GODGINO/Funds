@@ -189,14 +189,24 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
     }, [fund, amount, nav, date, activeTab]);
 
 
-    // 默认买入金额 = 该基金最近一笔买入的金额(方便定投)；无历史买入则回落 500
+    // 默认买入金额 = 上一个交易日的买入金额(便于连续定投)。
+    // "上一个交易日"用历史净值序列判定(有净值的日子即交易日,自动跳过周末/节假日,如本周一的上一交易日=上周五)。
+    // 上一交易日若无买入(定投中断)→ 回落 500。
     const defaultBuyAmount = useMemo(() => {
         const recs = fund.userPosition?.tradingRecords?.filter(r => r.type === 'buy') ?? [];
         if (recs.length === 0) return '500';
-        const last = [...recs].sort((a, b) => (a.date < b.date ? 1 : -1))[0];
-        const amt = last.value ?? last.amount; // pending 取 value(金额)、confirmed 取 amount(本金变动)
-        return amt && amt > 0 ? String(amt) : '500';
-    }, [fund]);
+        const curDay = date.slice(0, 10);
+        const prevTradingDay = fund.baseChartData
+            .map(p => p.date?.slice(0, 10))
+            .filter((d): d is string => !!d && d < curDay)
+            .sort()
+            .pop();
+        if (!prevTradingDay) return '500';
+        const total = recs
+            .filter(r => r.date.slice(0, 10) === prevTradingDay)
+            .reduce((s, r) => s + (r.value ?? r.amount ?? 0), 0); // pending 取 value(金额)、confirmed 取 amount(本金变动)
+        return total > 0 ? String(total) : '500';
+    }, [fund, date]);
 
     useEffect(() => {
         if (isOpen) {
