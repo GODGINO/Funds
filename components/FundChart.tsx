@@ -118,7 +118,7 @@ const CustomTooltip: React.FC<any> = ({ active, payload, localBaselineDate }) =>
                             <span className={`font-semibold ${getTransactionLabelColorClass(tr.type)}`}>{getTransactionLabel(tr.type)}:</span>
                             <span className="font-mono font-bold text-gray-800 dark:text-gray-100">
                                 {tr.type === 'buy' ? `${tr.amount!.toFixed(2)} 元` : 
-                                 tr.type === 'sell' ? `${Math.abs(tr.sharesChange!).toFixed(2)} 份` : 
+                                 tr.type === 'sell' ? `${Math.abs(tr.sharesChange! * tr.nav!).toFixed(2)} 元` :
                                  tr.type === 'dividend-cash' ? `${tr.realizedProfitChange!.toFixed(2)} 元` : 
                                  `${tr.sharesChange!.toFixed(2)} 份`}
                             </span>
