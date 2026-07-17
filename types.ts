@@ -39,7 +39,8 @@ export interface UserPosition {
   shares: number;
   cost: number;
   tag?: string;
-  realizedProfit: number;
+  realizedProfit: number;            // 原始持仓落袋（建仓基准·永不变，绝不累加 realizedProfitChange）
+  cumulativeRealizedProfit?: number; // 派生·仅内存：原始落袋 + Σ tradingRecords.realizedProfitChange（replay 算出，用于展示累计已实现，序列化时剥离、绝不写回 gist）
   tradingRecords?: TradingRecord[]; // Now stores both confirmed and pending records
 }
 

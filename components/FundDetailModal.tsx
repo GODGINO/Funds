@@ -110,7 +110,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, onClose, onDele
 
     useEffect(() => {
       const initialHoldingProfit = parseFloat(((numericShares * latestNAV) - (numericShares * numericCost)).toFixed(2));
-      const initialRealizedProfit = fund.userPosition?.realizedProfit ?? 0;
+      const initialRealizedProfit = fund.userPosition?.cumulativeRealizedProfit ?? fund.userPosition?.realizedProfit ?? 0; // 累计已实现
       const initialTotalProfit = parseFloat((initialHoldingProfit + initialRealizedProfit).toFixed(2));
       setEditableTotalProfit(initialTotalProfit.toFixed(2));
     }, [fund, numericShares, numericCost, latestNAV]);

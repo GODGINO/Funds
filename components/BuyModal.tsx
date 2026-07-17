@@ -73,7 +73,7 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
         const marketValue = fund.marketValue || 0;
         const holdingProfit = fund.holdingProfit || 0;
         const cost = pos?.cost || 0;
-        const realizedProfit = pos?.realizedProfit || 0;
+        const realizedProfit = (pos?.cumulativeRealizedProfit ?? pos?.realizedProfit) || 0; // 累计已实现(展示用)
 
         // Daily
         const latestDateInChart = fund.baseChartData.length > 0 ? fund.baseChartData[fund.baseChartData.length - 1]?.date?.split(' ')[0] : null;

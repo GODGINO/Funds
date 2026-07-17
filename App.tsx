@@ -361,7 +361,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isAppLoading && !blockSaveRef.current) {
-      const positionsToSave = funds.map(f => f.userPosition).filter((p): p is UserPosition => !!p);
+      const positionsToSave = funds.map(f => f.userPosition).filter((p): p is UserPosition => !!p).map(({ cumulativeRealizedProfit, ...p }) => p);
       localStorage.setItem('userFundPortfolio', JSON.stringify(positionsToSave));
     }
   }, [funds, isAppLoading]);
@@ -532,7 +532,7 @@ const App: React.FC = () => {
             const actualCost = currentShares > 0 ? parseFloat(((costBasis - currentRealizedProfit) / currentShares).toFixed(4)) : 0;
             const holdingProfitRate = costBasis > 0 ? parseFloat(((holdingProfit / costBasis) * 100).toFixed(2)) : 0;
             const totalProfitRate = costBasis > 0 ? parseFloat(((totalProfit / costBasis) * 100).toFixed(2)) : 0;
-            calculatedUserPosition = { ...position, shares: currentShares, cost: currentShares > 0 ? parseFloat((currentTotalCost / currentShares).toFixed(4)) : 0, realizedProfit: currentRealizedProfit };
+            calculatedUserPosition = { ...position, shares: currentShares, cost: currentShares > 0 ? parseFloat((currentTotalCost / currentShares).toFixed(4)) : 0, realizedProfit: position.realizedProfit, cumulativeRealizedProfit: currentRealizedProfit };
             portfolioMetrics = { marketValue, costBasis, holdingProfit, totalProfit, holdingProfitRate, totalProfitRate, actualCost, userPosition: calculatedUserPosition };
         }
         const lastPivotDate = zigzagPoints.length >= 2 ? zigzagPoints[zigzagPoints.length - 2]?.date : null;
@@ -660,7 +660,7 @@ const App: React.FC = () => {
         const position = fund.userPosition; if (!position || !position.tag) return;
         position.tag.split(',').map(t => t.trim()).filter(Boolean).forEach(tag => {
             if (!metricsByTag[tag]) metricsByTag[tag] = { totalCostBasis: 0, totalMarketValue: 0, totalHoldingProfit: 0, totalRealizedProfit: 0, totalDailyProfit: 0, totalYesterdayMarketValue: 0, totalRecentProfit: 0, totalInitialMarketValueForTrend: 0, totalRecentOperationAmount: 0, fundCodes: new Set<string>(), sumDailyRates: 0, dailyRateCount: 0, sumRecentRates: 0, recentRateCount: 0, hasRecentTransaction: false, sumNavPctWeighted: 0, sumNavPctWeight: 0, sumNavPctEqual: 0, navPctEqualCount: 0, hasZeroPositionFund: false };
-            metricsByTag[tag].fundCodes.add(fund.code); metricsByTag[tag].totalRealizedProfit += position.realizedProfit || 0; metricsByTag[tag].totalRecentOperationAmount += fundRecentOpAmount;
+            metricsByTag[tag].fundCodes.add(fund.code); metricsByTag[tag].totalRealizedProfit += (position.cumulativeRealizedProfit ?? position.realizedProfit) || 0; metricsByTag[tag].totalRecentOperationAmount += fundRecentOpAmount;
             if (hasRecentTx) metricsByTag[tag].hasRecentTransaction = true;
             // 今日收益率等权：仅计入「今日有净值」的基金(hasTodayNav)，今日无净值(QDII T+2)剔除，不 fallback 历史涨跌
             const dailyChange = hasTodayNav ? parseFloat(fund.realTimeData!.estimatedChange) : null;
@@ -772,7 +772,7 @@ const App: React.FC = () => {
         if (fund.code !== updatedPosition.code) return fund;
         if (resetTradingRecords) return { ...fund, userPosition: { ...updatedPosition, tradingRecords: [] } };
         const existingPosition = fund.userPosition || { code: fund.code, shares: 0, cost: 0, realizedProfit: 0, tradingRecords: [] };
-        return { ...fund, userPosition: { ...existingPosition, tag: updatedPosition.tag, realizedProfit: updatedPosition.realizedProfit } };
+        return { ...fund, userPosition: { ...existingPosition, tag: updatedPosition.tag } }; // realizedProfit 永不变更(原始持仓落袋)，不接受编辑弹窗回写的累计值
       })
     );
   }, []);
@@ -887,7 +887,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string, typ
 
   useEffect(() => { if (!isAppLoading && funds.length > 0) processPendingTasks(); }, [isAppLoading, funds, processPendingTasks]);
 
-  const currentPortfolioJSON = useMemo(() => JSON.stringify(funds.map(f => f.userPosition).filter((p): p is UserPosition => !!p), null, 2), [funds]);
+  const currentPortfolioJSON = useMemo(() => JSON.stringify(funds.map(f => f.userPosition).filter((p): p is UserPosition => !!p).map(({ cumulativeRealizedProfit, ...p }) => p), null, 2), [funds]);
   const fishingFundsJSON = useMemo(() => JSON.stringify(processedFunds.map((fund, index) => ({
       name: fund.name,
       code: fund.code,
@@ -955,7 +955,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string, typ
         historicalSnapshots = snapshots.reverse();
     }
     let baselineTotalCostBasis = 0; let baselineTotalRealizedProfit = 0; const baselineHoldings: { code: string; shares: number; }[] = [];
-    funds.forEach(fund => { if (fund.userPosition) { baselineHoldings.push({ code: fund.code, shares: fund.userPosition.shares }); baselineTotalCostBasis += fund.userPosition.shares * fund.userPosition.cost; baselineTotalRealizedProfit += fund.userPosition.realizedProfit; } });
+    funds.forEach(fund => { if (fund.userPosition) { baselineHoldings.push({ code: fund.code, shares: fund.userPosition.shares }); baselineTotalCostBasis += fund.userPosition.shares * fund.userPosition.cost; baselineTotalRealizedProfit += (fund.userPosition.cumulativeRealizedProfit ?? fund.userPosition.realizedProfit); } });
     let baselineCurrentMarketValue = 0; let baselineDailyProfit = 0; let baselineYesterdayMarketValue = 0;
     baselineHoldings.forEach(holding => {
         const currentFundData = processedFunds.find(f => f.code === holding.code);
@@ -971,7 +971,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string, typ
         let pendingTotalCostBasis = 0; let pendingTotalRealizedProfit = 0; let pendingCurrentMarketValue = 0; let pendingDailyProfit = 0; let pendingYesterdayMarketValue = 0; let pendingNetAmountChange = 0; let pendingTotalBuyAmount = 0; let pendingTotalSellAmount = 0; let pendingTotalSellRealizedProfit = 0; let pendingTotalDailyActionValue = 0;
         funds.forEach(fund => {
             const pf = processedFunds.find(p => p.code === fund.code); if (!pf) return;
-            let shares = pf.userPosition?.shares || 0; let totalCost = shares * (pf.userPosition?.cost || 0); let realized = pf.userPosition?.realizedProfit || 0;
+            let shares = pf.userPosition?.shares || 0; let totalCost = shares * (pf.userPosition?.cost || 0); let realized = (pf.userPosition?.cumulativeRealizedProfit ?? pf.userPosition?.realizedProfit) || 0;
             const price = pf.realTimeData?.estimatedNAV || pf.latestNAV || 0; const yesterdayPrice = pf.baseChartData.length > 1 ? (pf.baseChartData[pf.baseChartData.length - 2].unitNAV ?? 0) : 0;
             (fund.userPosition?.tradingRecords?.filter(r => r.nav === undefined) || []).forEach(r => {
                 const val = r.value || 0;
