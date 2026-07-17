@@ -189,6 +189,15 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
     }, [fund, amount, nav, date, activeTab]);
 
 
+    // 默认买入金额 = 该基金最近一笔买入的金额(方便定投)；无历史买入则回落 500
+    const defaultBuyAmount = useMemo(() => {
+        const recs = fund.userPosition?.tradingRecords?.filter(r => r.type === 'buy') ?? [];
+        if (recs.length === 0) return '500';
+        const last = [...recs].sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+        const amt = last.value ?? last.amount; // pending 取 value(金额)、confirmed 取 amount(本金变动)
+        return amt && amt > 0 ? String(amt) : '500';
+    }, [fund]);
+
     useEffect(() => {
         if (isOpen) {
             if (isEditing) {
@@ -202,7 +211,7 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
             } else {
                 // Set default value for 'buy' tab only
                 if (activeTab === 'buy') {
-                    setAmount('500');
+                    setAmount(defaultBuyAmount);
                 } else {
                     setAmount('');
                 }
@@ -212,7 +221,7 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                 amountInputRef.current?.select();
             }, 50); 
         }
-    }, [isOpen, isEditing, isPending, editingRecord, activeTab]);
+    }, [isOpen, isEditing, isPending, editingRecord, activeTab, defaultBuyAmount]);
     
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -297,7 +306,7 @@ const BuyModal: React.FC<BuyModalProps> = ({ isOpen, onClose, onSubmit, onDelete
                         <button
                             type="button"
                             className={`flex-1 py-3 text-sm font-medium focus:outline-none ${activeTab === 'buy' ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
-                            onClick={() => { setActiveTab('buy'); setAmount('500'); }}
+                            onClick={() => { setActiveTab('buy'); setAmount(defaultBuyAmount); }}
                         >
                             买入
                         </button>
