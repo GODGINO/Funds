@@ -48,7 +48,9 @@ const getBar_style = (value: number | undefined | null, maxAbsValue: number, min
     let widthPercent = ((absVal - minAbsValue) / (maxAbsValue - minAbsValue)) * 100;
     widthPercent = Math.max(0, Math.min(100, widthPercent));
     const color = value >= 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)';
-    return { background: `linear-gradient(to left, ${color} ${widthPercent}%, transparent ${widthPercent}%)` };
+    // 方向随符号：正值从右缘向左长(to left)、负值从左缘向右长(to right)，颜色不变
+    const direction = value < 0 ? 'to right' : 'to left';
+    return { background: `linear-gradient(${direction}, ${color} ${widthPercent}%, transparent ${widthPercent}%)` };
 };
 
 interface HeaderSparklineProps {
