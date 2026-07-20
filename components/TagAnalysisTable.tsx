@@ -54,29 +54,42 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
         }
     });
 
+    // 分位列相对归一化用：列内最高分位（分位恒正，取 max 即可）
+    const pctValues = data
+        .map(s => s.avgNavPercentile)
+        .filter((v): v is number => typeof v === 'number' && isFinite(v));
+    if (pctValues.length > 0) {
+        maxVals.avgNavPercentile = Math.max(...pctValues);
+    }
+
     return maxVals;
   }, [data]);
 
   const getBarStyle = (value: number | undefined | null, maxAbsValue: number | undefined, type: 'normal' | 'efficiency' = 'normal') => {
     if (value == null || maxAbsValue == null || maxAbsValue === 0) return {};
     const widthPercent = Math.min(100, (Math.abs(value) / maxAbsValue) * 100);
-    
+
     let color: string;
     if (type === 'efficiency') {
       color = value >= 1 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)';
     } else {
       color = value >= 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)';
     }
-    
-    const backgroundImage = `linear-gradient(to left, ${color} ${widthPercent}%, transparent ${widthPercent}%)`;
+
+    // 方向随符号：正值从右缘向左长(to left)、负值从左缘向右长(to right)，颜色不变
+    const direction = value < 0 ? 'to right' : 'to left';
+    const backgroundImage = `linear-gradient(${direction}, ${color} ${widthPercent}%, transparent ${widthPercent}%)`;
 
     return { backgroundImage };
   };
 
   // 分位专用进度条：条宽=分位值本身(0-100 绝对填充度)，颜色高位红(≥50)/低位绿(<50)
-  const getPercentileBarStyle = (value: number | null | undefined) => {
+  const getPercentileBarStyle = (value: number | null | undefined, maxPercentile?: number) => {
     if (value == null || isNaN(value)) return {};
-    const widthPercent = Math.max(0, Math.min(100, value));
+    // 条长=列内相对归一化：当前列最高分位者填满整格，其余按比例（maxPercentile 缺省时退回绝对刻度）
+    const denom = maxPercentile && maxPercentile > 0 ? maxPercentile : 100;
+    const widthPercent = Math.max(0, Math.min(100, (value / denom) * 100));
+    // 颜色仍按绝对分位保留贵/便宜语义（≥50 高位红 / <50 低位绿）；分位恒正，方向 to left
     const color = value >= 50 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)';
     return { backgroundImage: `linear-gradient(to left, ${color} ${widthPercent}%, transparent ${widthPercent}%)` };
   };
@@ -325,7 +338,7 @@ const TagAnalysisTable: React.FC<TagAnalysisTableProps> = ({ data, totals, activ
                   <td className={`px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right ${getProfitColor(item.totalRecentOperationAmount)}`} style={getBarStyle(item.totalRecentOperationAmount, maxAbsValues.totalRecentOperationAmount)}>
                     <div className="relative">{formatIntegerWithCommas(item.totalRecentOperationAmount)}</div>
                   </td>
-                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right" style={getPercentileBarStyle(item.avgNavPercentile)}>
+                  <td className="px-1 py-0.5 border-x dark:border-gray-700 font-mono text-right" style={getPercentileBarStyle(item.avgNavPercentile, maxAbsValues.avgNavPercentile)}>
                     <div className="relative">{item.avgNavPercentile == null ? '—' : `${item.avgNavPercentile.toFixed(0)}%`}</div>
                   </td>
                 </tr>
