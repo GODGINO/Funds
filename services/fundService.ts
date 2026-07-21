@@ -1,5 +1,6 @@
 import { FundDataPoint, RealTimeData, IndexData, MarketDataPoint, TurnoverResult } from '../types';
 import { updateGistFiles, MARKET_HISTORY_FILENAME } from './gistService';
+import { HQCODE_MAP } from './hqcodeMap';
 
 function parseHtmlTable(htmlContent: string): FundDataPoint[] {
     const data: FundDataPoint[] = [];
@@ -104,42 +105,60 @@ if (!(window as any)._fundDetailsCache) {
 const fundDetailsCache: { [code: string]: { name: string; realTimeData?: RealTimeData } } = (window as any)._fundDetailsCache;
 
 
+// 2026-07-21 实时估值换源：东财 fundgz.1234567.com.cn 已下线(301→notfound，行业性下架盘中估值)。
+// 新源：同花顺 gz-fund.10jqka.com.cn 分钟级估值(逆向自 Fishing Funds 同花顺-爱基金源)。
+// 返回 JS 全局变量赋值(vm_fd_{hqcode}='...')，天生适配 script 标签注入绕 CORS(同旧 JSONP 方式)。
+// 格式: vm_fd_X='prevDate;0930-1130,1300-1500|YYYY-MM-DD~prevClose~HHMM,gsz,prevClose,x;HHMM,...'
 export function fetchFundDetails(code: string): Promise<{ name: string; realTimeData?: RealTimeData }> {
     const fetchPrimary = () => new Promise<{ name: string; realTimeData?: RealTimeData }>((resolve, reject) => {
-        activeRequests.set(code, (data: any) => {
-            activeRequests.delete(code);
-            if (data && data.name) {
-                const estimatedNAV = parseFloat(data.gsz);
-                if (!isNaN(estimatedNAV)) {
-                    const realTimeData: RealTimeData = {
-                        estimatedNAV: estimatedNAV,
-                        estimatedChange: data.gszzl,
-                        estimationTime: data.gztime,
-                    };
-                    resolve({ name: data.name, realTimeData: realTimeData });
-                } else {
-                    resolve({ name: data.name, realTimeData: undefined });
-                }
-            } else {
-                reject(new Error('no_fund_details'));
-            }
-        });
+        const entry = HQCODE_MAP[code];
+        const cachedName = entry?.name || fundDetailsCache[code]?.name || code;
+        if (!entry) {
+            // 映射缺失(新基金)：无实时估值但不阻塞，走 fallback 缓存逻辑
+            reject(new Error('no_hqcode_mapping'));
+            return;
+        }
+        const varName = `vm_fd_${entry.hqcode}`;
+        const now = new Date();
+        const mmdd = `${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
         const script = document.createElement('script');
-        script.src = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${new Date().getTime()}`;
+        script.src = `https://gz-fund.10jqka.com.cn/?module=api&controller=index&action=chart&info=${varName}&start=${mmdd}&_=${Date.now()}`;
         script.charset = 'utf-8';
         script.onload = () => {
             document.head.removeChild(script);
-             setTimeout(() => {
-                if (activeRequests.has(code)) {
-                    activeRequests.delete(code);
-                    reject(new Error('timeout_or_parse_error'));
+            try {
+                const payload: string = (window as any)[varName];
+                delete (window as any)[varName];
+                if (!payload || payload.indexOf('|') < 0) { reject(new Error('no_fund_details')); return; }
+                const seg = payload.slice(payload.indexOf('|') + 1);   // YYYY-MM-DD~prevClose~points
+                const parts = seg.split('~');
+                if (parts.length < 3) { reject(new Error('no_fund_details')); return; }
+                const dataDate = parts[0];
+                const prevClose = parseFloat(parts[1]);
+                const points = parts.slice(2).join('~').split(';').filter(Boolean);
+                // 仅当估值日期=今日才算有效盘中估值(防昨日残留)；非交易时段返回昨日数据 → 视为无实时估值
+                if (dataDate !== today || !points.length || !isFinite(prevClose) || prevClose <= 0) {
+                    resolve({ name: cachedName, realTimeData: undefined });
+                    return;
                 }
-            }, 2000); 
+                const last = points[points.length - 1].split(',');
+                const hhmm = last[0] || '';
+                const gsz = parseFloat(last[1]);
+                if (!isFinite(gsz) || gsz <= 0) { resolve({ name: cachedName, realTimeData: undefined }); return; }
+                const realTimeData: RealTimeData = {
+                    estimatedNAV: gsz,
+                    estimatedChange: ((gsz / prevClose - 1) * 100).toFixed(2),
+                    estimationTime: `${dataDate} ${hhmm.slice(0, 2)}:${hhmm.slice(2)}`,
+                };
+                resolve({ name: cachedName, realTimeData });
+            } catch (e) {
+                reject(new Error('timeout_or_parse_error'));
+            }
         };
         script.onerror = () => {
             document.head.removeChild(script);
-            activeRequests.delete(code);
             reject(new Error('network_error'));
         };
         document.head.appendChild(script);
