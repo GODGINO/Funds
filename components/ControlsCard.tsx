@@ -29,6 +29,8 @@ interface ControlsCardProps {
   marketTurnover: string | null;
   /** 搜索激活时为当前输入（可为空串），未激活为 null */
   searchCode?: string | null;
+  /** 搜索激活时下拉里「搜索: xxx」选项对应的 value */
+  searchTagValue?: string;
   onOpenSearch?: () => void;
 }
 
@@ -56,6 +58,7 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
   indexData,
   marketTurnover,
   searchCode = null,
+  searchTagValue = '',
   onOpenSearch,
 }) => {
   const isSearching = searchCode !== null;
@@ -98,13 +101,13 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">筛选</label>
           <select
-            value={isSearching ? '' : (activeTag || '')}
+            value={activeTag || ''}
             onChange={(e) => onTagSelect(e.target.value || null)}
-            disabled={isDisabled || tags.length === 0 || isSearching}
-            title={isSearching ? '搜索中：筛选固定为 All' : undefined}
+            disabled={isDisabled || tags.length === 0}
             className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-1.5 px-2 text-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
           >
             <option value="">All</option>
+            {isSearching && <option value={searchTagValue}>搜索: {searchCode || '…'}</option>}
             {tags.map(tag => (
               <option key={tag} value={tag}>{tag}</option>
             ))}

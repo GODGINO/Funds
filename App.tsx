@@ -37,6 +37,9 @@ const SYSTEM_TAGS = {
   STRONG_SELL: '🟢 强力卖出',
 };
 
+/** 搜索作为「筛选」的一个选项：activeTag = 'SEARCH:<code>' */
+const SEARCH_TAG_PREFIX = 'SEARCH:';
+
 const ORDERED_SYSTEM_TAGS = [
   SYSTEM_TAGS.HOLDING, 
   SYSTEM_TAGS.WATCHING, 
@@ -723,8 +726,8 @@ const App: React.FC = () => {
 
   const processedAndSortedFunds = useMemo(() => {
     const filteredFunds = processedFunds.filter(fund => {
-        if (searchCode) return fund.code.includes(searchCode);
         if (!activeTag) return true;
+        if (activeTag.startsWith(SEARCH_TAG_PREFIX)) { const code = activeTag.substring(SEARCH_TAG_PREFIX.length); return !code || fund.code.includes(code); }
         if (activeTag.startsWith('TX_DATE:')) return fund.userPosition?.tradingRecords?.some(r => r.date === activeTag.substring(8)) ?? false;
         if (activeTag === 'TX_PENDING') return fund.userPosition?.tradingRecords?.some(r => r.nav === undefined) ?? false;
         const position = fund.userPosition;
@@ -756,7 +759,7 @@ const App: React.FC = () => {
       return sortOrder === 'desc' ? -comparison : comparison;
     });
     return filteredFunds;
-  }, [processedFunds, sortBy, sortOrder, activeTag, searchCode]);
+  }, [processedFunds, sortBy, sortOrder, activeTag]);
   
   const filteredMarketStats = useMemo(() => {
       const total = processedAndSortedFunds.reduce((sum, f) => sum + (f.marketValue || 0), 0);
@@ -784,16 +787,24 @@ const App: React.FC = () => {
   }, []);
 
   const openSearch = useCallback(() => {
-    if (!isSearchOpen) { searchPrevTagRef.current = activeTag; setActiveTag(null); }
+    if (!isSearchOpen) { searchPrevTagRef.current = activeTag; setActiveTag(SEARCH_TAG_PREFIX + searchCode); }
     setIsSearchOpen(true);
-  }, [isSearchOpen, activeTag]);
+  }, [isSearchOpen, activeTag, searchCode]);
+  // 关闭搜索框（× / Esc）：退出搜索并恢复打开前的筛选
   const closeSearch = useCallback(() => {
     setIsSearchOpen(false);
     setSearchCode('');
     setActiveTag(searchPrevTagRef.current);
     searchPrevTagRef.current = null;
   }, []);
-  const handleSearchChange = useCallback((code: string) => { setSearchCode(code); }, []);
+  // 在筛选下拉里切到其他项：退出搜索但不恢复旧筛选，以用户新选为准
+  const leaveSearchFor = useCallback((tag: string | null) => {
+    if (tag !== null && tag.startsWith(SEARCH_TAG_PREFIX)) return;
+    setIsSearchOpen(false);
+    setSearchCode('');
+    searchPrevTagRef.current = null;
+  }, []);
+  const handleSearchChange = useCallback((code: string) => { setSearchCode(code); setActiveTag(SEARCH_TAG_PREFIX + code); }, []);
   const handleSearchJump = useCallback(() => {
     const first = processedAndSortedFunds[0];
     if (!first) return;
@@ -818,9 +829,9 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [selectedFundForModal, isImportModalOpen, isTransactionManagerOpen, isGeminiModalOpen, isTerminalOpen, buyModalState, sellModalState, isReportMode, openSearch]);
 
-  const handleTagSelect = useCallback((tag: string | null) => { setActiveTag(tag); scrollToFundTable(); }, [scrollToFundTable]);
-  const handleTagDoubleClick = useCallback((tag: string) => { setActiveTag(prev => (prev === tag) ? (tag === SYSTEM_TAGS.HOLDING ? null : SYSTEM_TAGS.HOLDING) : tag); scrollToFundTable(); }, [scrollToFundTable]);
-  const handleSnapshotFilter = useCallback((date: string) => { const tag = date === '待成交' ? 'TX_PENDING' : `TX_DATE:${date}`; setActiveTag(prev => prev === tag ? null : tag); scrollToFundTable(); }, [scrollToFundTable]);
+  const handleTagSelect = useCallback((tag: string | null) => { leaveSearchFor(tag); setActiveTag(tag); scrollToFundTable(); }, [scrollToFundTable, leaveSearchFor]);
+  const handleTagDoubleClick = useCallback((tag: string) => { leaveSearchFor(tag); setActiveTag(prev => (prev === tag) ? (tag === SYSTEM_TAGS.HOLDING ? null : SYSTEM_TAGS.HOLDING) : tag); scrollToFundTable(); }, [scrollToFundTable, leaveSearchFor]);
+  const handleSnapshotFilter = useCallback((date: string) => { const tag = date === '待成交' ? 'TX_PENDING' : `TX_DATE:${date}`; leaveSearchFor(tag); setActiveTag(prev => prev === tag ? null : tag); scrollToFundTable(); }, [scrollToFundTable, leaveSearchFor]);
   const handleTagSortChange = useCallback((newKey: keyof TagAnalysisData) => {
     setTagSortKey(prevKey => {
       if (prevKey === newKey) setTagSortOrder(prev => (prev === 'desc' ? 'asc' : prev === 'asc' ? 'abs_asc' : prev === 'abs_asc' ? 'abs_desc' : 'desc'));
@@ -1080,7 +1091,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string, typ
       ) : funds.length > 0 ? (
         <>
           <div className="sticky left-4 z-30 w-[calc(100vw-2rem)]">
-            <ControlsCard tags={allTags} activeTag={activeTag} onTagSelect={handleTagSelect} sortBy={sortBy} sortOrder={sortOrder} onSortByChange={handleSortByChange} onSortOrderChange={handleSortOrderChange} recordCount={recordCount} onRecordCountChange={handleRecordCountChange} zigzagThreshold={zigzagThreshold} onZigzagThresholdChange={handleZigzagThresholdChange} onRefresh={handleRefresh} onLongPressRefresh={handleFullReload} isRefreshing={isRefreshing} isLoading={isLoading || isAppLoading} totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit} totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate} summaryProfitCaused={snapshotSummary.summaryProfitCaused} summaryOperationEffect={snapshotSummary.summaryOperationEffect} onOpenGemini={() => setIsGeminiModalOpen(true)} indexData={indexData} marketTurnover={marketTurnover} searchCode={isSearchOpen ? searchCode : null} onOpenSearch={openSearch} />
+            <ControlsCard tags={allTags} activeTag={activeTag} onTagSelect={handleTagSelect} sortBy={sortBy} sortOrder={sortOrder} onSortByChange={handleSortByChange} onSortOrderChange={handleSortOrderChange} recordCount={recordCount} onRecordCountChange={handleRecordCountChange} zigzagThreshold={zigzagThreshold} onZigzagThresholdChange={handleZigzagThresholdChange} onRefresh={handleRefresh} onLongPressRefresh={handleFullReload} isRefreshing={isRefreshing} isLoading={isLoading || isAppLoading} totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit} totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate} summaryProfitCaused={snapshotSummary.summaryProfitCaused} summaryOperationEffect={snapshotSummary.summaryOperationEffect} onOpenGemini={() => setIsGeminiModalOpen(true)} indexData={indexData} marketTurnover={marketTurnover} searchCode={isSearchOpen ? searchCode : null} searchTagValue={SEARCH_TAG_PREFIX + searchCode} onOpenSearch={openSearch} />
           </div>
           <div className="sticky left-4 z-20 w-[calc(100vw-2rem)]">
             <TagAnalysisTable data={analysisResults.tagAnalysisData} totals={analysisResults.portfolioTotals} activeTag={activeTag} onTagDoubleClick={handleTagDoubleClick} sortKey={tagSortKey} sortOrder={tagSortOrder} onSortChange={handleTagSortChange} />
