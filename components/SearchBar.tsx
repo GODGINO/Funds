@@ -9,7 +9,7 @@ interface SearchBarProps {
   onJump: () => void;
 }
 
-/** ⌘F / Ctrl+F 基金代码搜索框：只接受数字（最多 6 位），Esc 关闭并恢复原筛选。 */
+/** ⌘F / Ctrl+F 基金代码搜索框：接受多个代码（英文逗号+空格分隔），Esc 关闭并恢复原筛选。 */
 const SearchBar: React.FC<SearchBarProps> = ({ isOpen, value, matchCount, onChange, onClose, onJump }) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -26,8 +26,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ isOpen, value, matchCount, onChan
     if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }
     if (e.key === 'Enter') { e.preventDefault(); onJump(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); inputRef.current?.select(); return; }
-    // 可打印字符只放行数字；功能键（退格/方向键等）照常
-    if (e.key.length === 1 && !/[0-9]/.test(e.key) && !e.metaKey && !e.ctrlKey) e.preventDefault();
+    // 可打印字符只放行数字、英文逗号与空格（多代码用「, 」分隔）；功能键照常
+    if (e.key.length === 1 && !/[0-9, ]/.test(e.key) && !e.metaKey && !e.ctrlKey) e.preventDefault();
   };
 
   return (
@@ -39,18 +39,16 @@ const SearchBar: React.FC<SearchBarProps> = ({ isOpen, value, matchCount, onChan
         ref={inputRef}
         type="text"
         inputMode="numeric"
-        pattern="[0-9]*"
-        maxLength={6}
         value={value}
-        placeholder="基金代码"
-        onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
+        placeholder="基金代码，多个用「, 」分隔"
+        onChange={(e) => onChange(e.target.value.replace(/[^0-9, ]/g, '').replace(/,(?! )/g, ', ').replace(/ {2,}/g, ' '))}
         onKeyDown={handleKeyDown}
-        className="w-32 bg-transparent text-sm font-mono outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400"
+        className="w-64 bg-transparent text-sm font-mono outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400"
         aria-label="按基金代码搜索"
       />
-      <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums whitespace-nowrap">
-        {value ? `${matchCount} 只` : '全部'}
-      </span>
+      {value.trim() !== '' && (
+        <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums whitespace-nowrap">{matchCount} 只</span>
+      )}
       <button
         type="button"
         onClick={onClose}

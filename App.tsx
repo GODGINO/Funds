@@ -727,7 +727,7 @@ const App: React.FC = () => {
   const processedAndSortedFunds = useMemo(() => {
     const filteredFunds = processedFunds.filter(fund => {
         if (!activeTag) return true;
-        if (activeTag.startsWith(SEARCH_TAG_PREFIX)) { const code = activeTag.substring(SEARCH_TAG_PREFIX.length); return !code || fund.code.includes(code); }
+        if (activeTag.startsWith(SEARCH_TAG_PREFIX)) { const codes = activeTag.substring(SEARCH_TAG_PREFIX.length).split(/[,\s]+/).filter(Boolean); return codes.length === 0 || codes.some(c => fund.code.includes(c)); }
         if (activeTag.startsWith('TX_DATE:')) return fund.userPosition?.tradingRecords?.some(r => r.date === activeTag.substring(8)) ?? false;
         if (activeTag === 'TX_PENDING') return fund.userPosition?.tradingRecords?.some(r => r.nav === undefined) ?? false;
         const position = fund.userPosition;

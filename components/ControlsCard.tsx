@@ -107,7 +107,7 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
             className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-1.5 px-2 text-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
           >
             <option value="">All</option>
-            {isSearching && <option value={searchTagValue}>搜索: {searchCode || '…'}</option>}
+            {isSearching && <option value={searchTagValue}>搜索: {(searchCode || '').trim() || '…'}</option>}
             {tags.map(tag => (
               <option key={tag} value={tag}>{tag}</option>
             ))}
