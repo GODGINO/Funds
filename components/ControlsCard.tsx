@@ -27,6 +27,10 @@ interface ControlsCardProps {
   onOpenGemini: () => void;
   indexData: IndexData | null;
   marketTurnover: string | null;
+  /** 搜索激活时为当前输入（可为空串），未激活为 null */
+  searchCode?: string | null;
+  onOpenSearch?: () => void;
+  onClearSearch?: () => void;
 }
 
 const ControlsCard: React.FC<ControlsCardProps> = ({ 
@@ -52,7 +56,11 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
   onOpenGemini,
   indexData,
   marketTurnover,
+  searchCode = null,
+  onOpenSearch,
+  onClearSearch,
 }) => {
+  const isSearching = searchCode !== null;
   const isDisabled = isLoading || isRefreshing;
   const profitColor = totalDailyProfit >= 0 ? 'text-red-500' : 'text-green-600';
   const profitCausedColor = summaryProfitCaused != null && summaryProfitCaused >= 0 ? 'text-red-500' : 'text-green-600';
@@ -91,10 +99,12 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
         {/* Tag Filter Dropdown */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">筛选</label>
+          <div className="flex items-center gap-2">
           <select
-            value={activeTag || ''}
+            value={isSearching ? '' : (activeTag || '')}
             onChange={(e) => onTagSelect(e.target.value || null)}
-            disabled={isDisabled || tags.length === 0}
+            disabled={isDisabled || tags.length === 0 || isSearching}
+            title={isSearching ? '搜索中：筛选固定为 All' : undefined}
             className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-1.5 px-2 text-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
           >
             <option value="">All</option>
@@ -102,6 +112,17 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
               <option key={tag} value={tag}>{tag}</option>
             ))}
           </select>
+          {isSearching && (
+            <button
+              type="button"
+              onClick={onClearSearch}
+              className="inline-flex items-center gap-1 rounded-full bg-primary-50 dark:bg-gray-800 border border-primary-300 dark:border-gray-600 px-2 py-0.5 text-xs text-primary-700 dark:text-primary-300 hover:bg-primary-100"
+              title="退出搜索，恢复原筛选 (Esc)"
+            >
+              搜索：{searchCode || '…'} <span aria-hidden>×</span>
+            </button>
+          )}
+          </div>
         </div>
 
         {/* Sorting Controls */}
@@ -213,6 +234,21 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
       
       {/* Right-side group for refresh */}
       <div className="flex items-end gap-2">
+        {/* Fund code search (⌘F / Ctrl+F) */}
+        {onOpenSearch && (
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            disabled={isDisabled}
+            className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="按基金代码搜索"
+            title="按基金代码搜索 (⌘F / Ctrl+F)"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+            </svg>
+          </button>
+        )}
         {/* Gemini Advisor Button */}
         {showGemini && (
           <button

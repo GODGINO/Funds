@@ -20,6 +20,7 @@ import { generatePortfolioAdvice } from './services/geminiService';
 import TerminalModal from './components/TerminalModal';
 import { processTerminalCommand } from './services/terminalService';
 import ReportView from './components/ReportView';
+import SearchBar from './components/SearchBar';
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042'];
 
@@ -137,6 +138,10 @@ const App: React.FC = () => {
   });
 
   const [isReportMode, setIsReportMode] = useState(() => localStorage.getItem('GINOS_REPORT_MODE') === 'true');
+  // ⌘F / Ctrl+F 基金代码搜索
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchCode, setSearchCode] = useState('');
+  const searchPrevTagRef = useRef<string | null>(null);
 
   const inactivityTimer = useRef<number | null>(null);
   const longPressTimer = useRef<number | null>(null);
@@ -718,6 +723,7 @@ const App: React.FC = () => {
 
   const processedAndSortedFunds = useMemo(() => {
     const filteredFunds = processedFunds.filter(fund => {
+        if (searchCode) return fund.code.includes(searchCode);
         if (!activeTag) return true;
         if (activeTag.startsWith('TX_DATE:')) return fund.userPosition?.tradingRecords?.some(r => r.date === activeTag.substring(8)) ?? false;
         if (activeTag === 'TX_PENDING') return fund.userPosition?.tradingRecords?.some(r => r.nav === undefined) ?? false;
@@ -750,7 +756,7 @@ const App: React.FC = () => {
       return sortOrder === 'desc' ? -comparison : comparison;
     });
     return filteredFunds;
-  }, [processedFunds, sortBy, sortOrder, activeTag]);
+  }, [processedFunds, sortBy, sortOrder, activeTag, searchCode]);
   
   const filteredMarketStats = useMemo(() => {
       const total = processedAndSortedFunds.reduce((sum, f) => sum + (f.marketValue || 0), 0);
@@ -776,6 +782,40 @@ const App: React.FC = () => {
       })
     );
   }, []);
+
+  const openSearch = useCallback(() => {
+    if (!isSearchOpen) { searchPrevTagRef.current = activeTag; setActiveTag(null); }
+    setIsSearchOpen(true);
+  }, [isSearchOpen, activeTag]);
+  const closeSearch = useCallback(() => {
+    setIsSearchOpen(false);
+    setSearchCode('');
+    setActiveTag(searchPrevTagRef.current);
+    searchPrevTagRef.current = null;
+  }, []);
+  const handleSearchChange = useCallback((code: string) => { setSearchCode(code); }, []);
+  const handleSearchJump = useCallback(() => {
+    const first = processedAndSortedFunds[0];
+    if (!first) return;
+    const row = document.querySelector<HTMLElement>(`[data-fund-code="${first.code}"]`);
+    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' }); else scrollToFundTable();
+  }, [processedAndSortedFunds, scrollToFundTable]);
+
+  useEffect(() => {
+    const isAnyModalOpen = isVeiled || !!selectedFundForModal || isImportModalOpen || isTransactionManagerOpen || isGeminiModalOpen || isTerminalOpen || !!buyModalState || !!sellModalState;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'f' || e.altKey || e.shiftKey) return;
+      if (isAnyModalOpen || isReportMode) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const isTyping = (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) && target?.getAttribute('aria-label') !== '按基金代码搜索';
+      if (isTyping) return;
+      e.preventDefault();
+      openSearch();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isVeiled, selectedFundForModal, isImportModalOpen, isTransactionManagerOpen, isGeminiModalOpen, isTerminalOpen, buyModalState, sellModalState, isReportMode, openSearch]);
 
   const handleTagSelect = useCallback((tag: string | null) => { setActiveTag(tag); scrollToFundTable(); }, [scrollToFundTable]);
   const handleTagDoubleClick = useCallback((tag: string) => { setActiveTag(prev => (prev === tag) ? (tag === SYSTEM_TAGS.HOLDING ? null : SYSTEM_TAGS.HOLDING) : tag); scrollToFundTable(); }, [scrollToFundTable]);
@@ -1039,7 +1079,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string, typ
       ) : funds.length > 0 ? (
         <>
           <div className="sticky left-4 z-30 w-[calc(100vw-2rem)]">
-            <ControlsCard tags={allTags} activeTag={activeTag} onTagSelect={handleTagSelect} sortBy={sortBy} sortOrder={sortOrder} onSortByChange={handleSortByChange} onSortOrderChange={handleSortOrderChange} recordCount={recordCount} onRecordCountChange={handleRecordCountChange} zigzagThreshold={zigzagThreshold} onZigzagThresholdChange={handleZigzagThresholdChange} onRefresh={handleRefresh} onLongPressRefresh={handleFullReload} isRefreshing={isRefreshing} isLoading={isLoading || isAppLoading} totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit} totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate} summaryProfitCaused={snapshotSummary.summaryProfitCaused} summaryOperationEffect={snapshotSummary.summaryOperationEffect} onOpenGemini={() => setIsGeminiModalOpen(true)} indexData={indexData} marketTurnover={marketTurnover} />
+            <ControlsCard tags={allTags} activeTag={activeTag} onTagSelect={handleTagSelect} sortBy={sortBy} sortOrder={sortOrder} onSortByChange={handleSortByChange} onSortOrderChange={handleSortOrderChange} recordCount={recordCount} onRecordCountChange={handleRecordCountChange} zigzagThreshold={zigzagThreshold} onZigzagThresholdChange={handleZigzagThresholdChange} onRefresh={handleRefresh} onLongPressRefresh={handleFullReload} isRefreshing={isRefreshing} isLoading={isLoading || isAppLoading} totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit} totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate} summaryProfitCaused={snapshotSummary.summaryProfitCaused} summaryOperationEffect={snapshotSummary.summaryOperationEffect} onOpenGemini={() => setIsGeminiModalOpen(true)} indexData={indexData} marketTurnover={marketTurnover} searchCode={isSearchOpen ? searchCode : null} onOpenSearch={openSearch} onClearSearch={closeSearch} />
           </div>
           <div className="sticky left-4 z-20 w-[calc(100vw-2rem)]">
             <TagAnalysisTable data={analysisResults.tagAnalysisData} totals={analysisResults.portfolioTotals} activeTag={activeTag} onTagDoubleClick={handleTagDoubleClick} sortKey={tagSortKey} sortOrder={tagSortOrder} onSortChange={handleTagSortChange} />
@@ -1066,6 +1106,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string, typ
       <ImportModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} onImport={handleImportData} currentData={currentPortfolioJSON} funds={processedFunds} isAutoSyncEnabled={isAutoSyncEnabled} onToggleAutoSync={handleToggleAutoSync} />
       <TransactionManagerModal isOpen={isTransactionManagerOpen} onClose={() => setIsTransactionManagerOpen(false)} funds={processedFunds} onEdit={handleEditPendingRecord} onDelete={handleTradeDelete} />
       <GeminiAdvisorModal isOpen={isGeminiModalOpen} onClose={() => setIsGeminiModalOpen(false)} isLoading={isGeminiLoading} analysisResult={geminiAnalysisResult} error={geminiError} onGenerate={handleGenerateAdvice} />
+      <SearchBar isOpen={isSearchOpen} value={searchCode} matchCount={processedAndSortedFunds.length} onChange={handleSearchChange} onClose={closeSearch} onJump={handleSearchJump} />
       <TerminalModal isOpen={isTerminalOpen} onClose={() => setIsTerminalOpen(false)} onCommand={handleTerminalCommand} />
       {buyModalState && <BuyModal isOpen={!!buyModalState} onClose={() => setBuyModalState(null)} onSubmit={handleTradeSubmit} onDelete={handleTradeDelete} tradeState={buyModalState} />}
       {sellModalState && <SellModal isOpen={!!sellModalState} onClose={() => setSellModalState(null)} onSubmit={handleTradeSubmit} onDelete={handleTradeDelete} tradeState={sellModalState} />}
