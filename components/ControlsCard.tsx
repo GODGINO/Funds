@@ -109,7 +109,6 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
               <option key={tag} value={tag}>{tag}</option>
             ))}
           </select>
-          </div>
         </div>
 
         {/* Sorting Controls */}
