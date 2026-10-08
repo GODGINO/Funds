@@ -32,7 +32,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ isOpen, value, matchCount, onChan
 
   return (
     <div
-      className="fixed top-3 right-4 z-[100] flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg px-3 py-2"
+      className="fixed top-3 right-4 z-[300] flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg px-3 py-2"
       role="search"
     >
       <input

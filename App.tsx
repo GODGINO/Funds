@@ -802,7 +802,8 @@ const App: React.FC = () => {
   }, [processedAndSortedFunds, scrollToFundTable]);
 
   useEffect(() => {
-    const isAnyModalOpen = isVeiled || !!selectedFundForModal || isImportModalOpen || isTransactionManagerOpen || isGeminiModalOpen || isTerminalOpen || !!buyModalState || !!sellModalState;
+    // 隐私遮罩下也允许 ⌘F（遮罩层级 z-200，搜索框需更高）
+    const isAnyModalOpen = !!selectedFundForModal || isImportModalOpen || isTransactionManagerOpen || isGeminiModalOpen || isTerminalOpen || !!buyModalState || !!sellModalState;
     const onKeyDown = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'f' || e.altKey || e.shiftKey) return;
       if (isAnyModalOpen || isReportMode) return;
@@ -815,7 +816,7 @@ const App: React.FC = () => {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isVeiled, selectedFundForModal, isImportModalOpen, isTransactionManagerOpen, isGeminiModalOpen, isTerminalOpen, buyModalState, sellModalState, isReportMode, openSearch]);
+  }, [selectedFundForModal, isImportModalOpen, isTransactionManagerOpen, isGeminiModalOpen, isTerminalOpen, buyModalState, sellModalState, isReportMode, openSearch]);
 
   const handleTagSelect = useCallback((tag: string | null) => { setActiveTag(tag); scrollToFundTable(); }, [scrollToFundTable]);
   const handleTagDoubleClick = useCallback((tag: string) => { setActiveTag(prev => (prev === tag) ? (tag === SYSTEM_TAGS.HOLDING ? null : SYSTEM_TAGS.HOLDING) : tag); scrollToFundTable(); }, [scrollToFundTable]);
@@ -1079,7 +1080,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string, typ
       ) : funds.length > 0 ? (
         <>
           <div className="sticky left-4 z-30 w-[calc(100vw-2rem)]">
-            <ControlsCard tags={allTags} activeTag={activeTag} onTagSelect={handleTagSelect} sortBy={sortBy} sortOrder={sortOrder} onSortByChange={handleSortByChange} onSortOrderChange={handleSortOrderChange} recordCount={recordCount} onRecordCountChange={handleRecordCountChange} zigzagThreshold={zigzagThreshold} onZigzagThresholdChange={handleZigzagThresholdChange} onRefresh={handleRefresh} onLongPressRefresh={handleFullReload} isRefreshing={isRefreshing} isLoading={isLoading || isAppLoading} totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit} totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate} summaryProfitCaused={snapshotSummary.summaryProfitCaused} summaryOperationEffect={snapshotSummary.summaryOperationEffect} onOpenGemini={() => setIsGeminiModalOpen(true)} indexData={indexData} marketTurnover={marketTurnover} searchCode={isSearchOpen ? searchCode : null} onOpenSearch={openSearch} onClearSearch={closeSearch} />
+            <ControlsCard tags={allTags} activeTag={activeTag} onTagSelect={handleTagSelect} sortBy={sortBy} sortOrder={sortOrder} onSortByChange={handleSortByChange} onSortOrderChange={handleSortOrderChange} recordCount={recordCount} onRecordCountChange={handleRecordCountChange} zigzagThreshold={zigzagThreshold} onZigzagThresholdChange={handleZigzagThresholdChange} onRefresh={handleRefresh} onLongPressRefresh={handleFullReload} isRefreshing={isRefreshing} isLoading={isLoading || isAppLoading} totalDailyProfit={analysisResults.portfolioTotals.totalDailyProfit} totalDailyProfitRate={analysisResults.portfolioTotals.dailyProfitRate} summaryProfitCaused={snapshotSummary.summaryProfitCaused} summaryOperationEffect={snapshotSummary.summaryOperationEffect} onOpenGemini={() => setIsGeminiModalOpen(true)} indexData={indexData} marketTurnover={marketTurnover} searchCode={isSearchOpen ? searchCode : null} onOpenSearch={openSearch} />
           </div>
           <div className="sticky left-4 z-20 w-[calc(100vw-2rem)]">
             <TagAnalysisTable data={analysisResults.tagAnalysisData} totals={analysisResults.portfolioTotals} activeTag={activeTag} onTagDoubleClick={handleTagDoubleClick} sortKey={tagSortKey} sortOrder={tagSortOrder} onSortChange={handleTagSortChange} />

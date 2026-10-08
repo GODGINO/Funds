@@ -30,7 +30,6 @@ interface ControlsCardProps {
   /** 搜索激活时为当前输入（可为空串），未激活为 null */
   searchCode?: string | null;
   onOpenSearch?: () => void;
-  onClearSearch?: () => void;
 }
 
 const ControlsCard: React.FC<ControlsCardProps> = ({ 
@@ -58,7 +57,6 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
   marketTurnover,
   searchCode = null,
   onOpenSearch,
-  onClearSearch,
 }) => {
   const isSearching = searchCode !== null;
   const isDisabled = isLoading || isRefreshing;
@@ -99,7 +97,6 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
         {/* Tag Filter Dropdown */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">筛选</label>
-          <div className="flex items-center gap-2">
           <select
             value={isSearching ? '' : (activeTag || '')}
             onChange={(e) => onTagSelect(e.target.value || null)}
@@ -112,16 +109,6 @@ const ControlsCard: React.FC<ControlsCardProps> = ({
               <option key={tag} value={tag}>{tag}</option>
             ))}
           </select>
-          {isSearching && (
-            <button
-              type="button"
-              onClick={onClearSearch}
-              className="inline-flex items-center gap-1 rounded-full bg-primary-50 dark:bg-gray-800 border border-primary-300 dark:border-gray-600 px-2 py-0.5 text-xs text-primary-700 dark:text-primary-300 hover:bg-primary-100"
-              title="退出搜索，恢复原筛选 (Esc)"
-            >
-              搜索：{searchCode || '…'} <span aria-hidden>×</span>
-            </button>
-          )}
           </div>
         </div>
 
