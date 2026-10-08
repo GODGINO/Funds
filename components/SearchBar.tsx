@@ -4,6 +4,7 @@ interface SearchBarProps {
   isOpen: boolean;
   /** 每次 ⌘F 自增：已打开时再次按下也重新聚焦并全选 */
   focusNonce: number;
+  matchCount: number;
   value: string;
   onChange: (code: string) => void;
   onClose: () => void;
@@ -11,7 +12,7 @@ interface SearchBarProps {
 }
 
 /** ⌘F / Ctrl+F 基金代码搜索框：接受多个代码（英文逗号+空格分隔），Esc 关闭并恢复原筛选。 */
-const SearchBar: React.FC<SearchBarProps> = ({ isOpen, focusNonce, value, onChange, onClose, onJump }) => {
+const SearchBar: React.FC<SearchBarProps> = ({ isOpen, focusNonce, value, matchCount, onChange, onClose, onJump }) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -47,6 +48,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ isOpen, focusNonce, value, onChan
         className="w-64 bg-transparent text-sm font-mono outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400"
         aria-label="按基金代码搜索"
       />
+      {value.trim() !== '' && (
+        <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums whitespace-nowrap">{matchCount} 只</span>
+      )}
       <button
         type="button"
         onClick={onClose}
