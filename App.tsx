@@ -145,6 +145,7 @@ const App: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchCode, setSearchCode] = useState('');
   const searchPrevTagRef = useRef<string | null>(null);
+  const [searchFocusNonce, setSearchFocusNonce] = useState(0);
 
   const inactivityTimer = useRef<number | null>(null);
   const longPressTimer = useRef<number | null>(null);
@@ -789,6 +790,7 @@ const App: React.FC = () => {
   const openSearch = useCallback(() => {
     if (!isSearchOpen) { searchPrevTagRef.current = activeTag; setActiveTag(SEARCH_TAG_PREFIX + searchCode); }
     setIsSearchOpen(true);
+    setSearchFocusNonce(n => n + 1); // 已打开时再按 ⌘F：重新聚焦并全选
   }, [isSearchOpen, activeTag, searchCode]);
   // 关闭搜索框（× / Esc）：退出搜索并恢复打开前的筛选
   const closeSearch = useCallback(() => {
@@ -1118,7 +1120,7 @@ const handleTradeDelete = useCallback((fundCode: string, recordDate: string, typ
       <ImportModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} onImport={handleImportData} currentData={currentPortfolioJSON} funds={processedFunds} isAutoSyncEnabled={isAutoSyncEnabled} onToggleAutoSync={handleToggleAutoSync} />
       <TransactionManagerModal isOpen={isTransactionManagerOpen} onClose={() => setIsTransactionManagerOpen(false)} funds={processedFunds} onEdit={handleEditPendingRecord} onDelete={handleTradeDelete} />
       <GeminiAdvisorModal isOpen={isGeminiModalOpen} onClose={() => setIsGeminiModalOpen(false)} isLoading={isGeminiLoading} analysisResult={geminiAnalysisResult} error={geminiError} onGenerate={handleGenerateAdvice} />
-      <SearchBar isOpen={isSearchOpen} value={searchCode} matchCount={processedAndSortedFunds.length} onChange={handleSearchChange} onClose={closeSearch} onJump={handleSearchJump} />
+      <SearchBar isOpen={isSearchOpen} focusNonce={searchFocusNonce} value={searchCode} onChange={handleSearchChange} onClose={closeSearch} onJump={handleSearchJump} />
       <TerminalModal isOpen={isTerminalOpen} onClose={() => setIsTerminalOpen(false)} onCommand={handleTerminalCommand} />
       {buyModalState && <BuyModal isOpen={!!buyModalState} onClose={() => setBuyModalState(null)} onSubmit={handleTradeSubmit} onDelete={handleTradeDelete} tradeState={buyModalState} />}
       {sellModalState && <SellModal isOpen={!!sellModalState} onClose={() => setSellModalState(null)} onSubmit={handleTradeSubmit} onDelete={handleTradeDelete} tradeState={sellModalState} />}
