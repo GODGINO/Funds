@@ -164,9 +164,26 @@ export function fetchFundDetails(code: string): Promise<{ name: string; realTime
         document.head.appendChild(script);
     });
 
+    // 2026-10-09 备用源：同花顺当日不推盘中点时，经 Netlify Function 代理新浪 fu_ 估值（浏览器直连会 403）。
+    const fetchSina = (): Promise<{ name: string; realTimeData?: RealTimeData }> => {
+        const cachedName = HQCODE_MAP[code]?.name || fundDetailsCache[code]?.name || code;
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        return fetch(`/.netlify/functions/fu?codes=${code}&_=${Date.now()}`)
+            .then(r => (r.ok ? r.json() : Promise.reject(new Error(`fu HTTP ${r.status}`))))
+            .then((j: any) => {
+                const q = j && j[code];
+                if (!q || q.dataDate !== today) return { name: cachedName, realTimeData: undefined };
+                const realTimeData: RealTimeData = { estimatedNAV: q.estimatedNAV, estimatedChange: q.estimatedChange, estimationTime: q.estimationTime };
+                return { name: q.name || cachedName, realTimeData };
+            });
+    };
+
     const robustFetch = fetchPrimary().then(details => {
-        fundDetailsCache[code] = details;
-        return details;
+        if (details.realTimeData) { fundDetailsCache[code] = details; return details; }
+        // 主源无今日盘中点 → 试新浪；新浪也没有则保留主源结果（名称有效、无估值）
+        return fetchSina().then(d => { fundDetailsCache[code] = d.realTimeData ? d : details; return fundDetailsCache[code]; })
+            .catch(() => { fundDetailsCache[code] = details; return details; });
     }).catch(error => {
         const cachedData = fundDetailsCache[code];
         if (cachedData && cachedData.realTimeData) {
